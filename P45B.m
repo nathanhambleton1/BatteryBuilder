@@ -24,6 +24,16 @@ function P45B(action, varargin)
 %   edit the config() function immediately below - it is the only place any
 %   number is written down. Everything else is derived from it.
 %
+%   THE DUTY CYCLE is a discharge pulse train against a charger that stops when
+%   the pack is full:
+%     pulseCrate / pulsePeriod / pulseDuty / pulseDelay  size and time the pulse
+%     V_recharge          once full, the pack rests until the highest cell
+%                         falls back to this, then charges again
+%     SOC_minDischarge    protection floor; the pulse is refused below it,
+%     SOC_resumeDischarge and stays refused until the charger reaches this
+%   The pulse always wins. Between pulses the pack charges if it needs to and
+%   sits at zero current if it does not.
+%
 %   Changing Ns or Np needs "P45B build" afterwards, because the series and
 %   parallel counts are compiled into the generated Simscape source. Nothing
 %   else does.
@@ -58,12 +68,32 @@ function c = config()
 c.Ns = 195;                 % Cells in series
 c.Np = 1;                   % Cells in parallel
 
-% ---- Duty cycle --------------------------------------------------------
-c.chargeCrate       = 1.0;  % Charge current as a multiple of cell capacity (P45B limit = 1C)
-c.dischargeCrate    = 1.0;  % Discharge current as a multiple of cell capacity
+% ---- Charging ----------------------------------------------------------
+c.chargeCrate       = 1.0;  % Charge current as a multiple of cell capacity (P45B standard = 1C)
 c.SOC0              = 0.30; % Initial state of charge of every cell
-c.taperCrate        = 0.05; % End the charge when the CV current tapers below this C-rate
-c.SOC_stopDischarge = 0.25; % Stop discharging (start charging) below this mean SOC
+c.taperCrate        = 0.05; % Charge is complete when the CV current tapers below this C-rate
+c.V_recharge        = 4.10; % Once complete, charge again only after the highest
+                            % cell falls back to this. This is the anti-chatter
+                            % hysteresis. Cell volts, not SOC: on an unbalanced
+                            % pack the mean SOC never gets near 1, so any SOC
+                            % threshold high enough to trip is only millivolts
+                            % clear of the CV band. See README section 2.
+
+% ---- Discharge pulse train --------------------------------------------
+% A Pulse Generator inside "Charge Logic" drives the discharge. The pulse has
+% absolute priority: whenever it is high the pack discharges, whatever the
+% charger wants. Between pulses the pack charges if it needs to, and rests if
+% it does not.
+c.pulseCrate        = 1.0;  % Pulse amplitude as a multiple of cell capacity (limit = 10C)
+c.pulsePeriod       = 900;  % Pulse repeat period, s
+c.pulseDuty         = 20;   % Percent of each period the pulse is on
+c.pulseDelay        = 300;  % Delay before the first pulse, s
+c.SOC_minDischarge  = 0.05; % Stop the pulse below this mean SOC, and
+c.SOC_resumeDischarge = 0.25; % do not let it start again until the charger has
+                            % brought the pack back up to here. Same one-way
+                            % hysteresis as V_recharge, at the other end. Set
+                            % SOC_minDischarge = 0 to let the pulse run the
+                            % pack flat with no floor at all.
 
 % ---- Controller --------------------------------------------------------
 c.Ts           = 1;         % Controller + local solver sample time (s)
@@ -155,10 +185,21 @@ S.packAH   = S.Np*cellP.AH;
 S.packWh   = S.packVnom*S.packAH;
 
 % ---- Duty-cycle currents ----------------------------------------------
-S.Icharge    = S.chargeCrate   *cellP.AH*S.Np;   % Pack charging current, A
-S.Idischarge = S.dischargeCrate*cellP.AH*S.Np;   % Pack discharging current, A
-S.Iterm      = S.taperCrate    *cellP.AH*S.Np;   % Charge-termination current, A
-S.dVterm     = 0.010;                            % How close to vMaxCell counts as "in CV", V
+S.Icharge = S.chargeCrate*cellP.AH*S.Np;   % Pack charging current, A
+S.Ipulse  = S.pulseCrate *cellP.AH*S.Np;   % Discharge-pulse amplitude, A
+S.Iterm   = S.taperCrate *cellP.AH*S.Np;   % Charge-termination current, A
+S.dVterm  = 0.010;                         % How close to vMaxCell counts as "in CV", V
+
+% ---- Discharge pulse train, in controller samples ----------------------
+% The model is fixed-step discrete at Ts, so the Pulse Generator runs in
+% sample-based mode and its period / width have to be whole numbers of steps.
+% Round here, once, and report what the pack will actually see.
+S.pulseN      = max(1, round(S.pulsePeriod/S.Ts));               % steps per period
+S.pulseNon    = min(S.pulseN, max(1, round(S.pulseN*S.pulseDuty/100)));  % steps on
+S.pulseNdelay = max(0, round(S.pulseDelay/S.Ts));                % steps before the first pulse
+S.pulseOnTime = S.pulseNon*S.Ts;                 % Achieved pulse width, s
+S.pulseTime   = S.pulseN  *S.Ts;                 % Achieved period, s
+S.pulseDutyOn = 100*S.pulseNon/S.pulseN;         % Achieved duty cycle, percent
 
 % ---- CC-CV controller gains -------------------------------------------
 % The CC-CV block sees per-cell volts and commands pack amps, so the plant
@@ -175,6 +216,7 @@ S.Kt       = 1/S.Ts;              % Signal-tracking gain (bumpless CC->CV), 1/s
 S.tauCV    = (1 + S.Kp*S.Reff)/(S.Ki*S.Reff);   % CV time constant, s (= 2*tauRatio)
 
 checkLibrary(S.Ns, S.Np);
+checkThresholds(S);
 
 fn = fieldnames(S);
 for k = 1:numel(fn), assignin('base', fn{k}, S.(fn{k})); end
@@ -188,10 +230,19 @@ fprintf('\n  P45B pack  %ds%dp  (%d cells)\n', S.Ns, S.Np, S.Ncells);
 fprintf('    Voltage        %.1f V nominal   %.1f V full   %.1f V empty\n', ...
         S.packVnom, S.packVmax, S.packVmin);
 fprintf('    Capacity       %.2f Ah   =  %.2f kWh\n', S.packAH, S.packWh/1000);
-fprintf('    Currents       %.2f A charge (%.2gC)   %.2f A discharge (%.2gC)\n', ...
-        S.Icharge, S.chargeCrate, S.Idischarge, S.dischargeCrate);
+fprintf('    Currents       %.2f A charge (%.2gC)   %.2f A pulse (%.2gC)\n', ...
+        S.Icharge, S.chargeCrate, S.Ipulse, S.pulseCrate);
 fprintf('    Charge ends    when the CV current tapers below %.3f A (C/%.0f)\n', ...
         S.Iterm, 1/S.taperCrate);
+fprintf('    Then rests     until the highest cell falls back to %.3f V\n', S.V_recharge);
+fprintf('    Pulse train    %.4g s on / %.4g s off   (%.4g s period, %.3g%% duty)', ...
+        S.pulseOnTime, S.pulseTime - S.pulseOnTime, S.pulseTime, S.pulseDutyOn);
+if S.pulseNdelay > 0, fprintf('   first pulse at %.4g s', S.pulseNdelay*S.Ts); end
+fprintf('\n');
+if S.SOC_minDischarge > 0
+    fprintf('    Pulse blocked  below %.2f mean SOC, until the charger reaches %.2f\n', ...
+            S.SOC_minDischarge, S.SOC_resumeDischarge);
+end
 fprintf('    Rcell @ SOC %.2f   %.2f mOhm  (R0+R1)\n', S.SOC_cvDesign, S.Rcell_cv*1000);
 fprintf('    CC-CV gains    Kp = %.4g A/V   Ki = %.4g A/(V*s)   Kaw = %.4g 1/s   Kt = %.4g 1/s\n', ...
         S.Kp, S.Ki, S.Kaw, S.Kt);
@@ -204,16 +255,71 @@ end
 
 
 %% ======================================================================
+function checkThresholds(S)
+%CHECKTHRESHOLDS  Catch the settings that can make the charger chatter.
+%
+%   The "charge complete" latch in Charge Logic is set by (in CV) AND (current
+%   tapered) and cleared only when the highest cell falls back below
+%   V_recharge. That one-way hysteresis is the whole anti-chatter mechanism,
+%   and it only works if V_recharge sits well clear of the CV band the pack
+%   rests in - which is vMaxCell, minus a few mV of IR relaxation.
+
+band = S.vMaxCell - 4*S.dVterm;
+if S.V_recharge >= band
+    warning('P45B:rechargeTooHigh', ...
+        ['V_recharge = %.3f V is inside the band the pack relaxes into after a ' ...
+         'full charge (above %.3f V). The charge-complete latch will clear the ' ...
+         'moment it sets and the charger will switch on and off every Ts. ' ...
+         'Leave at least 50 mV, e.g. %.2f V.'], S.V_recharge, band, S.vMaxCell-0.1);
+end
+if S.V_recharge <= S.cellP.Vmin
+    warning('P45B:rechargeTooLow', ...
+        ['V_recharge = %.3f V is at or below the %.3f V discharge cut-off, so ' ...
+         'the pack will never recharge.'], S.V_recharge, S.cellP.Vmin);
+end
+if S.SOC_minDischarge > 0 && S.SOC_resumeDischarge <= S.SOC_minDischarge
+    warning('P45B:floorThresholds', ...
+        ['SOC_resumeDischarge (%.3f) is at or below SOC_minDischarge (%.3f). ' ...
+         'With no gap between them the pulse switches on and off every Ts once ' ...
+         'the pack reaches the floor.'], S.SOC_resumeDischarge, S.SOC_minDischarge);
+end
+if S.pulseNon*S.Ts > S.pulsePeriod*S.pulseDuty/100 + S.Ts/2
+    warning('P45B:pulseTooShort', ...
+        ['pulseDuty = %g%% of a %g s period is less than one %g s step, so the ' ...
+         'pulse is being stretched to one step. Set pulseCrate = 0 to switch the ' ...
+         'discharge off altogether.'], S.pulseDuty, S.pulsePeriod, S.Ts);
+end
+if S.pulseNon >= S.pulseN
+    warning('P45B:pulseAlwaysOn', ...
+        ['pulseDuty = %g%% rounds to a pulse that is on for the whole period, so ' ...
+         'the pack only ever discharges.'], S.pulseDuty);
+end
+if abs(S.pulseTime - S.pulsePeriod) > 1e-9 || ...
+   abs(S.pulseOnTime - S.pulsePeriod*S.pulseDuty/100) > 1e-9
+    fprintf(['  Note: the pulse was rounded to whole Ts steps - %g s period / ' ...
+             '%g s on, instead of %g s / %g s.\n'], ...
+            S.pulseTime, S.pulseOnTime, S.pulsePeriod, S.pulsePeriod*S.pulseDuty/100);
+end
+end
+
+
+%% ======================================================================
 function doBuild()
 %DOBUILD  Generate the Simscape battery library with Battery Builder.
 %
+%   Builds the whole hierarchy - Cell -> ParallelAssembly -> Module ->
+%   ModuleAssembly -> Pack - because only the pack level gives the block
+%   measurement ports. buildBattery leaves that pack in a model of its own, so
+%   the last step lifts it into the library the model actually references.
+%
 %   Produces, next to this file:
 %       P45BPack_lib.slx    Simulink library holding the "Pack" block
-%       +P45BPack/          Simscape source for the pack and its cells
+%       +P45BPack/          Simscape source for the modules and their cells
 %       P45BPack.mat        Battery Builder object, for the Battery Builder app
 %
 %   To inspect or edit the pack in the Battery Builder app afterwards:
-%       load P45BPack.mat, then run  batteryBuilder
+%       load P45BPack.mat        % gives you packObj
+%       batteryBuilder
 
 here = thisDir();
 addpath(here);
@@ -232,7 +338,7 @@ cellObj.CellModelOptions.BlockParameters.prm_dyn      = 'rc1';   % 1 RC branch -
 cellObj.CellModelOptions.BlockParameters.T_dependence = 'no';    % isothermal, no T tables
 cellObj.CellModelOptions.BlockParameters.thermal_port = 'omit';  % no thermal node
 cellObj.CellModelOptions.BlockParameters.prm_dir      = 'noCurrentDirectionality';
-cellObj.CellModelOptions.BlockParameters.SOC_port     = 'no';    % SOC read with a Probe block
+cellObj.CellModelOptions.BlockParameters.SOC_port     = 'no';    % the pack port already carries socCell
 cellObj.Capacity = simscape.Value(c.cellP.AH,'A*hr');
 
 % ---- Parallel assembly (Np cells) -------------------------------------
@@ -244,16 +350,39 @@ pa.CellParameterVariation = 'PercentDeviation'; % expose per-cell deviation inpu
 
 % ---- Module (Ns assemblies in series) ---------------------------------
 m = batteryModule(pa);
-m.Name                   = 'Pack';              % -> the "Pack.*" parameter struct
+m.Name                   = 'Module';
 m.NumSeriesAssemblies    = Ns;
 m.ModelResolution        = 'Detailed';
 m.CellParameterVariation = 'PercentDeviation';
 
+% ---- Module assembly and pack (one module each) -----------------------
+% Nothing is added electrically - both wrap the single module in series - but
+% batteryPack is the level at which Battery Builder gives the generated block
+% socCell / vCell / iCell measurement outputs, so no Probe block is needed.
+ma = batteryModuleAssembly(m);
+ma.Name = 'ModuleAssembly';
+
+pk = batteryPack(ma);
+pk.Name = 'Pack';
+
 % ---- Generate ---------------------------------------------------------
-if isfile(fullfile(here,'P45BPack_lib.slx')) && bdIsLoaded('P45BPack_lib')
-    close_system('P45BPack_lib', 0);
+% buildBattery refuses to overwrite anything it generated last time, so clear
+% the previous output first. Everything removed here is regenerated below.
+for mdl = {'P45B_CCCV','P45BPack','P45BPack_lib'}
+    if bdIsLoaded(mdl{1}), close_system(mdl{1}, 0); end
 end
-buildBattery(m, LibraryName='P45BPack', MaskParameters='VariableNamesByType');
+for f = {'P45BPack_lib.slx','P45BPack.slx','P45BPack.mat','P45BPack_param.m'}
+    if isfile(fullfile(here,f{1}))
+        fileattrib(fullfile(here,f{1}),'+w');
+        delete(fullfile(here,f{1}));
+    end
+end
+if isfolder(fullfile(here,'+P45BPack'))
+    rmdir(fullfile(here,'+P45BPack'),'s');
+end
+
+buildBattery(pk, LibraryName='P45BPack', MaskParameters='VariableNamesByType');
+promotePack(here);
 
 % buildBattery also drops a P45BPack_param.m holding Simscape's stock 27 Ah
 % cell defaults. Nothing uses it and the numbers contradict config(), so
@@ -261,9 +390,75 @@ buildBattery(m, LibraryName='P45BPack', MaskParameters='VariableNamesByType');
 stale = fullfile(here,'P45BPack_param.m');
 if isfile(stale), delete(stale); end
 
-save(fullfile(here,'P45BPack.mat'), 'cellObj', 'pa', 'm');
 fprintf(['\nDone. %ds%dp library generated.\n' ...
          'Open P45B_CCCV.slx and press Run.\n\n'], Ns, Np);
+end
+
+
+%% ======================================================================
+function promotePack(here)
+%PROMOTEPACK  Move the generated Pack block into P45BPack_lib.
+%
+%   At the pack level buildBattery writes two files: the library, holding only
+%   the Module and ParallelAssembly components, and a model (P45BPack.slx)
+%   holding the Pack subsystem that wires them together and brings the
+%   measurement signals out as ordinary Simulink ports. P45B_CCCV references
+%   P45BPack_lib/Pack, so copy that subsystem into the library and delete the
+%   throwaway model.
+%
+%   Two mask fixups go with the copy:
+%     - the generated block reads its cell tables from a struct named after the
+%       module class (ModuleType1.*); point it at Pack.* instead, which is what
+%       doSetup() puts in the base workspace.
+%     - re-apply the per-cell initial SOC target, socCell = SOC0Cell. It lives
+%       on the module block inside the library now, but SOC0Cell is still read
+%       from the base workspace at compile time, so "P45B vary" still works
+%       without a rebuild.
+
+libFile = fullfile(here,'P45BPack_lib.slx');
+fileattrib(libFile,'+w');              % buildBattery writes it read-only
+
+load_system(fullfile(here,'P45BPack.slx'));
+load_system(libFile);
+set_param('P45BPack_lib','Lock','off');
+if getSimulinkBlockHandle('P45BPack_lib/Pack') > 0
+    delete_block('P45BPack_lib/Pack');
+end
+add_block('P45BPack/Pack','P45BPack_lib/Pack');
+
+mb = 'P45BPack_lib/Pack/ModuleAssembly/Module';
+mo = Simulink.Mask.get(mb);
+prefix = [get_param(mb,'ClassName') '.'];
+for k = 1:numel(mo.Parameters)
+    prm = mo.Parameters(k);
+    val = char(string(prm.Value));
+    if strcmp(prm.Type,'edit') && startsWith(val, prefix)
+        set_param(mb, prm.Name, ['Pack.' extractAfter(val, prefix)]);
+    end
+end
+set_param(mb, 'socCell_specify','on', 'socCell_priority','High', 'socCell','SOC0Cell');
+
+% The block bakes the series/parallel counts in as literals, and it carries a
+% Battery Builder CopyFcn that breaks library links - so the copy sitting in
+% P45B_CCCV would go stale the moment Ns or Np changed, and simulate the old
+% pack in silence. Point them at the workspace instead. checkLibrary() already
+% refuses to run if those disagree with the generated source.
+set_param(mb, 'S', 'Ns', 'P', 'Np');
+
+save_system(libFile);
+close_system('P45BPack_lib', 0);
+close_system('P45BPack', 0);
+fileattrib(libFile,'-w');              % generated file - do not hand-edit
+
+% The pack now lives in the library; the generated model is a duplicate. Keep
+% the .mat, though - it is what reopens the pack in the Battery Builder app.
+% buildBattery names the variable inside it after the object ("Pack"), which
+% would clobber the parameter struct of the same name on load, so rename it.
+delete(fullfile(here,'P45BPack.slx'));
+matFile = fullfile(here,'P45BPack.mat');
+loaded  = load(matFile);
+packObj = loaded.(char(fieldnames(loaded)));
+save(matFile,'packObj');
 end
 
 
@@ -275,14 +470,14 @@ function checkLibrary(Ns, Np)
 %   Battery Builder generates, so changing Ns or Np in config() has no effect
 %   until the library is rebuilt. This catches that silently-wrong case.
 
-ssc = fullfile(thisDir(), '+P45BPack', 'Pack.ssc');
-if ~isfile(ssc)
+ssc = dir(fullfile(thisDir(), '+P45BPack', '+Modules', '*.ssc'));
+if isempty(ssc)
     error('P45B:noLibrary', ...
         ['The Simscape battery library has not been generated yet.\n' ...
          'Run this first:\n\n    P45B build\n']);
 end
 
-txt    = fileread(ssc);
+txt    = fileread(fullfile(ssc(1).folder, ssc(1).name));
 Pbuilt = grabInt(txt, 'P');   % cells in parallel, compiled into the .ssc
 Sbuilt = grabInt(txt, 'S');   % assemblies in series
 
@@ -296,7 +491,7 @@ end
 function v = grabInt(txt, name)
 tok = regexp(txt, ['^\s*' name '\s*=\s*(\d+)\s*;'], 'tokens', 'once', 'lineanchors');
 if isempty(tok)
-    error('P45B:sscParse', 'Could not read "%s" from the generated Pack.ssc.', name);
+    error('P45B:sscParse', 'Could not read "%s" from the generated module .ssc.', name);
 end
 v = str2double(tok{1});
 end
@@ -379,7 +574,7 @@ function doPlot(logsIn)
 %DOPLOT  Plot the charge/discharge cycle of the P45B pack.
 %
 %   Runs automatically when P45B_CCCV.slx finishes (StopFcn). The per-cell
-%   signals come from the Probe block attached to the battery, so the spread
+%   signals come straight off the Pack block's socCell / vCell ports, so the spread
 %   produced by "P45B vary" shows up here.
 
 if nargin == 0
@@ -418,7 +613,8 @@ tl = tiledlayout(fh, 4, 1, 'TileSpacing','compact', 'Padding','compact');
 
 ax(1) = nexttile;
 plot(t, Ipack, 'LineWidth', 1.5, 'Color', blue); grid on
-ylabel('Current (A)'); title('Pack current   (+ charging, - discharging)');
+ylabel('Current (A)');
+title('Pack current   (+ charging, - discharge pulse, 0 resting)');
 
 ax(2) = nexttile;
 plot(t, vCmax, '-',  'LineWidth', 2.0, 'Color', orange); hold on
@@ -440,7 +636,7 @@ ylabel('SOC'); xlabel('Time (hours)'); ylim([0 1]);
 title('State of charge - mean, with cell-to-cell spread shaded');
 
 linkaxes(ax, 'x'); xlim(ax(1), [0 max(t)]);
-title(tl, sprintf('P45B %ds%dp  CC-CV charge / discharge', Ns, Np));
+title(tl, sprintf('P45B %ds%dp  CC-CV charge with discharge pulses', Ns, Np));
 
 fprintf(['  Simulated %.2f h  |  peak cell %.4f V  |  cell spread at end ' ...
          '%.1f mV / %.2f %% SOC\n'], t(end), max(vCmax), ...

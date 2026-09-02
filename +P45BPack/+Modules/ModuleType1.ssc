@@ -1,5 +1,5 @@
-component Pack
-    % Pack:2
+component ModuleType1
+    % ModuleType1:2
     % Module Block
     %    Model resolution: Detailed
     %    Number of parallel assemblies: 195
@@ -7,7 +7,7 @@ component Pack
     %
     %    MATLAB version: 25.2
     %    Simscape Battery version: 25.2
-    %    Simscape code generated on: 02-Sep-2026 09:05:53
+    %    Simscape code generated on: 02-Sep-2026 17:23:38
 
     parameters
         SOC_vecCell = {[0, .1, .25, .5, .75, .9, 1],'1'}; % Vector of state-of-charge values, SOC
