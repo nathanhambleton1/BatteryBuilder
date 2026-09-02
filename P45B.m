@@ -76,31 +76,48 @@ c.SOC_cvDesign = 0.95;      % SOC at which the CV loop is tuned (top of charge)
 c.stopTime     = 2.5*3600;  % Simulation length (s)
 
 % ---- P45B cell ---------------------------------------------------------
-% Equivalent-circuit parameterisation of the Molicel INR-21700-P45B, anchored
-% to the datasheet (4.5 Ah, 3.6 V nominal, 4.2/2.5 V limits, AC-IR <= 12 mOhm,
-% ~15 mOhm DC-IR) with an NMC open-circuit-voltage shape.
-% Replace R0/R1/tau1/V0 with your own pulse-test data if you have it.
+% Equivalent-circuit parameterisation of the Molicel INR-21700-P45B.
+% Sources and the full derivation are in README.md section 3.1. In short:
+%
+%   Product Data Sheet v1.2 (molicel.com) gives
+%       4500 mAh / 16.2 Wh typ,  3.6 V nom,  4.2 / 2.5 V limits,
+%       AC impedance  7 mOhm @ 30% SOC,   DC impedance 15 mOhm @ 50% SOC
+%   Molicel's "P45B Characteristics" deck states the DC figure is
+%       "<15 mOhm DCR at 10s"  -> a 10 second pulse, not steady state.
+%
+%   R0    = AC impedance                       (1 kHz shorts out the RC branch)
+%   R1    = (DCR_10s - R0) / (1 - exp(-10/tau1))
+%   tau1  = the one value no datasheet gives; 5 s assumed (see README 3.1).
+%
+%   With tau1 = 5 s:  R1 = (0.015 - 0.007)/0.8647 = 9.25 mOhm at 50% SOC.
+%   The V0 curve is an NMC shape scaled so that its mean over SOC reproduces
+%   the datasheet 16.2 Wh / 4.5 Ah = 3.6 V nominal. Only the end points and
+%   that mean are datasheet-backed; the shape between them is an estimate.
+%
+% Replace R0/R1/tau1/V0 with your own HPPC pulse data if you have it -
+% README section 3.1 gives the equations for extracting them.
 
 c.cellP.SOC_vec  = [0     0.05   0.10   0.20   0.30   0.40   0.50   0.60   0.70   0.80   0.90   0.95   1.00 ];
 
-% Open-circuit voltage V0(SOC), V
-c.cellP.V0_vec   = [2.500 3.300  3.420  3.520  3.590  3.650  3.720  3.800  3.890  3.980  4.080  4.140  4.200];
+% Open-circuit voltage V0(SOC), V   -> mean over SOC = 3.63 V, giving 16.2 Wh
+c.cellP.V0_vec   = [2.500 3.180  3.320  3.440  3.500  3.555  3.615  3.685  3.775  3.880  4.010  4.100  4.200];
 
-% Ohmic (instantaneous) resistance R0(SOC), Ohm  -> matches AC-IR ~11 mOhm
-c.cellP.R0_vec   = [0.0180 0.0150 0.0135 0.0120 0.0115 0.0112 0.0110 0.0109 0.0108 0.0108 0.0110 0.0112 0.0115];
+% Ohmic resistance R0(SOC), Ohm     -> 7.0 mOhm at 30% SOC = datasheet AC value
+c.cellP.R0_vec   = [0.0115 0.0095 0.0084 0.0074 0.0070 0.0069 0.0069 0.0069 0.0069 0.0070 0.0072 0.0074 0.0077];
 
-% Polarisation resistance R1(SOC), Ohm  -> R0+R1 ~15 mOhm = DC-IR
-c.cellP.R1_vec   = [0.0090 0.0070 0.0055 0.0045 0.0040 0.0038 0.0036 0.0035 0.0035 0.0036 0.0038 0.0042 0.0050];
+% Polarisation resistance R1(SOC), Ohm  -> R0 + R1*(1-exp(-10/tau1)) = 15 mOhm at 50% SOC
+c.cellP.R1_vec   = [0.0155 0.0128 0.0113 0.0099 0.0094 0.0093 0.00925 0.0093 0.0094 0.0096 0.0100 0.0104 0.0110];
 
-% Polarisation time constant tau1(SOC), s
-c.cellP.tau1_vec = [45     45     42     40     38     36     35     35     35     36     38     42     50   ];
+% Polarisation time constant tau1(SOC), s   -> assumed, not from any datasheet
+c.cellP.tau1_vec = [8      7      6      5.5    5      5      5      5      5      5      5.5    6      7    ];
 
-c.cellP.AH       = 4.5;     % Cell capacity, A*hr
+c.cellP.AH       = 4.5;     % Typical capacity, A*hr        (minimum is 4.3)
 c.cellP.Vmax     = 4.2;     % Charge cut-off voltage, V
 c.cellP.Vmin     = 2.5;     % Discharge cut-off voltage, V
-c.cellP.Vnom     = 3.6;     % Nominal voltage, V
-c.cellP.Imaxdis  = 45;      % Max continuous discharge current, A
-c.cellP.Imaxchg  = 4.5;     % Max charge current, A
+c.cellP.Vnom     = 3.6;     % Nominal voltage, V            (= 16.2 Wh / 4.5 Ah)
+c.cellP.Imaxdis  = 45;      % Max continuous discharge current, A  (80 degC cut-off)
+c.cellP.Ichgstd  = 4.5;     % Standard charge current, A    (1C)
+c.cellP.Imaxchg  = 13.5;    % Max charge current, A         (3C, 70 degC cut-off)
 end
 %  ======================================================================
 %  =======================  END USER SETTINGS  ==========================

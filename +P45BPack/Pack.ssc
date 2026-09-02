@@ -7,7 +7,7 @@ component Pack
     %
     %    MATLAB version: 25.2
     %    Simscape Battery version: 25.2
-    %    Simscape code generated on: 01-Sep-2026 18:07:34
+    %    Simscape code generated on: 02-Sep-2026 09:05:53
 
     parameters
         SOC_vecCell = {[0, .1, .25, .5, .75, .9, 1],'1'}; % Vector of state-of-charge values, SOC

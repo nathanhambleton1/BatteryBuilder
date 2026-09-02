@@ -83,9 +83,10 @@ en[k] = ( en[k-1] AND NOT( cellVmax >= vMaxCell-dVterm  AND  current <= Iterm ) 
 
 The stock example uses a Relay on SOC, and that quietly breaks on an unbalanced pack:
 the strongest cell hits 4.2 V and caps the whole string, so the *mean* SOC plateaus
-(measured: 0.943) and never reaches any threshold you'd set above the CC→CV point
-(0.945). The pack then sits in CV forever and never discharges. Terminating at
-`I <= C/20` is both what real chargers do and immune to that failure.
+(measured: **0.954** with the default variation) below the CC→CV handover point
+(**0.962**) — so any SOC threshold placed high enough to show a CV phase never trips.
+The pack then sits in CV forever and never discharges. Terminating at `I <= C/20` is
+both what real chargers do and immune to that failure.
 
 **Everything is discrete at `Ts`.** The controller, the unit delay, and the Simscape
 network (local solver, backward Euler) all run at `Ts = 1 s`, so the model uses a
@@ -99,33 +100,154 @@ the Probe already provides the per-cell data, and this halves the run time.
 This is the recipe. Everything below is already implemented in `config()`/`P45B.m`;
 this section explains where each number comes from so you can redo it for any `Ns`/`Np`.
 
-### 3.1 Cell parameters (independent of pack size)
+### 3.1 Cell parameters — where every number comes from
 
-The Battery (Table-Based) cell inside the generated block needs five tables against SOC
-plus a capacity. These are set with `prm_dyn = 'rc1'` — **one RC branch**, which is the
-"RC battery characteristics" that gives you the voltage relaxation and the smooth CV
-taper. (`rc2`…`rc5` add more branches; `off` gives a pure resistor and a much less
-realistic curve.)
+The Battery (Table-Based) cell needs five tables against SOC plus a capacity. The dynamics
+come from `prm_dyn = 'rc1'` — **one RC branch**, which is the "RC battery characteristics"
+that produces voltage relaxation and the smooth CV taper. (`rc2`…`rc5` add more branches;
+`off` gives a bare resistor and a visibly worse curve.)
 
-| Symbol | Meaning | Where it comes from |
+The circuit the cell block solves, for current `I` positive into the cell, is
+
+```
+   v(t) = OCV(SOC) + I·R0 + v1(t)          tau1 · dv1/dt + v1 = I·R1
+```
+
+so `R0` is the instantaneous ohmic step and `R1`/`tau1` are the exponential relaxation.
+
+#### Sources
+
+| # | Document | Link |
 |---|---|---|
-| `AH` | cell capacity | Datasheet: **4.5 Ah** |
-| `V0_vec(SOC)` | open-circuit voltage | Anchored at 2.50 V (0%) and 4.20 V (100%), 3.6 V nominal; NMC shape between |
-| `R0_vec(SOC)` | instantaneous ohmic resistance | Datasheet **AC-IR ≤ 12 mΩ** → ~11 mΩ mid-SOC |
-| `R1_vec(SOC)` | polarisation resistance | Chosen so `R0+R1 ≈ 15 mΩ` = the **DC-IR** |
-| `tau1_vec(SOC)` | polarisation time constant | 35–50 s, typical for a high-power 21700 |
+| **[DS]** | Molicel *Product Data Sheet, Model INR-21700-P45B*, doc 80109 rev 1.2 | [molicel.com PDF](https://www.molicel.com/wp-content/uploads/INR21700P45B_1.2_Product-Data-Sheet-of-INR-21700-P45B-80109.pdf) |
+| **[CH]** | Molicel *INR-21700-P45B 4.5 Ah Power cell — Characteristics* (slide deck, incl. test curves) | [P45B_test_report.pdf](https://cdn03.plentymarkets.com/i9a0e0hd8l6w/frontend/Datenblaeter/Molicell/INR21700P45B/P45B_test_report.pdf) |
+| | Molicel product page | [molicel.com/product/inr-21700-p45b](https://www.molicel.com/product/inr-21700-p45b/) |
+| | About:Energy cell library (specs + measured curves; ECM parameters paywalled) | [aboutenergy.io](https://www.aboutenergy.io/cell-library-/molicel-inr-21700-p45b) |
+| | Batemo cell explorer (commercial characterisation of this exact cell) | [batemo.com](https://www.batemo.com/products/batemo-cell-explorer/molicel-inr21700-p45b/) |
 
-Two consistency checks these numbers pass:
+No free, published equivalent-circuit parameter set exists for this cell — About:Energy and
+Batemo both sell theirs. So the tables here are **derived from the datasheet**, not copied
+from someone's fit. Everything below is labelled by how solid it is.
 
-- `4.5 Ah × 3.6 V = 16.2 Wh` — matches the datasheet energy.
-- At the 45 A continuous-discharge rating, sag = `45 × 0.0146 = 0.66 V`, so a cell at
-  50% SOC sits at `3.72 − 0.66 = 3.06 V` under load. That is the right ballpark for a P45B.
+#### Tier 1 — read straight off the datasheet
 
-> **Replace these with your own data if you have it.** They are an engineering estimate
-> built from the datasheet end points and typical NMC behaviour, not a fit to a specific
-> lab test. Edit the `c.cellP.*` vectors in `config()`; everything else —
-> including the controller gains — recomputes from them. If you have HPPC pulse data,
-> `R0` is the instantaneous voltage step and `R1`/`tau1` are the exponential relaxation.
+All from **[DS]**, "CELL CHARACTERISTICS" table:
+
+| Datasheet row | Value | Used as |
+|---|---|---|
+| Capacity → Nominal → Typical | 4500 mAh / 16.2 Wh | `AH = 4.5` |
+| Capacity → Nominal → Minimum | 4300 mAh / 15.5 Wh | (not used; see §6) |
+| Cell Voltage → Nominal | 3.6 V | `Vnom` — cross-check only |
+| Cell Voltage → Charge | 4.2 V | `Vmax`, and `vMaxCell` (the CV target) |
+| Cell Voltage → Discharge | 2.5 V | `Vmin` |
+| Charge Current → Standard | 4.5 A (1C) | `Ichgstd` — the default `chargeCrate = 1.0` |
+| Charge Current → Maximum | 13.5 A (3C, 70 °C cut-off) | `Imaxchg` |
+| Discharge Current → Continuous | 45 A (80 °C cut-off) | `Imaxdis` |
+| Typical Impedance → **AC (30 % SOC)** | **7 mΩ** | anchors `R0` |
+| Typical Impedance → **DC (50 % SOC)** | **15 mΩ** | anchors `R1` |
+
+#### Tier 2 — derived, with the equations
+
+**`R0` from the AC impedance.** AC cell impedance is measured at 1 kHz. At that frequency
+the RC branch is shorted by its own capacitance (`1/(2π·1000·C1) ≪ R1`), so what is left is
+the ohmic path — electrolyte, foils, tabs, welds. That is exactly `R0`:
+
+```
+R0(30 % SOC) = AC impedance = 7 mΩ                    [DS]
+```
+
+**`R1` from the DC impedance — and why the 10 s matters.** The DC figure is a *pulse*
+measurement, not a steady-state one. **[CH]** states it explicitly on its Introduction
+slide: *"Low cell impedance: <15 mOhm DCR at 10s"*. A 10-second pulse has only partly
+charged the RC branch, so
+
+```
+DCR(10 s) = R0 + R1 · ( 1 − exp(−10/tau1) )
+```
+
+Invert it for `R1`:
+
+```
+R1 = ( DCR(10 s) − R0 ) / ( 1 − exp(−10/tau1) )
+   = ( 0.015 − 0.007 ) / ( 1 − exp(−10/5) )
+   = 0.008 / 0.8647  =  9.25 mΩ        at 50 % SOC
+```
+
+This is the step I got wrong on the first pass: treating the 15 mΩ DC number as `R0 + R1`
+outright would put `R1` at 8 mΩ and **understate the cell's steady-state resistance by
+about 15 %**, because it ignores the RC branch still charging at t = 10 s.
+
+#### Tier 3 — assumed, because no datasheet gives them
+
+- **`tau1 = 5 s`.** Two measurements, three unknowns — `tau1` is the free one. 5 s is a
+  typical fast charge-transfer/double-layer time constant for a high-power 21700. It is the
+  single least-certain number in this file, and `R1` depends on it strongly:
+
+  | `tau1` | `1 − exp(−10/tau1)` | resulting `R1` | steady-state `R0+R1` |
+  |---|---|---|---|
+  | 2 s | 0.993 | 8.1 mΩ | 15.1 mΩ |
+  | **5 s** | **0.865** | **9.25 mΩ** | **16.2 mΩ** |
+  | 10 s | 0.632 | 12.7 mΩ | 19.7 mΩ |
+  | 20 s | 0.393 | 20.4 mΩ | 27.4 mΩ |
+
+  5 s was chosen because the resulting steady-state resistance keeps the 45 A rating
+  physically sensible (see the limitation note below); 20 s does not.
+
+- **The shape of `R0(SOC)` and `R1(SOC)`.** The datasheet gives *two* impedance numbers, at
+  *two different* SOCs. The tables hold them flat through the mid range and let both rise
+  toward empty (and mildly toward full), which is standard lithium-ion behaviour. Only the
+  7 mΩ at 30 % SOC and the 15 mΩ DCR at 50 % SOC are anchored; the rest is shape.
+
+- **The shape of `V0(SOC)`.** Anchored at 2.50 V (0 %) and 4.20 V (100 %) from **[DS]**,
+  with an NMC-shaped curve between them, scaled so the mean reproduces the datasheet energy
+  (next section). **[CH]** and About:Energy both publish measured discharge curves whose
+  shape this matches, but they are images — the curve here was not digitised from them.
+
+#### Validation — three independent datasheet numbers, reproduced
+
+These are asserted in the acceptance test, so they cannot silently drift:
+
+| Check | Equation | Model | Datasheet |
+|---|---|---|---|
+| AC impedance | `R0(0.30)` | **7.00 mΩ** | 7 mΩ |
+| DC impedance | `R0(0.5) + R1(0.5)·(1−e^(−10/tau1))` | **14.90 mΩ** | 15 mΩ |
+| Energy | `(mean(V0) − 0.2C·(R0+R1)) × 4.5 Ah` | **16.25 Wh** | 16.2 Wh |
+
+The third is the useful one: the OCV curve is not free to be any NMC shape — its mean over
+SOC is pinned by `16.2 Wh / 4.5 Ah = 3.6 V nominal`. That is what sets the curve's height.
+
+#### Known limitations
+
+- **Molicel's own documents disagree slightly.** **[CH]** lists DC impedance as 13 mΩ
+  typical (and a 60 °C max-charge cut-off), while **[DS]** rev 1.2 lists 15 mΩ (70 °C).
+  This model uses 15 mΩ, the current datasheet. Using 13 mΩ gives `R1 = 6.9 mΩ` — change
+  the `R1_vec` scaling in `config()` if you prefer that figure.
+- **Isothermal, so high-rate discharge is pessimistic.** At a steady 45 A the model
+  predicts ≈2.89 V at 50 % SOC; Molicel's measured 45 A curve sits nearer 3.0 V, because a
+  real cell self-heats (hence the 80 °C cut-off) and hot cells have lower resistance. There
+  is no thermal model here, so resistance never drops. Irrelevant at the 1C used for CC-CV,
+  worth knowing if you push the discharge rate up.
+- **One RC branch cannot capture both time scales.** Real cells show a fast
+  charge-transfer relaxation (seconds) *and* a slow diffusion tail (minutes). `rc1` merges
+  them. For CC-CV, where everything happens over minutes, this is fine. Switch the cell to
+  `prm_dyn = 'rc2'` in `doBuild()` and add `R2_vec`/`tau2_vec` if you need both.
+
+#### Measuring these yourself (HPPC)
+
+If you can pulse-test a cell, you do not need any of the assumptions above. From rest at a
+known SOC, apply a current step `I` and record the terminal voltage:
+
+```
+OCV        = v(0⁻)                        voltage just before the pulse
+R0         = ( OCV − v(0⁺) ) / I          the instantaneous jump
+DCR(t)     = ( OCV − v(t)  ) / I          the pulse resistance at time t
+R1, tau1   : least-squares fit of  v(t) = OCV − I·R0 − I·R1·(1 − e^(−t/tau1))
+```
+
+Repeat at each SOC breakpoint for the `R0_vec` / `R1_vec` / `tau1_vec` tables. For
+`V0_vec`, discharge at C/20 (where `I·R` is ≈1 mV and can be neglected) or use a GITT-style
+rest-and-measure sequence. Drop the results into `c.cellP.*` in `config()` — every gain in
+the model recomputes from them automatically.
 
 ### 3.2 Pack scaling
 
@@ -143,106 +265,374 @@ packWh   = packVnom * packAH   %  3.16 kWh
 ### 3.3 Currents
 
 ```matlab
-Icharge    = chargeCrate    * AH * Np    % 1.0C → 4.50 A   (P45B fast-charge limit)
+Icharge    = chargeCrate    * AH * Np    % 1.0C → 4.50 A   (datasheet *standard* charge)
 Idischarge = dischargeCrate * AH * Np    % 1.0C → 4.50 A   (limit is 45 A = 10C)
 Iterm      = taperCrate     * AH * Np    % C/20 → 0.225 A  (charge-complete threshold)
 ```
 
 Only `Np` appears — series cells all carry the same current.
 
-### 3.4 **Kp and Ki** — the part that is hard to guess
+The default 1C charge is the datasheet's **standard** charge current, not its limit: the
+P45B will take **13.5 A (3C)** with a 70 °C cut-off. Set `chargeCrate = 3` for fast
+charge — but that is exactly where an isothermal model stops being trustworthy, since the
+real cell's cut-off is thermal.
 
-The CC-CV block is a PI controller whose **error is in volts** and whose **output is in
-amps**. So `Kp` has units of **A/V**: it is the inverse of a resistance. That is the whole
-trick — the gain you need is set by the resistance the loop looks into, nothing else.
+### 3.4 **Kp and Ki** — from scratch
 
-**Step 1 — what resistance does the loop see?**
-The block's input is one *cell's* voltage; its output is *pack* current. Raising the pack
-current by `I` raises each cell's terminal voltage by `I·Rcell/Np` (the pack current
-splits between `Np` parallel cells). So the plant gain is
+This is the part that is genuinely hard to guess, so this section builds it up from nothing.
+Read it in order; every step uses numbers from this actual pack.
 
-```
-Reff = Rcell / Np          [volts of cell voltage per amp of pack current]
-```
+---
 
-where `Rcell = R0(SOC) + R1(SOC)` evaluated **where CV actually happens**, i.e. near the
-top of charge. `config()` uses `SOC_cvDesign = 0.95`.
+#### 3.4.1 What the CC-CV block is actually doing
 
-`Ns` does **not** appear. Because the block is fed per-cell voltage and a per-cell limit,
-the gain is independent of how many cells are in series. *(If you instead fed pack voltage
-with `MaxCellVoltage = Ns × 4.2`, the error would be `Ns` times larger and you would have
-to divide `Kp` by `Ns`.)*
+Inside the Battery CC-CV block is a **PI controller**. In CV mode it has one job:
 
-**Step 2 — set the proportional gain.**
+> *hold the highest cell in the pack at 4.2 V by choosing the pack current.*
+
+Each sample (every `Ts = 1 s`) it does this:
 
 ```
-Kp = gainMargin · Np / Rcell        [A/V]
+  e   = vMaxCell − v_measured                 the error, in VOLTS
+  I   = Kp·e  +  Ki·∫e dt                     the command, in AMPS
+  I   = min(I, CurrentWhenCharging)           never exceed the CC setpoint
 ```
 
-`Kp = 1/Reff` (i.e. `gainMargin = 1`) has a clean physical meaning: *if the highest cell
-overshoots the target by Δv, back the current off by exactly the amount that removes Δv of
-ohmic drop.* One step, exactly matched — no overshoot, no sluggishness.
+That `min()` is the whole CC/CV switch. Early in the charge the cell is far below 4.2 V, so
+`e` is big and positive, so the PI asks for a huge current — but `min()` clamps it to
+4.5 A. **That is CC mode: the PI is asking for more than it is allowed.** As the cell fills
+and approaches 4.2 V, `e` shrinks, the PI's request falls below 4.5 A, and the `min()` stops
+clamping. **That is CV mode.** Nothing switches over; the two just cross.
 
-**Step 3 — pick the gain margin.** `gainMargin = 1` is the fastest stable choice but sits
-close to the edge, because the `Unit Delay` and the zero-order hold each eat phase. Measured
-on this model by sweeping `Kp` around the rule (charge phase, everything else fixed):
+So there are two knobs:
 
-| `Kp / (Np/Rcell)` | `Kp` | Peak overshoot | Settling | Verdict |
+| | Units | What it responds to |
+|---|---|---|
+| `Kp` | **A/V** | the error *right now* |
+| `Ki` | **A/(V·s)** | the error *accumulated over time* |
+
+---
+
+#### 3.4.2 Why `Kp` is one-over-a-resistance
+
+Look at the units. `Kp` turns **volts into amps**. Amps per volt is the reciprocal of ohms.
+So `Kp` is not an arbitrary tuning number — **it has to be 1/(some resistance)**, and the
+only question is *which* resistance.
+
+It is the resistance the controller is looking into: how many volts of cell voltage do I get
+per amp of pack current I command?
+
+```
+   v_cell = OCV(SOC) + I·R0 + v1(t)
+```
+
+`OCV` moves only as the battery fills, which takes minutes — on the controller's timescale
+it is a constant. So the part the controller can actually push on is `I·(R0 + R1)`:
+
+```
+   Reff = Rcell / Np           Rcell = R0 + R1   at the CV operating point
+```
+
+For this pack, at `SOC_cvDesign = 0.95`:
+
+```
+   R0   = 0.00740 Ω        R1 = 0.01040 Ω
+   Reff = 0.01780 Ω / 1  =  0.01780 Ω        (Np = 1)
+```
+
+`Np` divides because pack current splits between parallel cells: with `Np = 4`, 4 A of pack
+current is only 1 A through each cell, so you need 4× the pack amps for the same cell-volt
+effect — hence 4× the gain. **`Ns` never appears**, because the block is fed *one cell's*
+voltage against a *per-cell* limit. Series count cancels out entirely.
+
+The natural gain is therefore
+
+```
+   Kp(unity) = 1/Reff = 1/0.01780 = 56.18 A/V
+```
+
+---
+
+#### 3.4.3 One control step, in actual numbers
+
+Say the highest cell has drifted 5 mV above target:
+
+```
+  target                 vMaxCell   = 4.2000 V
+  measured                          = 4.2050 V
+  error        e = 4.2000 − 4.2050  = −0.0050 V
+
+  P term       ΔI = Kp · e = 28.09 × (−0.0050) = −0.1405 A
+```
+
+So the controller cuts the charging current by 0.14 A. What does that do to the voltage?
+It removes 0.14 A worth of ohmic drop:
+
+```
+  Δv = ΔI · Reff = −0.1405 × 0.01780 = −0.0025 V = −2.5 mV
+```
+
+The 5 mV error shrinks by 2.5 mV — **exactly half of it, in one correction.**
+
+That "half" is not a coincidence.
+
+---
+
+#### 3.4.4 What `gainMargin` really means
+
+Chain the two lines above together, with `Kp = gainMargin/Reff`:
+
+```
+  Δv = ΔI · Reff = (Kp · e) · Reff = (gainMargin/Reff · e) · Reff = gainMargin · e
+```
+
+The `Reff` cancels. So:
+
+> **`gainMargin` is literally the fraction of the voltage error the proportional term tries
+> to erase in one correction.**
+
+| `gainMargin` | Behaviour |
+|---|---|
+| 0.25 | erase a quarter of the error each time — slow, sloppy, big overshoot |
+| **0.5** | **erase half each time — the default** |
+| 1.0 | erase *all* of it in one shot ("deadbeat") |
+| 2.0 | overcorrect by 2× — every correction overshoots the other way |
+| > ~2.4 | overcorrection grows each step → **unstable** (§3.4.6) |
+
+This is why `Kp = Np/Rcell` (i.e. `gainMargin = 1`) is the "natural" rule: it is the gain
+that exactly undoes the error it sees, no more, no less. Everything else is a scaling of it.
+
+---
+
+#### 3.4.5 What `Ki` does, and why `Kp` alone will not work
+
+Proportional control has a fatal flaw here: **it needs a standing error to produce output.**
+If `e = 0`, the P term contributes exactly 0 A of correction.
+
+But look at what CV actually requires. The cell keeps filling, so `OCV` keeps *rising*. To
+hold the terminal at a constant 4.2 V while `OCV` climbs, the ohmic term `I·Reff` must keep
+*shrinking* — the current has to fall continuously, all the way from 4.5 A to nearly zero,
+over about 20 minutes. A P-only controller can only sustain that falling current by sitting
+at a permanent voltage error, and the bigger the required current change, the bigger that
+error gets.
+
+The integral term fixes it by *remembering*:
+
+```
+  I_int[k] = I_int[k−1] + Ki · Ts · e[k]
+```
+
+Even a tiny error, given time, accumulates into a large current change. So the integrator
+does the slow work of walking the current down while the proportional term handles fast
+bumps, and the steady-state error goes to zero.
+
+**Choosing `Ki`.** `Ki` is set relative to `Kp` by `tauRatio`:
+
+```
+  Ki = Kp / tauRatio = 28.09 / 10 = 2.809 A/(V·s)
+```
+
+Working the closed loop through algebraically gives the CV loop's time constant:
+
+```
+  tau_CV = (1 + Kp·Reff) / (Ki·Reff) = tauRatio · (1 + gainMargin) / gainMargin
+         = 10 × 1.5 / 0.5 = 30 s
+```
+
+which is the `CV settling tau = 30.0 s` the setup prints. Bigger `tauRatio` → gentler,
+slower correction. Smaller → snappier but twitchier.
+
+> **A confusion worth heading off:** this 30 s is *not* how long the CV phase lasts. 30 s is
+> how quickly the **controller** wipes out a voltage error. The CV phase takes ~20 **minutes**
+> because that is how long the **battery** takes to fill while its OCV creeps up. Fast loop,
+> slow battery — two completely different clocks.
+
+---
+
+#### 3.4.6 Why too much gain explodes — and exactly where
+
+There is a `Unit Delay` between the controller and the current source (it models the
+one-sample computation/actuation lag any real charger has). That single block is what sets
+the stability limit, and you can derive the limit in four lines.
+
+The current applied at step `k` is the one computed at step `k−1`. Ignoring the slow integral
+term, and writing `u` for the constant part `vMaxCell − OCV`:
+
+```
+  e[k] = u − I[k−1]·R0                       what the cell voltage does
+  I[k] = Kp · e[k]                           what the controller does
+       = Kp·u − (Kp·R0) · I[k−1]
+```
+
+That is a **first-order recursion**: each command is the previous one multiplied by
+`−(Kp·R0)`. A recursion like that decays if the multiplier is smaller than 1 in magnitude
+and **grows without bound if it is bigger**:
+
+```
+  STABLE   iff   Kp · R0  <  1
+```
+
+**Note it is `R0`, not `R0 + R1`.** Within a single 1 s sample the RC branch has barely
+begun to charge, so the voltage the controller sees back one step later is only the *ohmic*
+part. That fraction is
+
+```
+  R0 / (R0 + R1) = 0.00740 / 0.01780 = 0.4157
+```
+
+So the loop only feels 41.6 % of the gain per sample, and the limit in terms of the unity
+rule is
+
+```
+  Kp_max = 1/R0 = 1/0.00740 = 135.1 A/V   =  135.1 / 56.18  =  2.41 × unity
+```
+
+**Measured, to check the theory:**
+
+| `Kp/Kunity` | `Kp` | `Kp·R0` | Overshoot | Result |
 |---|---|---|---|---|
-| 0.25 | 16.2 | 10.8 mV | 503 s | good |
-| **0.50** | **32.5** | **5.9 mV** | **378 s** | **good — the default** |
-| 0.75 | 48.7 | 4.1 mV | 295 s | good |
-| 1.00 | 64.9 | 3.2 mV | 237 s | good, but only 1.4× margin |
-| 1.25 | 81.2 | 2.6 mV | 192 s | good, on the edge |
-| 1.50 | 97.4 | 94 mV | — | **unstable** |
-| 2.00 | 129.9 | 1030 mV | — | **unstable** |
+| 2.00 | 112.36 | 0.832 | 2.3 mV | stable |
+| 2.20 | 123.60 | 0.915 | 2.1 mV | stable |
+| **2.40** | **134.83** | **0.998** | **54 mV** | **unstable** |
+| 2.60 | 146.07 | 1.081 | 98 mV | unstable |
+| 2.80 | 157.30 | 1.164 | 120 mV | unstable |
 
-The default is `gainMargin = 0.5`: ~2.8× margin, still under 6 mV of overshoot on a 4.2 V
-limit (0.14%), and the settling difference is irrelevant next to a ~20 min CV phase.
-The margin matters because **if your real cell resistance is lower than the table says,
-the effective loop gain goes up** — 0.5 keeps you safe when you swap in your own data.
+The loop breaks precisely as `Kp·R0` crosses 1.0. The predicted 2.41× and the measured
+2.2→2.4× transition agree.
 
-**Step 4 — integral gain.**
+And because the multiplier is **negative**, an unstable loop does not drift off smoothly —
+it flips sign every single sample. Here is the actual current log at `Kp = 134.8`:
 
 ```
-Ki = Kp / tauRatio          with tauRatio = 10
+   t (s)     I (A)      ΔI (A)     cell V
+   2457      7.2177     +7.2177    4.2477
+   2458      0.0000     −7.2177    4.1881
+   2459      7.3984     +7.3984    4.2511
+   2460      0.0000     −7.3984    4.1899
+   2461      7.5584     +7.5584    4.2543
+   2462      0.0000     −7.5584    4.1918
 ```
 
-This gives a CV closed-loop time constant of `tau = (1 + Kp·Reff)/(Ki·Reff) = 30 s`,
-about 30 sample periods — fast enough to track the rising OCV, slow enough to be smooth.
-Raise `tauRatio` for a gentler approach, lower it for a snappier one.
+Current slamming between 0 A and full scale on alternating samples, amplitude growing each
+cycle (7.22 → 7.40 → 7.56), voltage bouncing either side of 4.2 V. That is textbook
+Nyquist-rate oscillation, and it is exactly what `I[k] = −1.0 × I[k−1]` predicts.
 
-**Step 5 — anti-windup and tracking.** Both are **rates (1/s)**, not gains, so they do not
-scale with the battery at all:
+**This is also why `tau1` matters so much.** The stability limit depends on the *ratio*
+`R0/(R0+R1)`, and `tau1` is what sets `R1` (§3.1). With the first-pass tables
+(`tau1 ≈ 40 s`, `R0/Reff = 0.73`) the limit was **1.4× unity**. With the datasheet-derived
+tables (`tau1 = 5 s`, `R0/Reff = 0.42`) it is **2.4× unity**. Same model, same rule —
+the boundary moved because the least-certain parameter moved.
+
+---
+
+#### 3.4.7 How the gain table was actually produced
+
+Honest answer: **theory first, then simulate to check it.** The rule `Kp = Np/Rcell` comes
+from §3.4.2 — it is not fitted. The sweep exists to verify that the rule lands somewhere
+sensible and to see how much room there is either side.
+
+The method, for each multiplier: set `Kp = multiplier × (1/Reff)` and `Ki = Kp/10`, run the
+full 195-cell model through a complete charge, then measure three things:
+
+| Measurement | Definition |
+|---|---|
+| **Overshoot** | `max(cellVmax) − 4.2 V` over the whole run. How far the highest cell was pushed past its limit. Smaller is better; this is the number that matters for cell safety. |
+| **Settling** | Time from the last CC sample until `\|cellVmax − 4.2\|` first stays under 1 mV. How long the loop takes to lock on after the CC→CV handover. |
+| **Ripple** | Largest sample-to-sample jump in current during CV. A direct oscillation detector — a smooth taper gives ~0.02 A, a ringing loop gives amps. |
+
+Results:
+
+| `Kp / (Np/Rcell)` | `Kp` | Overshoot | Settling | Verdict |
+|---|---|---|---|---|
+| 0.25 | 14.0 | 15.3 mV | did not reach 1 mV in the window | stable but sloppy |
+| **0.50** | **28.1** | **8.4 mV** | **345 s** | **the default** |
+| 0.75 | 42.1 | 5.8 mV | 293 s | good |
+| 1.00 | 56.2 | 4.4 mV | 253 s | good — the raw rule |
+| 1.50 | 84.3 | 3.0 mV | fast | good |
+| 2.00 | 112.4 | 2.3 mV | fast | good, ripple climbing |
+| 2.40 | 134.8 | 54 mV | — | **unstable** |
+| 3.00 | 168.5 | 156 mV | — | **unstable** |
+
+Higher gain is monotonically *better* on overshoot and settling — right up until it isn't,
+and then it fails hard. There is no gentle degradation.
+
+**So why default to 0.5 and give up the sharper numbers?** Because the thing you are buying
+with that margin is protection against `tau1` being wrong. As shown above, the cliff sits at
+1.4× under one plausible `tau1` and 2.4× under another, and `tau1` is *assumed*, not
+measured (§3.1). `gainMargin = 0.5` is comfortably stable under **both**, and it costs
+8.4 mV of overshoot on a 4.2 V limit — 0.2 %, thermally and chemically irrelevant. The
+settling difference (345 s vs 253 s) disappears inside a 20-minute CV phase.
+
+If you measure `tau1` on a real cell, raise `gainMargin` to 1.0–1.5 and take the tighter
+response.
+
+---
+
+#### 3.4.8 `Kaw` and `Kt` — the two that do not scale
+
+Both are **rates, in 1/s**, not gains. They do not depend on the battery at all:
 
 ```
-Kaw = 1/Ts        Kt = 1/Ts
+  Kaw = 1/Ts = 1        Kt = 1/Ts = 1
 ```
 
-`Kt` is the one that produces the smooth CC→CV handover you noticed in the example. During
-CC the PI's output is clipped by the `min()` with `CurrentWhenCharging`, so its integrator
-would run away; the tracking loop forces the integrator to follow the *actual* applied
-current, so at the moment voltage control takes over the PI is already at the right value
-and the current hands off with no step. `1/Ts` makes that correction settle in one sample —
-do not exceed it (`Kt·Ts > 2` is unstable).
+**`Kt` (signal tracking) is what makes the CC→CV handover smooth** — the behaviour you
+noticed in the MathWorks example. Remember from §3.4.1 that during CC the PI is asking for
+far more current than the `min()` allows. Its integrator would happily keep winding up on
+that huge unserved error, and by the time CV took over it would be enormously wound up — the
+current would lurch. The tracking loop feeds the *actually applied* current back into the
+integrator and forces it to follow reality, so when the `min()` stops clamping, the PI is
+already sitting at the right value and the current crosses over with no step.
+
+**`Kaw` (anti-windup)** does the same job for the PI's own output saturation (its lower
+limit of 0 A, so it never commands a discharge while charging).
+
+`1/Ts` makes either correction settle in one sample. Do not exceed it: the same recursion
+argument as §3.4.6 applies, and `Kt·Ts > 2` is unstable.
+
+---
+
+#### 3.4.9 The whole recipe on one page
+
+```matlab
+Rcell = R0(SOC_cv) + R1(SOC_cv)     % steady-state cell resistance at top of charge
+Reff  = Rcell / Np                  % volts of cell voltage per amp of pack current
+Kp    = gainMargin / Reff           % A/V      gainMargin = fraction of error erased/step
+Ki    = Kp / tauRatio               % A/(V·s)  tauRatio = 10
+Kaw   = 1/Ts                        % 1/s
+Kt    = 1/Ts                        % 1/s
+```
+
+with the sanity checks:
+
+```
+Kp · R0   < 1        stability (§3.4.6) - check with YOUR R0, not R0+R1
+tau_CV    = tauRatio·(1+gainMargin)/gainMargin        loop speed, seconds
+Kt · Ts   ≤ 1        tracking loop stability
+```
+
+---
 
 ### 3.5 Worked examples
 
 **This pack — 195s1p:**
 ```
-Rcell(0.95) = R0 + R1 = 0.0112 + 0.0042 = 0.0154 Ω
-Reff        = 0.0154 / 1              = 0.0154 Ω
-Kp          = 0.5 / 0.0154            = 32.5   A/V
-Ki          = 32.5 / 10               =  3.25  A/(V·s)
-Kaw = Kt    = 1/1                     =  1     1/s
+Rcell(0.95) = R0 + R1 = 0.0074 + 0.0104 = 0.0178 Ω
+Reff        = 0.0178 / 1               = 0.0178 Ω
+Kp          = 0.5 / 0.0178             = 28.09  A/V
+Ki          = 28.09 / 10               =  2.81  A/(V·s)
+Kaw = Kt    = 1/1                      =  1     1/s
 vMaxCell    = 4.2 V,   Icharge = 4.5 A,   Iterm = 0.225 A
 ```
 
+Note `Rcell` is the **steady-state** `R0 + R1`, not the 10 s DCR — the CV phase lasts
+minutes, so the RC branch is fully charged and contributes its whole `R1`.
+
 **A 14s4p pack of the same cells** (change `Ns`/`Np` in `config()`, then `P45B build`):
 ```
-Reff     = 0.0154 / 4 = 0.00385 Ω
-Kp       = 0.5 / 0.00385 = 129.9 A/V      ← 4× larger, because Np is 4× larger
-Ki       = 12.99 A/(V·s)
+Reff     = 0.0178 / 4 = 0.00445 Ω
+Kp       = 0.5 / 0.00445 = 112.4 A/V      ← 4× larger, because Np is 4× larger
+Ki       = 11.24 A/(V·s)
 Kaw = Kt = 1 1/s                          ← unchanged
 Icharge  = 1.0 × 4.5 × 4 = 18 A
 vMaxCell = 4.2 V                          ← unchanged, it is per cell
@@ -309,6 +699,8 @@ a far bigger imbalance than any real matched pack.
 - **`V_rangeCell` is `[0, inf]`.** The cell model will not assert if a cell is driven
   outside 2.5–4.2 V. Set `S.Pack.V_rangeCell = [cellP.Vmin cellP.Vmax]` in `doSetup()`
   to make abuse a hard error instead of a silent one.
+- **`AH` is the *typical* 4500 mAh.** The datasheet minimum is 4300 mAh; set
+  `c.cellP.AH = 4.3` for a worst-case pack, or use `P45B vary` to spread cells between.
 - **Ageing and self-discharge are off** (`prm_fade`, `prm_leak`, `prm_age_*` all disabled).
 - **No thermal model**, as requested. Every parameter is at one temperature; there is no
   thermal port on the battery block and no heat generation.
@@ -318,12 +710,19 @@ a far bigger imbalance than any real matched pack.
   discharging.
 - `slprj/` and `*.slxc` are Simulink build caches, regenerated on every run and gitignored.
 
-## 7. Provenance of the cell numbers
+## 7. Provenance summary
 
-`AH`, `Vmax`, `Vmin`, `Vnom`, the 45 A discharge limit and the 4.5 A charge limit are
-datasheet values for the Molicel INR-21700-P45B. The `V0/R0/R1/tau1` **curve shapes** are
-an engineering parameterisation consistent with those datasheet end points and with the
-cell's published AC-IR and DC-IR, not a fit to measured data for a specific cell. They
-produce correct and realistic CC-CV behaviour, but if you need quantitative accuracy for
-a particular lot, replace them with your own pulse-test results — that is a one-block edit
-in `config()` and every gain follows automatically.
+| Parameter | Status |
+|---|---|
+| `AH`, `Vmax`, `Vmin`, `Vnom`, charge/discharge current limits | **Datasheet**, verbatim |
+| `R0` | **Derived** from the datasheet AC impedance (7 mΩ @ 30 % SOC) |
+| `R1` | **Derived** from the datasheet 10 s DCR (15 mΩ @ 50 % SOC), given `tau1` |
+| `tau1` | **Assumed** (5 s). No datasheet supplies it. |
+| `V0` end points and mean | **Datasheet** (2.5 / 4.2 V, and 16.2 Wh ÷ 4.5 Ah) |
+| `V0` shape between end points | **Assumed** NMC shape |
+| `R0`/`R1` shape vs SOC | **Assumed**; anchored only at 30 % and 50 % SOC |
+
+Section 3.1 gives the equations, the sources with links, and the HPPC procedure for
+replacing the assumed parts with measured data. The three datasheet cross-checks in
+§3.1 are asserted in the acceptance test, so the tables cannot drift away from the
+datasheet without the test failing.
