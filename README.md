@@ -153,6 +153,594 @@ Simscape logging is off and signal logging is on, which halves the run time.
 
 ---
 
+### The charging logic, gate by gate
+
+The five equations above are the summary. This is the long version: how to *derive* them from
+the block diagram, how to minimise them, how to see the state machine hiding inside them, and
+how to check that what you derived is what the model actually does. It is written so you can
+teach it to someone else — the classroom method (netlist → truth table → K-map → state table)
+applied to a diagram that really ships.
+
+Everything here is checked against a real run. The reconstruction in §11 matches the simulated
+pack on **all 9001 time steps**, so the equations below are not a paraphrase of the diagram —
+they are the diagram.
+
+#### 1. What is actually in the box
+
+Open `Charge Logic` and you get 28 blocks. Sorted by job:
+
+| Count | Blocks | Job |
+|---|---|---|
+| 3 | `cellVmax`, `current`, `socMean` | Inports — the only three analog signals the logic sees |
+| 1 | `pulse` | Discrete Pulse Generator — the duty-cycle clock |
+| 6 | `inCV`, `tapered`, `belowRecharge`, `belowFloor`, `resumeOK`, `pulseOn` | Compare To Constant — the analog→Boolean boundary |
+| 13 | `fullSet`, `fullHold`, `full`, `notFull`, `charge`, `emptyHold`, `empty`, `notEmpty`, `discharge`, `notDischarge`, `notRecharge`, `notResume`, `active` | AND / OR / NOT — the combinational part |
+| 2 | `fullPrev`, `emptyPrev` | Unit Delay — **the memory** |
+| 1 | `enable` | Data Type Conversion, boolean → double, so it can be multiplied |
+| 2 | `currentEnable` (port 1), `chargingEnabled` (port 2) | Outports |
+
+Two things to notice before touching any algebra:
+
+- **Six comparators, thirteen gates, two delays.** Six Booleans in, two out. That is small
+  enough to solve completely by hand — which is the point of doing it.
+- **Those two Unit Delays mean this is not a combinational circuit.** A K-map alone cannot
+  describe it. It is a sequential machine with two state bits, and it has to be split in two
+  before any of the school methods apply.
+
+> **Reading the Simulink diagram at all.** A `Logic` block whose `Operator` was never set is
+> an **AND** — that is the block default, and Simulink stores only non-default settings, so an
+> AND gate looks like a blank in the file. Five of the gates here (`fullSet`, `fullHold`,
+> `discharge`, `emptyHold`, `charge`) are ANDs by default; only the ORs and NOTs say so
+> explicitly. Confirm rather than assume:
+>
+> ```matlab
+> b = find_system('P45B_CCCV/Charge Logic','SearchDepth',1,'BlockType','Logic');
+> for i = 1:numel(b)
+>     fprintf('%-14s %-4s in=%s\n', get_param(b{i},'Name'), ...
+>             get_param(b{i},'Operator'), get_param(b{i},'Inputs'));
+> end
+> ```
+
+#### 2. Step one — turn the analog world into six Booleans
+
+Nothing can be reasoned about with Boolean algebra until the continuous signals are gone. That
+is the entire job of the six Compare To Constant blocks, and it is the step people skip. Each
+one collapses a voltage, a current or an SOC into one bit:
+
+| Boolean | Test | Threshold at default settings | Reads as |
+|---|---|---|---|
+| `inCV` | `cellVmax >= vMaxCell - dVterm` | ≥ 4.190 V | The top cell has reached the CV plateau |
+| `tapered` | `current <= Iterm` | ≤ 0.225 A | The charge current has fallen to C/20 |
+| `belowRecharge` | `cellVmax <= V_recharge` | ≤ 4.100 V | The top cell has relaxed far enough to justify charging again |
+| `belowFloor` | `socMean <= SOC_minDischarge` | ≤ 0.05 | The pack is at the protection floor |
+| `resumeOK` | `socMean >= SOC_resumeDischarge` | ≥ 0.25 | The charger has put back enough to re-arm the pulse |
+| `pulseOn` | `pulse > 0.5` | — | The duty-cycle clock is high |
+
+Three details in this table do real work later, so note them now:
+
+- **`tapered` is a *signed* `<=`, not a magnitude test.** Charge current is positive, discharge
+  negative, so `current = -4.5 A` satisfies `tapered`. Measured over the reference run,
+  `tapered` is true on **1795 of the 1800 discharging steps** — during a pulse, the "charge has
+  finished tapering" test is essentially always true. This is why a guard gate exists; see §7.
+- **`belowRecharge` and `inCV` are mutually exclusive by construction.** 4.100 V is below
+  4.190 V, so no signal can satisfy both. That gap *is* the hysteresis, and it is what makes the
+  latch in §5 a clean two-threshold Schmitt trigger rather than an ambiguity. `checkThresholds`
+  in `P45B.m` enforces a stronger version of the same thing — it warns if
+  `V_recharge >= vMaxCell - 4*dVterm` (4.16 V).
+- **`belowFloor` and `resumeOK` are *not* complements.** `socMean <= 0.05` and
+  `socMean >= 0.25` leave a 0.20-wide dead band where neither is true. A latch is the only thing
+  that can decide what to do inside that band, which is exactly why one is there.
+
+The Pulse Generator is sample based, so `pulseOn` is pure integer arithmetic on the step index
+`k` — no analog signal involved:
+
+```
+pulseOn[k] = (k >= pulseNdelay) AND ( mod(k - pulseNdelay, pulseN) < pulseNon )
+```
+
+with `pulseN = 900`, `pulseNon = 180`, `pulseNdelay = 300` steps at the default settings.
+
+#### 3. Step two — read the netlist off the wires
+
+Now trace every wire and write each gate's output as an expression of its inputs. Work in
+**topological order** — always define a signal before using it — and the whole diagram falls out
+as fifteen one-line assignments. Written with `!` for NOT, `&` for AND, `|` for OR:
+
+| # | Block | Op | Output = |
+|---|---|---|---|
+| 1 | `notResume` | NOT | `!resumeOK` |
+| 2 | `emptyHold` | AND | `!resumeOK & emptyPrev` |
+| 3 | `empty` | OR | `belowFloor \| emptyHold` → **`dischargeDone`** |
+| 4 | `emptyPrev` | delay | `dischargeDone`, delayed one step |
+| 5 | `notEmpty` | NOT | `!dischargeDone` |
+| 6 | `discharge` | AND | `!dischargeDone & pulseOn` → **`discharging`** |
+| 7 | `notDischarge` | NOT | `!discharging` |
+| 8 | `notRecharge` | NOT | `!belowRecharge` |
+| 9 | `fullHold` | AND | `!belowRecharge & fullPrev` |
+| 10 | `fullSet` | AND(3) | `inCV & tapered & !discharging` |
+| 11 | `full` | OR | `fullSet \| fullHold` → **`chargeDone`** |
+| 12 | `fullPrev` | delay | `chargeDone`, delayed one step |
+| 13 | `notFull` | NOT | `!chargeDone` |
+| 14 | `charge` | AND | `!discharging & !chargeDone` → **`charging`** |
+| 15 | `active` | OR | `charging \| discharging` → **`currentEnable`** |
+
+Substituting each line into the next collapses those fifteen rows to five equations. Writing
+`[k]` for "this step" and `[k-1]` for "last step":
+
+```
+dischargeDone[k] = belowFloor[k]  |  ( !resumeOK[k] & dischargeDone[k-1] )
+discharging[k]   = !dischargeDone[k] & pulseOn[k]
+chargeDone[k]    = ( inCV[k] & tapered[k] & !discharging[k] )
+                   |  ( !belowRecharge[k] & chargeDone[k-1] )
+charging[k]      = !discharging[k] & !chargeDone[k]
+currentEnable[k] = charging[k] | discharging[k]
+```
+
+That is the whole controller. Everything from here is understanding it.
+
+#### 4. Step three — separate the memory from the logic
+
+The two `[k-1]` terms are the only memory in the circuit, so name them as **state bits**:
+
+```
+E = dischargeDone     "the pack has hit its floor"
+F = chargeDone        "the charge is complete"
+```
+
+Now the standard move: rewrite the machine as **next-state equations** (state bits on the left,
+inputs and old state on the right) plus **output equations** (no memory at all). The two halves
+can then be attacked with different tools — K-maps for the outputs, a state table for the
+transitions.
+
+Abbreviate the inputs to single letters, because you will be writing them a lot:
+
+| Letter | Meaning |
+|---|---|
+| `A` | `inCV & tapered` — "looks finished" |
+| `r` | `belowRecharge` |
+| `p` | `pulseOn` |
+| `b` | `belowFloor` |
+| `q` | `resumeOK` |
+| `d` | `discharging` (an internal signal, not an input) |
+
+```
+next state:   E+ = b | (!q & E)
+              F+ = (A & !d) | (!r & F)
+
+outputs:      d  = !E+ & p
+              charging      = !d & !F+
+              currentEnable = charging | d
+```
+
+One subtlety that matters and is easy to get wrong: the outputs are wired to the **new** latch
+values `E+`/`F+`, not to the delayed ones — `notFull` is fed from `full`'s output, not from
+`fullPrev`. So this is a **Mealy** machine: the outputs depend on the current inputs as well as
+the stored state, and the response to a threshold crossing appears in the same step, not the
+next one. The Unit Delays exist only to close the hold paths.
+
+#### 5. Step four — recognise the latch
+
+Both next-state equations are the same shape:
+
+```
+Q+ = S | (Q & !R)
+```
+
+That is a **set-dominant SR latch**, the standard way to build hysteresis out of gates, and
+recognising it saves ever having to think about it again. Its truth table:
+
+| S (set) | R (reset) | Q+ | Behaviour |
+|---|---|---|---|
+| 0 | 0 | `Q` | **Hold** — remember |
+| 0 | 1 | 0 | Reset |
+| 1 | 0 | 1 | Set |
+| 1 | 1 | **1** | Set wins |
+
+The `S | ...` structure is what makes set dominant: `S` is ORed in last, so it forces a 1
+regardless of `R`. For the charge latch that is the safe choice — "the pack is full" beats "the
+pack could take more charge" — and in this design the conflict never even arises, because §2
+showed `A` and `r` cannot both be true.
+
+Mapped onto the two latches:
+
+| Latch | S — set condition | R — reset condition | Gates used |
+|---|---|---|---|
+| `F` = `chargeDone` | `A & !d` — in CV, tapered, not pulsing | `r` — top cell fell to `V_recharge` | `fullSet`, `fullHold`, `full`, `notRecharge`, `notDischarge` |
+| `E` = `dischargeDone` | `b` — mean SOC at the floor | `q` — mean SOC back to `SOC_resumeDischarge` | `emptyHold`, `empty`, `notResume` (no set gate — `b` goes straight in) |
+
+Both are the same component with different thresholds, which is why the summary above calls them
+"the same five-gate hysteretic latch". Counting for `F`: one 3-input AND, one 2-input AND, one
+OR, two NOTs — five gates, plus the delay. It is a Schmitt trigger built from combinational
+logic, and its trigger levels are 4.190 V going up and 4.100 V coming down.
+
+#### 6. Step five — the K-maps
+
+Now the school method. Two maps are worth drawing, and they give opposite answers, which is the
+useful part.
+
+**Map A — the charge latch. Four variables: `A`, `d`, `r`, `F`.**
+
+`F+ = (A & !d) | (!r & F)`. Rows are `A d`, columns are `r F`, both in Gray-code order so that
+adjacent cells differ in exactly one variable:
+
+```
+                      r F
+                00    01    11    10
+          00  |  0  |  1  |  0  |  0  |
+   A d    01  |  0  |  1  |  0  |  0  |
+          11  |  0  |  1  |  0  |  0  |
+          10  |  1  |  1  |  1  |  1  |
+```
+
+Two groups of four, and they cover every 1:
+
+- the whole bottom row (`A d = 10`, i.e. `A & !d`) — the **set** term
+- the whole `r F = 01` column (`!r & F`) — the **hold** term
+
+Both are essential prime implicants — each contains a 1 that no other group covers — so the
+minimal sum-of-products is
+
+```
+F+ = A·d̄ + F·r̄  =  (inCV & tapered & !discharging) | (!belowRecharge & chargeDone[k-1])
+```
+
+— **exactly the wiring already in the model.** The K-map's job here is not to improve anything;
+it is to *prove there is nothing to improve*, which is a perfectly good result and the one you
+get most of the time on a circuit somebody has already thought about. Note also that no cell is
+a don't-care: every combination of the four variables is reachable, so there is no freedom to
+exploit.
+
+**Map B — `currentEnable`. Two variables: `d`, `F`.**
+
+`currentEnable = charging | d` and `charging = !d & !F`, so:
+
+```
+                F=0   F=1
+        d=0  |   1  |  0  |
+        d=1  |   1  |  1  |
+```
+
+Here the map *does* find something. Two groups of two — the `F=0` column and the `d=1` row:
+
+```
+currentEnable = d + F̄  =  discharging | !chargeDone
+```
+
+The same result by algebra, worth writing out because it is the one identity in this circuit
+that is not obvious by inspection:
+
+```
+  !d·!F + d
+= d + !d·!F                    commutativity
+= (d + !d)·(d + !F)            distribution — the step people forget
+= 1·(d + !F)                   complement law
+= d + !F
+```
+
+So a three-gate path (NOT, AND, OR) reduces to two — or to one, since `d + !F` is just
+`NAND(!d, F)`. **Verified against the reference run: `currentEnable == d | !F` on all 9001 steps,
+zero mismatches.**
+
+And in plain language, the minimised form is the sentence you would actually say out loud:
+
+> *The current source is on unless the charger has finished and the pulse is off.*
+
+**So why is the longer version still wired in?** Because `charging` is not an intermediate — it
+is **output port 2**, `chargingEnabled`, and it drives the CC-CV block's mode input. The AND gate
+has to exist in order to produce it. Rewiring `active` as a NAND would remove one OR gate and
+nothing else. That is the real lesson of Map B, and the one that tends to get missed in a course:
+**minimising one output does not minimise a circuit whose outputs are shared.** The K-map tells
+you what the function *is*; whether a gate is spare is a question about the whole diagram.
+
+#### 7. Step six — why the guard gates are there
+
+Three gates in the netlist look redundant on first reading. None of them are, and each one is a
+bug that was found and fixed.
+
+**`!discharging` inside `fullSet`.** §2 established that `tapered` is a signed comparison, so a
+discharge pulse satisfies it: measured, `tapered & discharging` is true on 1795 of 1800 pulse
+steps. On its own that is harmless, because `inCV` is false — a 4.5 A draw pulls the top cell
+well below 4.190 V. But the current the logic sees is **one step old** (§8), so at the *first*
+step of every pulse the logic sees the pre-pulse current while the voltage has not moved yet.
+Both `inCV` and `tapered` are true, and without the guard the latch would set. In the reference
+run the guard blocks the set term on exactly **5 steps** — the first step of each of the five
+pulses that begin after the pack first reaches full (t = 4800, 5700, 6600, 7500 and 8400 s). Here
+is one, measured:
+
+```
+     t      vMax   socMean       I  | inCV tapered pulseOn | F  discharging
+  4799   4.1963    0.9982   -0.000  |   1     1       0     | 1      0         <- resting
+  4800   4.1963    0.9982   -0.000  |   1     1       1     | 1      1         <- pulse starts,
+  4801   4.1550    0.9979   -4.500  |   0     1       1     | 1      1            I still stale
+```
+
+At t = 4800 the `inCV & tapered` term is fully satisfied while the pack is being discharged.
+`!discharging` is the only thing standing between that and a false "charge complete".
+
+**The hold path on `F`.** Without it, `chargeDone = inCV & tapered` is a bare comparator pair with
+no memory, and it cannot work — because of what the pack does when the charger stops. Measured
+over the resting intervals of the reference run, the top cell relaxes only from **4.2006 V down
+to 4.1963 V**, a total of 4.3 mV. `inCV`'s threshold is 4.190 V, so the resting pack never leaves
+the `inCV` band at all. A memoryless "charge complete" test would therefore re-evaluate to *still
+complete*, and any threshold placed inside `dVterm` of 4.2 V would oscillate at `Ts`. The latch is
+what lets the reset threshold sit **96 mV** below the resting band (`V_recharge = 4.100 V` against
+a measured floor of 4.1963 V) instead of inside it. This is the concrete reason the summary above
+insists `V_recharge` is a cell voltage and not an SOC.
+
+**The hold path on `E`.** The same argument at the other end, and §2 already showed why: between
+`SOC_minDischarge` and `SOC_resumeDischarge` there is a 0.20-wide band in which neither comparator
+is true, and only a latch can hold a decision through it. Without it the pack hits the floor,
+charges one step, rises back over the floor, discharges again — **296 switches in a 2.5 h run,
+against 13 with the latch**, as measured in section 2 above.
+
+`checkThresholds` in `P45B.m` exists to catch settings that break either hold path, and it warns
+for exactly these two failures — `V_recharge` inside the relaxation band, and
+`SOC_resumeDischarge <= SOC_minDischarge`.
+
+#### 8. Step seven — what "one step" means
+
+Three delays set the timing, and confusing them is the usual source of off-by-one errors when
+somebody reimplements this logic:
+
+| Delay | Where | Effect |
+|---|---|---|
+| `fullPrev`, `emptyPrev` | inside `Charge Logic` | Close the latch hold paths. Without them each latch would feed itself and Simulink would report an algebraic loop. |
+| `Unit Delay` | top level, after `Current Gate` | The `current` signal fed back into the logic is the gate output from the **previous** step. |
+
+So within one step `k`, the update order is:
+
+```
+1.  cellVmax[k], socMean[k]   from the Pack, this step
+    current[k]                the gated command from step k-1
+2.  the six comparators evaluate
+3.  E+  = b | (!q & E)                    using E from step k-1
+4.  d   = !E+ & p                         E+ is already updated
+5.  F+  = (A & !d) | (!r & F)             using F from step k-1, and the new d
+6.  charging = !d & !F+ ;  currentEnable = charging | d
+7.  the CC-CV block produces a command; Current Gate multiplies it by currentEnable
+8.  the Unit Delay holds the result, and it becomes current[k+1]
+```
+
+Two consequences worth stating out loud:
+
+- **`E` updates before `d`, and `d` before `F`.** The order is forced by the wiring — `d` depends
+  on `E+`, and `F+` depends on `d` — and there is no delay on either of those paths. A single
+  step can therefore take the floor latch, the pulse decision and the charge latch all the way
+  through.
+- **The current the logic reasons about is one step stale, but the voltage is not.** That
+  asymmetry is the whole reason `!discharging` is needed in §7. Reimplement this in code, feed it
+  the *current* current, and the guard will look pointless — so it gets removed, and the bug comes
+  back.
+
+#### 9. Step eight — the state machine
+
+Two state bits encode four states. Only three are reachable, and the reference run visits two:
+
+| State | `E` | `F` | Meaning | Steps in reference run |
+|---|---|---|---|---|
+| **RUN** | 0 | 0 | Neither end reached. Charges between pulses. | 7596 |
+| **FULL** | 0 | 1 | Charge complete, waiting for `V_recharge`. | 1405 |
+| **EMPTY** | 1 | 0 | Floor latched, pulse locked out, charging. | 0 |
+| — | 1 | 1 | **Unreachable.** | 0 |
+
+`E=1 & F=1` cannot happen, and the reason is a genuine interlock rather than luck: `F` needs
+`inCV`, which needs `socMean` near 1, while `E` clears at `socMean >= 0.25` on the way up. The
+pack has to pass through 0.25 to get anywhere near the CV band, and `E` releases when it does.
+`EMPTY` shows 0 steps here only because the default duty cycle is net-charging — raise
+`pulseDuty` enough to drain the pack and it appears.
+
+The transition table, with `A`, `r`, `p`, `b`, `q` as in §4 and `d` the resulting discharge
+decision:
+
+| From | Condition | `d` | To | Mode |
+|---|---|---|---|---|
+| RUN | `b` | 0 | **EMPTY** | CHARGE |
+| RUN | `!b & p` | 1 | RUN | PULSE |
+| RUN | `!b & !p & A` | 0 | **FULL** | REST |
+| RUN | `!b & !p & !A` | 0 | RUN | CHARGE |
+| FULL | `b` | 0 | **EMPTY** | CHARGE |
+| FULL | `!b & r` | `p` | **RUN** | PULSE / CHARGE |
+| FULL | `!b & !r & p` | 1 | FULL | PULSE |
+| FULL | `!b & !r & !p` | 0 | FULL | REST |
+| EMPTY | `!b & q` | 0 | **RUN** | CHARGE |
+| EMPTY | `b \| !q` | 0 | EMPTY | CHARGE |
+
+The `FULL --r--> RUN` row is where §2's mutual-exclusivity note pays off: `r` implies `!inCV`
+implies `!A`, so whenever `r` is true the set term is guaranteed dead and the latch always clears.
+No case analysis needed.
+
+As a diagram:
+
+```
+                          belowFloor
+         +-------------------------------------------+
+         |                                           v
+    +----------+                              +-----------+
+    |   RUN    |     socMean >= 0.25          |   EMPTY   |
+    |  E=0 F=0 | <--------------------------- |  E=1 F=0  |
+    |          |     (and belowFloor low)     |           |
+    | charge   |                              | charge    |
+    | + pulse  |                              | only,     |
+    +----------+                              | pulse     |
+       |    ^                                 | locked    |
+       |    |                                 +-----------+
+       |    | belowRecharge                         ^
+       |    | (cellVmax <= 4.10 V)                  |
+       |    |                                       | belowFloor
+   inCV & tapered & !discharging                    |
+   (>= 4.19 V and <= 0.225 A)                       |
+       |    |                                       |
+       v    |                                       |
+    +----------+                                    |
+    |   FULL   |------------------------------------+
+    |  E=0 F=1 |
+    |          |
+    | rest,    |
+    | pulse    |
+    | still    |
+    | allowed  |
+    +----------+
+```
+
+And the output map — three physical modes, from two bits and one clock:
+
+| `discharging` | `chargeDone` | `charging` | `currentEnable` | Pack does |
+|---|---|---|---|---|
+| 1 | × | 0 | 1 | **PULSE** — `-Ipulse` (−4.5 A) |
+| 0 | 0 | 1 | 1 | **CHARGE** — CC or CV, up to `Icharge` (+4.5 A) |
+| 0 | 1 | 0 | 0 | **REST** — open circuit, exactly 0 A |
+
+The `×` in the first row is the minimised `currentEnable = d | !F` from Map B: when the pulse is
+on, `chargeDone` does not matter.
+
+#### 10. One measured cycle, end to end
+
+The reference run — default settings, identical cells, 2.5 h — with every mode change, straight
+out of the reconstruction:
+
+```
+CHARGE       0 s ->   299 s     CC from SOC 0.30, waiting for the first pulse
+PULSE      300 s ->   479 s     pulseNdelay elapses; -4.5 A for 180 s
+CHARGE     480 s ->  1199 s     720 s of charging
+PULSE     1200 s ->  1379 s
+   ... four more identical 900 s cycles ...
+CHARGE    4080 s ->  4600 s     enters CV; current starts tapering
+REST      4601 s ->  4799 s     <- F sets. First time the pack is full
+PULSE     4800 s ->  4979 s     <- pulse fires anyway; F clears mid-pulse at 4826 s
+CHARGE    4980 s ->  5430 s     tops back up
+REST      5431 s ->  5699 s
+   ... steady limit cycle: 180 s PULSE / 451 s CHARGE / 269 s REST ...
+CHARGE    8580 s ->  9000 s
+```
+
+Totals: 5926 steps charging, 1800 discharging, 1275 resting, 10 mode switches.
+
+The three interesting instants, measured. **`F` sets** — nothing changes except the current
+crossing 0.225 A:
+
+```
+     t      vMax   socMean       I  | inCV tapered belowR pulseOn | F  chg  en
+  4600   4.2006    0.9981    0.226  |   1     0       0       0    | 0   1    1
+  4601   4.2006    0.9982    0.224  |   1     1       0       0    | 1   0    0   <- set
+  4602   4.1986    0.9982   -0.000  |   1     1       0       0    | 1   0    0
+```
+
+One step later the current is zero: `currentEnable` went low, `Current Gate` multiplied the CC-CV
+block's command by 0, and the Unit Delay presented that to the network. The pack is now genuinely
+open-circuit, not trickling.
+
+**A pulse fires while `F` is still latched** — `FULL` allows discharge, and the pulse takes
+priority:
+
+```
+  4799   4.1963    0.9982   -0.000  |   1     1       0       0    | 1   0    0   <- resting
+  4800   4.1963    0.9982   -0.000  |   1     1       0       1    | 1   0    1   <- pulseOn
+  4801   4.1550    0.9979   -4.500  |   0     1       0       1    | 1   0    1
+```
+
+`charging` stays 0 — the CC-CV block is told to discharge — but `currentEnable` goes to 1 because
+of the `| discharging` term. This is the row where the minimised form earns its keep:
+`d | !F` = `1 | 0` = 1.
+
+**`F` clears**, 26 steps into that pulse, when the top cell finally falls to `V_recharge`:
+
+```
+  4825   4.1006    0.9912   -4.500  |   0     1       0       1    | 1   0    1
+  4826   4.0998    0.9909   -4.500  |   0     1       1       1    | 0   0    1   <- r trips
+```
+
+`belowRecharge` goes high, `fullHold` opens, and because `inCV` is necessarily low at 4.0998 V the
+set term cannot re-close it. The machine is back in `RUN`, and when the pulse ends at 4980 s the
+charger takes the pack again.
+
+#### 11. Check it yourself
+
+Do not take any of the above on trust — the point of deriving equations is that they are testable.
+Run the model, reconstruct the logic from the three logged analog signals, and compare. This is
+the script that produced every measured number in this section:
+
+```matlab
+P45B setup;  sim('P45B_CCCV');            % logsout lands in the base workspace
+L = logsout;  g = @(n) L.getElement(n).Values;
+
+cur = g('current');  t = cur.Time;  I = cur.Data(:);
+vC  = squeeze(g('cellVoltages').Data);  if size(vC,1)  ~= numel(t), vC  = vC.';  end
+soc = squeeze(g('socCells').Data);      if size(soc,1) ~= numel(t), soc = soc.'; end
+cellVmax = max(vC,[],2);  socMean = mean(soc,2);
+
+k = round(t/Ts);                                   % 0-based step index
+inCV    = cellVmax >= vMaxCell - dVterm;
+tapered = I        <= Iterm;
+belowR  = cellVmax <= V_recharge;
+belowF  = socMean  <= SOC_minDischarge;
+resume  = socMean  >= SOC_resumeDischarge;
+pulseOn = (k >= pulseNdelay) & (mod(k - pulseNdelay, pulseN) < pulseNon);
+
+n = numel(t);  E = false;  F = false;
+d = false(n,1); chg = false(n,1); en = false(n,1); Fs = false(n,1);
+for i = 1:n
+    E      = belowF(i) | (~resume(i) & E);                        % E+
+    d(i)   = ~E & pulseOn(i);                                     % discharging
+    F      = (inCV(i) & tapered(i) & ~d(i)) | (~belowR(i) & F);   % F+
+    chg(i) = ~d(i) & ~F;                                          % charging
+    en(i)  = chg(i) | d(i);                                       % currentEnable
+    Fs(i)  = F;
+end
+
+% currentEnable[k] gates the command that appears in current[k+1]
+fprintf('enable mismatches : %d of %d\n', sum(en(1:end-1) ~= (I(2:end)~=0)), n-1);
+fprintf('Map B identity    : %d mismatches\n', sum(en ~= (d | ~Fs)));
+```
+
+Both counters print **0**. Note the one-step offset in the first check — `currentEnable` at step
+`k` gates the command that the Unit Delay presents at step `k+1`. Getting that wrong produces a
+handful of mismatches at every mode change, and is the fastest way to convince yourself §8 is
+real.
+
+The internal Booleans are not logged — the lines are named but not marked for logging — which is
+why the check reconstructs them from `current`, `cellVoltages` and `socCells`. For teaching
+purposes that is a feature: if the reconstruction matches, the equations are right.
+
+#### 12. The general recipe
+
+Nothing above is specific to this model. To take apart any Simulink logic diagram:
+
+1. **Get the netlist.** An `.slx` is a zip. `cp model.slx m.zip && unzip m.zip` gives you
+   `simulink/systems/system_*.xml`, where every block is a `<Block>` carrying its parameters and
+   every wire is a `<Line>` with `Src` and `Dst` written as `SID#port`. Reading that beats
+   clicking around a canvas, and it is diffable.
+2. **Resolve the defaults.** The XML stores only non-default parameters, so an AND gate is a
+   `Logic` block with no `Operator` at all. Confirm with `get_param` before believing anything —
+   see the snippet in §1.
+3. **Find the analog→Boolean boundary.** Comparators, relational operators, sign blocks. List
+   every Boolean primitive and its threshold. No algebra is possible upstream of that line.
+4. **Topologically sort the gates** and write one expression per gate. If they will not sort, you
+   have found a feedback path — go to step 5.
+5. **Cut every feedback path at its delay** and name what the delay stores. Those are your state
+   bits. If a feedback path has *no* delay it is an algebraic loop, and Simulink will already have
+   complained.
+6. **Split into next-state and output equations.** Substitute forward until each is written only
+   in terms of inputs and old state.
+7. **Look for the standard cells.** `Q+ = S | (Q & !R)` is a set-dominant latch; recognising it
+   replaces three gates with one word. Most real diagrams are a handful of stock patterns.
+8. **K-map the outputs.** Expect most to be minimal already. Where a map does simplify, check
+   whether the "spare" gate feeds something else before deleting it.
+9. **Build the state table**, then mark the unreachable states and *say why* — the reason is
+   usually a physical interlock worth documenting, as in §9.
+10. **Verify by replay.** Reimplement the equations in a loop, run them against logged signals, and
+    count mismatches. A derivation you have not tested is a guess. Mind the one-step offsets.
+
+And to poke at this particular subsystem live:
+
+```matlab
+open_system('P45B_CCCV/Charge Logic')
+find_system('P45B_CCCV/Charge Logic','SearchDepth',1,'BlockType','Logic')
+get_param('P45B_CCCV/Charge Logic/fullSet','Operator')     % AND
+get_param('P45B_CCCV/Charge Logic/inCV','const')           % vMaxCell - dVterm
+```
+
+---
+
 ## 3. Calculating the values — for P45B in **any** configuration
 
 This is the recipe. Everything below is already implemented in `config()`/`P45B.m`;
