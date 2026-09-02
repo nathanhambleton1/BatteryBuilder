@@ -1,0 +1,4 @@
+# Simulink build artefacts - regenerated on every simulation
+slprj/
+*.slxc
+*.autosave
