@@ -6,7 +6,7 @@ component ParallelAssemblyType1
     %
     %    MATLAB version: 25.2
     %    Simscape Battery version: 25.2
-    %    Simscape code generated on: 02-Sep-2026 17:23:37
+    %    Simscape code generated on: 03-Sep-2026 07:18:52
 
     parameters
         SOC_vecCell = {[0, .1, .25, .5, .75, .9, 1],'1'}; % Vector of state-of-charge values, SOC
@@ -24,10 +24,18 @@ component ParallelAssemblyType1
         R1_vecCellPercentDeviation = zeros([1 1]); % Percent deviation for R1_vecCell
         tau1_vecCell = {[36, 45, 105, 29, 77, 33, 39],'s'}; % First time constant, tau1(SOC)
         tau1_vecCellPercentDeviation = zeros([1 1]); % Percent deviation for tau1_vecCell
+        CellBalancingClosedResistance = {0.01,'Ohm'}; % Cell balancing switch closed resistance
+        CellBalancingOpenConductance = {1e-8,'1/Ohm'}; % Cell balancing switch open conductance
+        CellBalancingThreshold = {0.5,'1'}; % Cell balancing switch operation threshold
+        CellBalancingResistance = {50,'Ohm'}; % Cell balancing shunt resistance
     end
 
     parameters(ExternalAccess=none)
         P = 1; % Batteries in Parallel
+    end
+
+    inputs
+        enableCellBalancing = {0,'1'}; % CB
     end
 
     nodes
@@ -68,11 +76,25 @@ component ParallelAssemblyType1
             'Percent deviation for tau1_vecCell must contain a number of vertically concatenated elements equal to the number of cell models. Each element must be a scalar or equal to the size of the underlying parameter.');
     end
 
+    components(ExternalAccess=observe)
+        balancingSwitch = foundation.electrical.elements.controlled_switch(R_closed = CellBalancingClosedResistance,...
+            G_open = CellBalancingOpenConductance,Threshold = CellBalancingThreshold);
+        balancingResistor = foundation.electrical.elements.resistor(R = CellBalancingResistance);
+    end
+
+    connections
+        connect(P45B.p,balancingSwitch.p);
+        connect(balancingSwitch.n,balancingResistor.p);
+        connect(balancingResistor.n,P45B.n);
+        connect(enableCellBalancing,balancingSwitch.vT);
+    end
+
     annotations
         [p] : Side=top;
         [n] : Side=bottom;
         UILayout = [UIGroup("Main",SOC_vecCell,SOC_vecCellPercentDeviation,V0_vecCell,V0_vecCellPercentDeviation,V_rangeCell,V_rangeCellPercentDeviation,R0_vecCell,R0_vecCellPercentDeviation,AHCell,AHCellPercentDeviation,extrapolation_optionCell),...
-            UIGroup("Dynamics",R1_vecCell,R1_vecCellPercentDeviation,tau1_vecCell,tau1_vecCellPercentDeviation)];
+            UIGroup("Dynamics",R1_vecCell,R1_vecCellPercentDeviation,tau1_vecCell,tau1_vecCellPercentDeviation),...
+            UIGroup("Cell Balancing",CellBalancingClosedResistance,CellBalancingOpenConductance,CellBalancingThreshold,CellBalancingResistance)];
         Icon = 'parallelAssembly.svg';
     end
 

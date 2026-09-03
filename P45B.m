@@ -34,6 +34,13 @@ function P45B(action, varargin)
 %   The pulse always wins. Between pulses the pack charges if it needs to and
 %   sits at zero current if it does not.
 %
+%   PASSIVE CELL BALANCING is built into the pack and enabled by default. Every
+%   parallel assembly carries a bleed resistor and a switch across it, and the
+%   stock Simscape Battery "Passive Cell Balancing" block closes the switch on
+%   any assembly sitting more than balThreshold in SOC above the lowest one in
+%   the pack. balEnable = false in config() holds every switch open. Neither
+%   the threshold nor the enable needs a rebuild.
+%
 %   Changing Ns or Np needs "P45B build" afterwards, because the series and
 %   parallel counts are compiled into the generated Simscape source. Nothing
 %   else does.
@@ -94,6 +101,39 @@ c.SOC_resumeDischarge = 0.25; % do not let it start again until the charger has
                             % hysteresis as V_recharge, at the other end. Set
                             % SOC_minDischarge = 0 to let the pulse run the
                             % pack flat with no floor at all.
+
+% ---- Passive cell balancing -------------------------------------------
+% Two stock pieces, no custom blocks. Battery Builder puts a bleed resistor and
+% a signal-controlled switch across every parallel assembly (BalancingStrategy
+% = "Passive", set in doBuild) and brings the switch commands out as a
+% "balancing" inport, Ns wide. Simscape / Battery / BMS / Cell Balancing /
+% Passive Cell Balancing drives that port: it compares every assembly against
+% the lowest one in the pack and commands a 1 wherever the gap exceeds
+% balThreshold.
+%
+% The comparison is on SOC, not voltage. Under the 1C pulse a cell's terminal
+% voltage moves ~80 mV on IR alone - far more than the imbalance being chased -
+% so a voltage threshold would trip on load rather than on charge.
+% socParallelAssembly comes straight off the pack block and is load-free.
+c.balEnable     = true;     % Master enable. false holds every switch open.
+c.balThreshold  = 0.02;     % Bleed an assembly this far in SOC above the lowest one
+c.balHysteresis = 0.01;     % ...and stop once it is back inside threshold - this.
+                            % Must be <= balThreshold. Zero would make the
+                            % switch chatter at the threshold; keep some gap.
+c.balOnDelay    = 10;       % The condition must hold this long before the switch
+c.balOffDelay   = 10;       % closes, and this long before it opens again, s
+c.balR          = 33;       % Bleed resistor, Ohm, one per parallel assembly.
+                            % Smaller = faster balancing and more heat: at 3.6 V
+                            % a 33 Ohm shunt is 0.11 A / 0.39 W. "P45B setup"
+                            % prints the current, the power and the bleed rate.
+
+% ---- Balancing switch idealisation (leave alone) ----------------------
+% Mask parameters of the generated switch. The defaults are ideal enough that
+% they do not show up in any result; they are here only because config() is
+% meant to be the one place a number is written down.
+c.balRon        = 0.01;     % Switch closed resistance, Ohm
+c.balGoff       = 1e-8;     % Switch open conductance, 1/Ohm (leaks ~40 nA per assembly)
+c.balVt         = 0.5;      % Command above this closes the switch (commands are 0/1)
 
 % ---- Controller --------------------------------------------------------
 c.Ts           = 1;         % Controller + local solver sample time (s)
@@ -170,6 +210,12 @@ S.Pack.tau1_vecCell = cellP.tau1_vec;
 S.Pack.AHCell       = cellP.AH;
 S.Pack.V_rangeCell  = [0, inf];   % [cellP.Vmin cellP.Vmax] to assert on abuse
 
+% ---- Balancing circuit (mask parameters of the same generated block) ---
+S.Pack.CellBalancingResistance       = S.balR;
+S.Pack.CellBalancingClosedResistance = S.balRon;
+S.Pack.CellBalancingOpenConductance  = S.balGoff;
+S.Pack.CellBalancingThreshold        = S.balVt;
+
 % ---- Cell-to-cell variation (zero here; "P45B vary" randomises it)
 z = zeros(S.Ncells,1);
 for f = {'SOC_vec','V0_vec','R0_vec','R1_vec','tau1_vec','AH','V_range'}
@@ -200,6 +246,16 @@ S.pulseNdelay = max(0, round(S.pulseDelay/S.Ts));                % steps before 
 S.pulseOnTime = S.pulseNon*S.Ts;                 % Achieved pulse width, s
 S.pulseTime   = S.pulseN  *S.Ts;                 % Achieved period, s
 S.pulseDutyOn = 100*S.pulseNon/S.pulseN;         % Achieved duty cycle, percent
+
+% ---- Passive balancing -------------------------------------------------
+% The shunt sits across a whole parallel assembly, so it drains all Np cells at
+% once: the assembly loses Ibleed amps out of Np*AH amp-hours, which is why the
+% bleed rate falls as Np rises.
+S.balCmd   = double(S.balEnable);             % Feeds the balancer's Enable port
+S.Ibleed   = cellP.Vnom/(S.balR + S.balRon);  % Bleed current at nominal cell volts, A
+S.Pbleed   = cellP.Vnom*S.Ibleed;             % Resistor dissipation there, W
+S.balRate  = S.Ibleed/(S.Np*cellP.AH);        % SOC bled off per hour, 1/h
+S.balHours = S.balThreshold/S.balRate;        % Hours to bleed one threshold away
 
 % ---- CC-CV controller gains -------------------------------------------
 % The CC-CV block sees per-cell volts and commands pack amps, so the plant
@@ -242,6 +298,16 @@ fprintf('\n');
 if S.SOC_minDischarge > 0
     fprintf('    Pulse blocked  below %.2f mean SOC, until the charger reaches %.2f\n', ...
             S.SOC_minDischarge, S.SOC_resumeDischarge);
+end
+if S.balEnable
+    fprintf('    Balancing      passive, on: bleed above %.3f SOC, stop below %.3f\n', ...
+            S.balThreshold, S.balThreshold - S.balHysteresis);
+    fprintf('                   %.3g Ohm shunt = %.3f A / %.2f W per assembly at %.2f V\n', ...
+            S.balR, S.Ibleed, S.Pbleed, S.cellP.Vnom);
+    fprintf('                   %.2f SOC points per hour, so %.2f h to clear %.3f SOC\n', ...
+            100*S.balRate, S.balHours, S.balThreshold);
+else
+    fprintf('    Balancing      passive circuit built in, switches held open (balEnable = false)\n');
 end
 fprintf('    Rcell @ SOC %.2f   %.2f mOhm  (R0+R1)\n', S.SOC_cvDesign, S.Rcell_cv*1000);
 fprintf('    CC-CV gains    Kp = %.4g A/V   Ki = %.4g A/(V*s)   Kaw = %.4g 1/s   Kt = %.4g 1/s\n', ...
@@ -294,6 +360,29 @@ if S.pulseNon >= S.pulseN
         ['pulseDuty = %g%% rounds to a pulse that is on for the whole period, so ' ...
          'the pack only ever discharges.'], S.pulseDuty);
 end
+if S.balHysteresis > S.balThreshold
+    warning('P45B:balHysteresis', ...
+        ['balHysteresis (%.3f) is bigger than balThreshold (%.3f). The Passive ' ...
+         'Cell Balancing block refuses that and the model will not compile.'], ...
+        S.balHysteresis, S.balThreshold);
+end
+if S.balThreshold <= 0
+    warning('P45B:balThreshold', ...
+        ['balThreshold must be greater than zero. The Passive Cell Balancing ' ...
+         'block refuses %.3f and the model will not compile.'], S.balThreshold);
+end
+if S.balEnable && S.balHours > S.stopTime/3600
+    warning('P45B:balTooSlow', ...
+        ['The %.3g Ohm shunt bleeds only %.2f SOC points an hour, so clearing the ' ...
+         '%.3f SOC threshold takes %.1f h - longer than the %.1f h simulation. ' ...
+         'Balancing will barely register. Use a smaller balR or a longer stopTime.'], ...
+        S.balR, 100*S.balRate, S.balThreshold, S.balHours, S.stopTime/3600);
+end
+if S.balEnable && S.Pbleed > 5
+    warning('P45B:balHot', ...
+        ['The %.3g Ohm shunt dissipates %.1f W per assembly. Real bleed resistors ' ...
+         'are sized for a fraction of a watt; raise balR.'], S.balR, S.Pbleed);
+end
 if abs(S.pulseTime - S.pulsePeriod) > 1e-9 || ...
    abs(S.pulseOnTime - S.pulsePeriod*S.pulseDuty/100) > 1e-9
     fprintf(['  Note: the pulse was rounded to whole Ts steps - %g s period / ' ...
@@ -311,6 +400,9 @@ function doBuild()
 %   ModuleAssembly -> Pack - because only the pack level gives the block
 %   measurement ports. buildBattery leaves that pack in a model of its own, so
 %   the last step lifts it into the library the model actually references.
+%
+%   The pack is built with BalancingStrategy = "Passive", which is what gives
+%   the block its "balancing" command inport - see the comment at that line.
 %
 %   Produces, next to this file:
 %       P45BPack_lib.slx    Simulink library holding the "Pack" block
@@ -365,6 +457,19 @@ ma.Name = 'ModuleAssembly';
 pk = batteryPack(ma);
 pk.Name = 'Pack';
 
+% ---- Passive balancing ------------------------------------------------
+% Adds a bleed resistor in series with a signal-controlled switch across every
+% parallel assembly, and a "balancing" command inport on the generated block,
+% Ns wide. Setting it on the pack propagates it down the whole hierarchy.
+%
+% The circuit is always generated, so that balEnable in config() can turn the
+% balancer off at run time without a rebuild. An open switch is 1e-8 S - 40 nA
+% across an assembly - and a switch plus a resistor adds no state to the network, so
+% an idle circuit changes nothing electrically. Balancing that is actually
+% switching does cost run time: every switch that changes state forces
+% Simscape to refactorise the network. README section 6 has the measurements.
+pk.BalancingStrategy = 'Passive';
+
 % ---- Generate ---------------------------------------------------------
 % buildBattery refuses to overwrite anything it generated last time, so clear
 % the previous output first. Everything removed here is regenerated below.
@@ -414,6 +519,11 @@ function promotePack(here)
 %       on the module block inside the library now, but SOC0Cell is still read
 %       from the base workspace at compile time, so "P45B vary" still works
 %       without a rebuild.
+%
+%   Two more fixups stop the copy going stale when Ns changes, by repointing
+%   sizes that buildBattery compiled in as literals at the workspace instead:
+%   the series/parallel counts on the module block, and the width of the
+%   balancing command port. See the comments at each.
 
 libFile = fullfile(here,'P45BPack_lib.slx');
 fileattrib(libFile,'+w');              % buildBattery writes it read-only
@@ -444,6 +554,16 @@ set_param(mb, 'socCell_specify','on', 'socCell_priority','High', 'socCell','SOC0
 % pack in silence. Point them at the workspace instead. checkLibrary() already
 % refuses to run if those disagree with the generated source.
 set_param(mb, 'S', 'Ns', 'P', 'Np');
+
+% Same problem, one level out. The balancing command port is ordinary Simulink
+% plumbing rather than a Simscape parameter - an Inport and a Selector - and
+% buildBattery writes Ns into both as a literal. Point them at the workspace so
+% that changing Ns cannot leave a stale 195-wide port behind.
+for lvl = {'P45BPack_lib/Pack','P45BPack_lib/Pack/ModuleAssembly'}
+    set_param([lvl{1} '/balancing'], 'PortDimensions', 'Ns');
+    set_param([lvl{1} '/balancingSelector1'], 'InputPortWidth', 'Ns', ...
+              'IndexParamArray', {'1:Ns'});
+end
 
 save_system(libFile);
 close_system('P45BPack_lib', 0);
@@ -485,6 +605,16 @@ if Sbuilt ~= Ns || Pbuilt ~= Np
     error('P45B:libraryMismatch', ...
         ['config() asks for a %ds%dp pack but the generated library is %ds%dp.\n' ...
          'Regenerate it:\n\n    P45B build\n'], Ns, Np, Sbuilt, Pbuilt);
+end
+
+% The balancing circuit is compiled in the same way, and the model wires a
+% balancer to a command port that only exists if it was generated. A library
+% left over from before balancing was added would fail to compile with a
+% "too many input ports" error that says nothing about why.
+if ~contains(txt, 'enableCellBalancing')
+    error('P45B:noBalancing', ...
+        ['The generated library has no cell-balancing circuit, but the model ' ...
+         'drives one.\nRegenerate it:\n\n    P45B build\n']);
 end
 end
 
@@ -576,6 +706,10 @@ function doPlot(logsIn)
 %   Runs automatically when P45B_CCCV.slx finishes (StopFcn). The per-cell
 %   signals come straight off the Pack block's socCell / vCell ports, so the spread
 %   produced by "P45B vary" shows up here.
+%
+%   A fifth tile appears when the log carries the balancing commands, counting
+%   the assemblies with the bleed switch closed. Watching that count decay is
+%   the quickest way to see the balancer working.
 
 if nargin == 0
     if evalin('base', 'exist(''logsout'',''var'')')
@@ -596,6 +730,14 @@ soc   = squeeze(g('socCells').Data);
 if size(vC,1)  ~= numel(t), vC  = vC.';  end
 if size(soc,1) ~= numel(t), soc = soc.'; end
 
+% The balancing commands, one per parallel assembly. Logged only when the model
+% carries the balancer, so an older log still plots.
+bal = [];
+if any(strcmp(logsIn.getElementNames, 'balancing'))
+    bal = squeeze(g('balancing').Data);
+    if size(bal,1) ~= numel(t), bal = bal.'; end
+end
+
 Vpack   = sum(vC, 2);
 vCmax   = max(vC, [], 2);   vCmin  = min(vC, [], 2);
 socMean = mean(soc, 2);
@@ -609,7 +751,8 @@ blue = [0 0.447 0.741]; orange = [0.85 0.325 0.098]; grey = [0.5 0.5 0.5];
 fh = findobj('Type','figure','Name','P45B_CCCV');
 if isempty(fh), fh = figure('Name','P45B_CCCV'); else, fh = fh(1); end
 figure(fh); clf(fh);
-tl = tiledlayout(fh, 4, 1, 'TileSpacing','compact', 'Padding','compact');
+nTiles = 4 + ~isempty(bal);
+tl = tiledlayout(fh, nTiles, 1, 'TileSpacing','compact', 'Padding','compact');
 
 ax(1) = nexttile;
 plot(t, Ipack, 'LineWidth', 1.5, 'Color', blue); grid on
@@ -632,8 +775,18 @@ ax(4) = nexttile;
 fill([t; flipud(t)], [socMax; flipud(socMin)], orange, ...
      'FaceAlpha', 0.30, 'EdgeColor','none'); hold on
 plot(t, socMean, 'LineWidth', 1.5, 'Color', blue); grid on
-ylabel('SOC'); xlabel('Time (hours)'); ylim([0 1]);
+ylabel('SOC'); ylim([0 1]);
 title('State of charge - mean, with cell-to-cell spread shaded');
+if isempty(bal), xlabel('Time (hours)'); end
+
+if ~isempty(bal)
+    ax(5) = nexttile;
+    nBleed = sum(bal > 0.5, 2);
+    stairs(t, nBleed, 'LineWidth', 1.2, 'Color', orange); grid on
+    ylabel('Bleeding'); xlabel('Time (hours)');
+    ylim([0 max(1, max(nBleed))*1.15]);
+    title(sprintf('Passive balancing - assemblies with the bleed switch closed (of %d)', Ns));
+end
 
 linkaxes(ax, 'x'); xlim(ax(1), [0 max(t)]);
 title(tl, sprintf('P45B %ds%dp  CC-CV charge with discharge pulses', Ns, Np));
@@ -641,6 +794,13 @@ title(tl, sprintf('P45B %ds%dp  CC-CV charge with discharge pulses', Ns, Np));
 fprintf(['  Simulated %.2f h  |  peak cell %.4f V  |  cell spread at end ' ...
          '%.1f mV / %.2f %% SOC\n'], t(end), max(vCmax), ...
         (vCmax(end)-vCmin(end))*1000, (socMax(end)-socMin(end))*100);
+if ~isempty(bal)
+    spreadStart = (max(soc(1,:)) - min(soc(1,:)))*100;
+    ahBled = trapz(t, sum(bal > 0.5, 2))*evalin('base','Ibleed');   % summed over assemblies
+    fprintf(['  Balancing        SOC spread %.2f %% -> %.2f %%  |  peak %d of %d ' ...
+             'assemblies bleeding  |  %.2f Ah bled away in total\n'], ...
+            spreadStart, (socMax(end)-socMin(end))*100, max(sum(bal > 0.5, 2)), Ns, ahBled);
+end
 end
 
 

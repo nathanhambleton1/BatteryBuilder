@@ -7,7 +7,7 @@ component ModuleType1
     %
     %    MATLAB version: 25.2
     %    Simscape Battery version: 25.2
-    %    Simscape code generated on: 02-Sep-2026 17:23:38
+    %    Simscape code generated on: 03-Sep-2026 07:18:53
 
     parameters
         SOC_vecCell = {[0, .1, .25, .5, .75, .9, 1],'1'}; % Vector of state-of-charge values, SOC
@@ -25,12 +25,20 @@ component ModuleType1
         R1_vecCellPercentDeviation = zeros([195 1]); % Percent deviation for R1_vecCell
         tau1_vecCell = {[36, 45, 105, 29, 77, 33, 39],'s'}; % First time constant, tau1(SOC)
         tau1_vecCellPercentDeviation = zeros([195 1]); % Percent deviation for tau1_vecCell
+        CellBalancingClosedResistance = {0.01,'Ohm'}; % Cell balancing switch closed resistance
+        CellBalancingOpenConductance = {1e-8,'1/Ohm'}; % Cell balancing switch open conductance
+        CellBalancingThreshold = {0.5,'1'}; % Cell balancing switch operation threshold
+        CellBalancingResistance = {50,'Ohm'}; % Cell balancing shunt resistance
     end
 
     parameters(ExternalAccess=none)
         P = 1; % Batteries in Parallel
         S = 195; % Batteries in Series
         CellCount = P*S; % Number of cells in battery
+    end
+
+    inputs
+        enableCellBalancing = {repmat(0,S,1),'1'}; % CB
     end
 
     nodes
@@ -79,7 +87,8 @@ component ModuleType1
         [p] : Side=top;
         [n] : Side=bottom;
         UILayout = [UIGroup("Main",SOC_vecCell,SOC_vecCellPercentDeviation,V0_vecCell,V0_vecCellPercentDeviation,V_rangeCell,V_rangeCellPercentDeviation,R0_vecCell,R0_vecCellPercentDeviation,AHCell,AHCellPercentDeviation,extrapolation_optionCell),...
-            UIGroup("Dynamics",R1_vecCell,R1_vecCellPercentDeviation,tau1_vecCell,tau1_vecCellPercentDeviation)];
+            UIGroup("Dynamics",R1_vecCell,R1_vecCellPercentDeviation,tau1_vecCell,tau1_vecCellPercentDeviation),...
+            UIGroup("Cell Balancing",CellBalancingClosedResistance,CellBalancingOpenConductance,CellBalancingThreshold,CellBalancingResistance)];
         Icon = 'module.svg';
     end
 
@@ -89,6 +98,10 @@ component ModuleType1
                 SOC_vecCell = SOC_vecCell,V0_vecCell = V0_vecCell,V_rangeCell = V_rangeCell,...
                 R0_vecCell = R0_vecCell,AHCell = AHCell,...
                 extrapolation_optionCell = extrapolation_optionCell,R1_vecCell = R1_vecCell,tau1_vecCell = tau1_vecCell,...
+                CellBalancingClosedResistance = CellBalancingClosedResistance,...
+                CellBalancingOpenConductance = CellBalancingOpenConductance,...
+                CellBalancingThreshold = CellBalancingThreshold,...
+                CellBalancingResistance = CellBalancingResistance,...
                 SOC_vecCellPercentDeviation = indexParameterDeviation(SOC_vecCellPercentDeviation,S,Sidx),...
                 V0_vecCellPercentDeviation = indexParameterDeviation(V0_vecCellPercentDeviation,S,Sidx),...
                 V_rangeCellPercentDeviation = indexParameterDeviation(V_rangeCellPercentDeviation,S,Sidx),...
@@ -96,8 +109,8 @@ component ModuleType1
                 AHCellPercentDeviation = indexParameterDeviation(AHCellPercentDeviation,S,Sidx),...
                 R1_vecCellPercentDeviation = indexParameterDeviation(R1_vecCellPercentDeviation,S,Sidx),...
                 tau1_vecCellPercentDeviation = indexParameterDeviation(tau1_vecCellPercentDeviation,S,Sidx),...
-                iCell.priority = priority.none,vCell.priority = priority.none,socCell.priority = priority.none,...
-                numCyclesCell.priority = priority.none,...
+                iCell.priority = priority.none,vCell.priority = priority.none,...
+                socCell.priority = priority.none,numCyclesCell.priority = priority.none,...
                 vParallelAssembly.priority = priority.none,socParallelAssembly.priority = priority.none);
         end
     end
@@ -116,6 +129,12 @@ component ModuleType1
             PA(Sidx).numCyclesCell == reshape(numCyclesCell((Sidx*P-(P-1)):(Sidx*P)),P,1);
             PA(Sidx).vParallelAssembly == vParallelAssembly(Sidx);
             PA(Sidx).socParallelAssembly == socParallelAssembly(Sidx);
+        end
+    end
+
+    for Sidx = 1:S
+        connections
+            connect(enableCellBalancing(Sidx),PA(Sidx).enableCellBalancing);
         end
     end
 end
