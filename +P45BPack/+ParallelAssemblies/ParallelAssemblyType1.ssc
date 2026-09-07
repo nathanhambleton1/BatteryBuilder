@@ -2,28 +2,28 @@ component ParallelAssemblyType1
     % ParallelAssemblyType1:2
     % Parallel Assembly Block
     %    Model resolution: Detailed
-    %    Number of cells: 1
+    %    Number of cells: 2
     %
     %    MATLAB version: 25.2
     %    Simscape Battery version: 25.2
-    %    Simscape code generated on: 03-Sep-2026 07:18:52
+    %    Simscape code generated on: 07-Sep-2026 17:43:39
 
     parameters
         SOC_vecCell = {[0, .1, .25, .5, .75, .9, 1],'1'}; % Vector of state-of-charge values, SOC
-        SOC_vecCellPercentDeviation = zeros([1 1]); % Percent deviation for SOC_vecCell
+        SOC_vecCellPercentDeviation = zeros([2 1]); % Percent deviation for SOC_vecCell
         V0_vecCell = {[3.5057, 3.566, 3.6337, 3.7127, 3.9259, 4.0777, 4.1928],'V'}; % Open-circuit voltage, V0(SOC)
-        V0_vecCellPercentDeviation = zeros([1 1]); % Percent deviation for V0_vecCell
+        V0_vecCellPercentDeviation = zeros([2 1]); % Percent deviation for V0_vecCell
         V_rangeCell = {[0, inf],'V'}; % Terminal voltage operating range [Min Max]
-        V_rangeCellPercentDeviation = zeros([1 1]); % Percent deviation for V_rangeCell
+        V_rangeCellPercentDeviation = zeros([2 1]); % Percent deviation for V_rangeCell
         R0_vecCell = {[.0085, .0085, .0087, .0082, .0083, .0085, .0085],'Ohm'}; % Terminal resistance, R0(SOC)
-        R0_vecCellPercentDeviation = zeros([1 1]); % Percent deviation for R0_vecCell
+        R0_vecCellPercentDeviation = zeros([2 1]); % Percent deviation for R0_vecCell
         AHCell = {27,'A*hr'}; % Cell capacity, AH
-        AHCellPercentDeviation = zeros([1 1]); % Percent deviation for AHCell
+        AHCellPercentDeviation = zeros([2 1]); % Percent deviation for AHCell
         extrapolation_optionCell = {simscape.enum.extrapolation.nearest,'1'}; % Extrapolation method for all tables
         R1_vecCell = {[.0029, .0024, .0026, .0016, .0023, .0018, .0017],'Ohm'}; % First polarization resistance, R1(SOC)
-        R1_vecCellPercentDeviation = zeros([1 1]); % Percent deviation for R1_vecCell
+        R1_vecCellPercentDeviation = zeros([2 1]); % Percent deviation for R1_vecCell
         tau1_vecCell = {[36, 45, 105, 29, 77, 33, 39],'s'}; % First time constant, tau1(SOC)
-        tau1_vecCellPercentDeviation = zeros([1 1]); % Percent deviation for tau1_vecCell
+        tau1_vecCellPercentDeviation = zeros([2 1]); % Percent deviation for tau1_vecCell
         CellBalancingClosedResistance = {0.01,'Ohm'}; % Cell balancing switch closed resistance
         CellBalancingOpenConductance = {1e-8,'1/Ohm'}; % Cell balancing switch open conductance
         CellBalancingThreshold = {0.5,'1'}; % Cell balancing switch operation threshold
@@ -31,7 +31,7 @@ component ParallelAssemblyType1
     end
 
     parameters(ExternalAccess=none)
-        P = 1; % Batteries in Parallel
+        P = 2; % Batteries in Parallel
     end
 
     inputs
@@ -44,10 +44,10 @@ component ParallelAssemblyType1
     end
 
     variables
-        iCell = {0,'A'}; % Cell current (positive in)
-        vCell = {0,'V'}; % Cell terminal voltage
-        socCell = {value={1,'1'},priority=priority.high}; % Cell state of charge
-        numCyclesCell = {value={0,'1'},priority=priority.high}; % Cell discharge cycles
+        iCell = {repmat(0,2,1),'A'}; % Cell current (positive in)
+        vCell = {repmat(0,2,1),'V'}; % Cell terminal voltage
+        socCell = {value={repmat(1,2,1),'1'},priority=priority.high}; % Cell state of charge
+        numCyclesCell = {value={repmat(0,2,1),'1'},priority=priority.high}; % Cell discharge cycles
         vParallelAssembly = {value={0,'V'},priority=priority.none}; % Parallel Assembly Voltage
         socParallelAssembly = {value={1,'1'},priority=priority.none}; % Parallel Assembly state of charge
     end

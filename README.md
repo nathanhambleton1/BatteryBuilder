@@ -1,8 +1,8 @@
 # P45B CC-CV Pack Model
 
-A Simscape Battery model of a **195s1p pack of Molicel INR-21700-P45B cells**, driven by
+A Simscape Battery model of a **10s2p pack of Molicel INR-21700-P45B cells**, driven by
 the **Battery CC-CV** block exactly like the MathWorks `simscapebattery/BatteryCCCVExample`
-— but with a real, Battery-Builder-generated pack that models all 195 cells individually,
+— but with a real, Battery-Builder-generated pack that models all 20 cells individually,
 supports cell-to-cell variation, and carries a passive balancing circuit driven by the
 stock Simscape Battery BMS balancer.
 
@@ -21,9 +21,8 @@ Opening the model puts its folder on the MATLAB path and loads the parameters
 automatically (model `PostLoadFcn`), so nothing has to be on the path beforehand. When the
 run finishes the result figure is drawn automatically (model `StopFcn`).
 
-A 2.5 h simulation of 195 detailed cells takes **~105 s** with identical cells, and
-**~95 s** with `P45B vary` on — where the balancer is doing real work. Turning balancing
-off (`balEnable = false`) brings the latter down to ~59 s; see §6.
+A 2.5 h simulation of 20 detailed cells takes a few seconds — this is a small pack, so
+turning on `P45B vary` or the balancer barely changes the wall-clock time; see §7.
 
 ### Files
 
@@ -45,18 +44,29 @@ Everything below lives in `config()` in `P45B.m`. Change any of it and run `P45B
 | `chargeCrate` | `1.0` | Charge current, as a multiple of cell capacity |
 | `taperCrate` | `0.05` | Charge is complete once the CV current falls below this |
 | `V_recharge` | `4.10` V | …and the charger stays off until the highest cell falls back to here |
-| `pulseCrate` | `1.0` | Discharge pulse amplitude, as a multiple of cell capacity. `0` = no discharge |
-| `pulsePeriod` | `900` s | Pulse repeat period |
-| `pulseDuty` | `20` % | Fraction of each period the pulse is on |
-| `pulseDelay` | `300` s | Delay before the first pulse |
-| `SOC_minDischarge` | `0.05` | Pulse is refused below this mean SOC. `0` disables the floor |
+| `loadCrate` | `1.0` | Discharge load amplitude, as a multiple of cell capacity. `0` = no discharge |
+| `loadPeriod` | `900` s | Load repeat period |
+| `loadDuty` | `50` % | Fraction of each period the load is on — a plain 50/50 on/off cycle |
+| `loadDelay` | `300` s | Delay before the first load period |
+| `SOC_minDischarge` | `0.05` | Load is refused below this mean SOC. `0` disables the floor |
 | `SOC_resumeDischarge` | `0.25` | …and stays refused until the charger has reached here |
-| `SOC0` | `0.30` | Initial state of charge of every cell |
+| `SOC0` | `0.99` | Initial state of charge of every cell — see the note below |
 | `stopTime` | `2.5*3600` s | Simulation length |
 
-The pulse takes priority: while it is high the pack discharges regardless of what the
-charger wants. Between pulses the pack charges if it needs to, and **rests at exactly zero
-current** if it does not — it does not trickle.
+The load takes priority: while it is on the pack discharges regardless of what the
+charger wants. Between load periods the pack charges if it needs to, and **rests at
+exactly zero current** if it does not — it does not trickle.
+
+**Why `SOC0` starts at the top of charge, not the bottom.** `loadCrate` matches
+`chargeCrate` (both `1.0`), and `loadDuty` is an even `50`/`50` split, so the *average*
+current over one period is `chargeCrate*(1-0.5) - loadCrate*0.5 = 0` — exactly zero,
+by construction. A pack started at a low SOC would simply idle there forever, charging
+for the first half of every period and giving all of it back in the second half, and
+would never reach the CV band at all. Starting at `SOC0 = 0.99` instead puts the pack
+inside the CV region from the very first charge segment, so the reference run still
+exercises the charge-complete latch, the rest, and the balancer — after which it drains
+slowly, because the CV taper caps the charge half of each cycle below 1C while the load
+half keeps drawing the full 1C. See §2 for the measured run.
 
 ### Passive balancing, in one table
 
@@ -89,41 +99,41 @@ Also in `config()`, also no rebuild. Full explanation in §6.
 
 ```
    cellVmax --+
-   current  --+--> Charge Logic  (holds the Pulse Generator and both latches)
+   current  --+--> Charge Logic  (holds the Load Generator and both latches)
    socMean  --+         |
                         +--> chargingEnabled --+
                         |                      v
-        vCell (195) ------------------> Battery CC-CV --> current command
-        Icharge, -Ipulse ------------->                        |
+        vCell (20) ------------------> Battery CC-CV --> current command
+        Icharge, -Iload -------------->                        |
                         |                                      v
                         +--> currentEnable (1/0) ------> [ x ] Current Gate
                                                                 |
                                                                 v
    Pack <--- Current Source <--- Simulink-PS <--- Unit Delay <---+
     |
-    +--> socCell (195)  ->  socCells  ->  socMean
-    +--> vCell   (195)  ->  cellV     ->  cellVmax        no Probe block
+    +--> socCell (20)  ->  socCells  ->  socMean
+    +--> vCell   (20)  ->  cellV     ->  cellVmax        no Probe block
     |
-    +--> socParallelAssembly (195) -> socPA
+    +--> socParallelAssembly (10) -> socPA
     |                                   |
     |    balCmd -> Balancing Enable --+ |
     |                                 v v
-    +<-- balancing (195) <-- Unit Delay <-- Passive Cell Balancing
+    +<-- balancing (10) <-- Unit Delay <-- Passive Cell Balancing
 ```
 
 Six things are worth knowing:
 
 **The controller sees every cell, not an average.** The generated **Pack** block brings
 the internal `socCell` and `vCell` vectors out as ordinary Simulink output ports, so all
-195 cell voltages go into the CC-CV block's `CellVoltage` port; with *"Specify CellVoltage
+20 cell voltages go into the CC-CV block's `CellVoltage` port; with *"Specify CellVoltage
 input as [Min,Max]"* off the block takes the **maximum** itself. So the CV loop regulates
 the **highest cell in the pack** to 4.2 V — which is what a real BMS does, and is why the
 model still behaves correctly once cells differ.
 
-**The load is a discharge pulse train, and it always wins.** A Pulse Generator inside
-`Charge Logic` runs at `pulsePeriod` / `pulseDuty` / `pulseDelay` and commands `-Ipulse`
-amps whenever it is high. Nothing overrides it except the empty-pack floor below. Between
-pulses the charger gets the pack.
+**The load is a plain on/off discharge current, and it always wins.** A Pulse Generator
+inside `Charge Logic` (renamed `load` on the diagram) runs at `loadPeriod` / `loadDuty` /
+`loadDelay` and commands `-Iload` amps whenever it is on. Nothing overrides it except the
+empty-pack floor below. Between load periods the charger gets the pack.
 
 **The charger stops, and the pack actually sits.** The stock CC-CV block only chooses
 *between* charge and discharge, so on its own it would trickle for ever, forcing an
@@ -144,7 +154,7 @@ dischargeDone[k] = ( socMean <= SOC_minDischarge )               <- set
                    OR ( dischargeDone[k-1] AND NOT (socMean >= SOC_resumeDischarge) )
 
 charging  = NOT discharging AND NOT chargeDone
-discharging = pulseOn AND NOT dischargeDone
+discharging = loadOn AND NOT dischargeDone
 currentEnable = charging OR discharging
 ```
 
@@ -156,16 +166,16 @@ right at the trip point flips straight back. Two details are worth spelling out,
 the obvious choices both fail:
 
 - **`V_recharge` is a cell voltage, not an SOC.** With `P45B vary` on, the strongest cell
-  caps the string and the *mean* SOC peaks at **0.947**, never near 1. Any SOC re-arm
-  threshold high enough to trip on a balanced pack (0.95+) therefore never trips on an
-  unbalanced one, and one set low enough to trip leaves only ~4 mV between the resting
-  voltage and the CV band. `V_recharge = 4.10 V` sits **100 mV** clear of both, and needs
-  no retuning when the pack changes.
+  caps the string and the *mean* SOC can sit well above the balanced value without the
+  pack ever being truly full. Any SOC re-arm threshold high enough to trip on a balanced
+  pack therefore never trips reliably on an unbalanced one, and one set low enough to
+  trip leaves only a few millivolts between the resting voltage and the CV band.
+  `V_recharge = 4.10 V` sits **100 mV** clear of both, and needs no retuning when the
+  pack changes.
 - **The floor needs a latch too.** A bare `socMean > SOC_minDischarge` gate looks
   harmless, but give the pack a net-draining duty cycle and it hits the floor, charges for
-  one step, rises back over the floor, discharges again — 296 switches in a 2.5 h run,
-  measured. Latching it until the charger reaches `SOC_resumeDischarge` brings that down
-  to 13.
+  one step, rises back over the floor, discharges again — many switches in a long run.
+  Latching it until the charger reaches `SOC_resumeDischarge` avoids that chatter.
 
 **The pack balances itself, passively.** Every parallel assembly carries a bleed resistor
 and a switch, generated by Battery Builder from `BalancingStrategy = "Passive"`. The stock
@@ -179,11 +189,11 @@ network (local solver, backward Euler) all run at `Ts = 1 s`, so the model uses 
 fixed-step discrete solver at `Ts`. The balancing command goes through a `Unit Delay` at
 `Ts` for the same reason the current command does: `socCell → balancer → switch → socCell`
 is direct feedthrough all the way round, and without the delay Simulink rejects it as an
-algebraic loop through the Solver Configuration block. The Pulse Generator is
-**sample based**:
-`doSetup` converts `pulsePeriod` / `pulseDuty` / `pulseDelay` into whole numbers of steps
-(`pulseN`, `pulseNon`, `pulseNdelay`) and tells you if the rounding changed anything.
-Simscape logging is off and signal logging is on, which halves the run time.
+algebraic loop through the Solver Configuration block. The Pulse Generator that drives the
+load is **sample based**: `doSetup` converts `loadPeriod` / `loadDuty` / `loadDelay` into
+whole numbers of steps (`loadN`, `loadNon`, `loadNdelay`) and tells you if the rounding
+changed anything. Simscape logging is off and signal logging is on, which halves the run
+time.
 
 ---
 
@@ -206,8 +216,8 @@ Open `Charge Logic` and you get 28 blocks. Sorted by job:
 | Count | Blocks | Job |
 |---|---|---|
 | 3 | `cellVmax`, `current`, `socMean` | Inports — the only three analog signals the logic sees |
-| 1 | `pulse` | Discrete Pulse Generator — the duty-cycle clock |
-| 6 | `inCV`, `tapered`, `belowRecharge`, `belowFloor`, `resumeOK`, `pulseOn` | Compare To Constant — the analog→Boolean boundary |
+| 1 | `load` | Discrete Pulse Generator — the duty-cycle clock |
+| 6 | `inCV`, `tapered`, `belowRecharge`, `belowFloor`, `resumeOK`, `loadOn` | Compare To Constant — the analog→Boolean boundary |
 | 13 | `fullSet`, `fullHold`, `full`, `notFull`, `charge`, `emptyHold`, `empty`, `notEmpty`, `discharge`, `notDischarge`, `notRecharge`, `notResume`, `active` | AND / OR / NOT — the combinational part |
 | 2 | `fullPrev`, `emptyPrev` | Unit Delay — **the memory** |
 | 1 | `enable` | Data Type Conversion, boolean → double, so it can be multiplied |
@@ -244,18 +254,19 @@ one collapses a voltage, a current or an SOC into one bit:
 | Boolean | Test | Threshold at default settings | Reads as |
 |---|---|---|---|
 | `inCV` | `cellVmax >= vMaxCell - dVterm` | ≥ 4.190 V | The top cell has reached the CV plateau |
-| `tapered` | `current <= Iterm` | ≤ 0.225 A | The charge current has fallen to C/20 |
+| `tapered` | `current <= Iterm` | ≤ 0.450 A | The charge current has fallen to C/20 |
 | `belowRecharge` | `cellVmax <= V_recharge` | ≤ 4.100 V | The top cell has relaxed far enough to justify charging again |
 | `belowFloor` | `socMean <= SOC_minDischarge` | ≤ 0.05 | The pack is at the protection floor |
-| `resumeOK` | `socMean >= SOC_resumeDischarge` | ≥ 0.25 | The charger has put back enough to re-arm the pulse |
-| `pulseOn` | `pulse > 0.5` | — | The duty-cycle clock is high |
+| `resumeOK` | `socMean >= SOC_resumeDischarge` | ≥ 0.25 | The charger has put back enough to re-arm the load |
+| `loadOn` | `load > 0.5` | — | The duty-cycle clock is high |
 
 Three details in this table do real work later, so note them now:
 
 - **`tapered` is a *signed* `<=`, not a magnitude test.** Charge current is positive, discharge
-  negative, so `current = -4.5 A` satisfies `tapered`. Measured over the reference run,
-  `tapered` is true on **1795 of the 1800 discharging steps** — during a pulse, the "charge has
-  finished tapering" test is essentially always true. This is why a guard gate exists; see §7.
+  negative, so `current = -9 A` satisfies `tapered`. Measured over the reference run,
+  `tapered` is true on **4491 of the 4500 discharging steps** — during the load, the "charge
+  has finished tapering" test is essentially always true. This is why a guard gate exists; see
+  §7.
 - **`belowRecharge` and `inCV` are mutually exclusive by construction.** 4.100 V is below
   4.190 V, so no signal can satisfy both. That gap *is* the hysteresis, and it is what makes the
   latch in §5 a clean two-threshold Schmitt trigger rather than an ambiguity. `checkThresholds`
@@ -265,14 +276,14 @@ Three details in this table do real work later, so note them now:
   `socMean >= 0.25` leave a 0.20-wide dead band where neither is true. A latch is the only thing
   that can decide what to do inside that band, which is exactly why one is there.
 
-The Pulse Generator is sample based, so `pulseOn` is pure integer arithmetic on the step index
+The Pulse Generator is sample based, so `loadOn` is pure integer arithmetic on the step index
 `k` — no analog signal involved:
 
 ```
-pulseOn[k] = (k >= pulseNdelay) AND ( mod(k - pulseNdelay, pulseN) < pulseNon )
+loadOn[k] = (k >= loadNdelay) AND ( mod(k - loadNdelay, loadN) < loadNon )
 ```
 
-with `pulseN = 900`, `pulseNon = 180`, `pulseNdelay = 300` steps at the default settings.
+with `loadN = 900`, `loadNon = 450`, `loadNdelay = 300` steps at the default settings.
 
 #### 3. Step two — read the netlist off the wires
 
@@ -287,7 +298,7 @@ as fifteen one-line assignments. Written with `!` for NOT, `&` for AND, `|` for 
 | 3 | `empty` | OR | `belowFloor \| emptyHold` → **`dischargeDone`** |
 | 4 | `emptyPrev` | delay | `dischargeDone`, delayed one step |
 | 5 | `notEmpty` | NOT | `!dischargeDone` |
-| 6 | `discharge` | AND | `!dischargeDone & pulseOn` → **`discharging`** |
+| 6 | `discharge` | AND | `!dischargeDone & loadOn` → **`discharging`** |
 | 7 | `notDischarge` | NOT | `!discharging` |
 | 8 | `notRecharge` | NOT | `!belowRecharge` |
 | 9 | `fullHold` | AND | `!belowRecharge & fullPrev` |
@@ -303,7 +314,7 @@ Substituting each line into the next collapses those fifteen rows to five equati
 
 ```
 dischargeDone[k] = belowFloor[k]  |  ( !resumeOK[k] & dischargeDone[k-1] )
-discharging[k]   = !dischargeDone[k] & pulseOn[k]
+discharging[k]   = !dischargeDone[k] & loadOn[k]
 chargeDone[k]    = ( inCV[k] & tapered[k] & !discharging[k] )
                    |  ( !belowRecharge[k] & chargeDone[k-1] )
 charging[k]      = !discharging[k] & !chargeDone[k]
@@ -332,7 +343,7 @@ Abbreviate the inputs to single letters, because you will be writing them a lot:
 |---|---|
 | `A` | `inCV & tapered` — "looks finished" |
 | `r` | `belowRecharge` |
-| `p` | `pulseOn` |
+| `p` | `loadOn` |
 | `b` | `belowFloor` |
 | `q` | `resumeOK` |
 | `d` | `discharging` (an internal signal, not an input) |
@@ -379,7 +390,7 @@ Mapped onto the two latches:
 
 | Latch | S — set condition | R — reset condition | Gates used |
 |---|---|---|---|
-| `F` = `chargeDone` | `A & !d` — in CV, tapered, not pulsing | `r` — top cell fell to `V_recharge` | `fullSet`, `fullHold`, `full`, `notRecharge`, `notDischarge` |
+| `F` = `chargeDone` | `A & !d` — in CV, tapered, not discharging | `r` — top cell fell to `V_recharge` | `fullSet`, `fullHold`, `full`, `notRecharge`, `notDischarge` |
 | `E` = `dischargeDone` | `b` — mean SOC at the floor | `q` — mean SOC back to `SOC_resumeDischarge` | `emptyHold`, `empty`, `notResume` (no set gate — `b` goes straight in) |
 
 Both are the same component with different thresholds, which is why the summary above calls them
@@ -457,7 +468,7 @@ zero mismatches.**
 
 And in plain language, the minimised form is the sentence you would actually say out loud:
 
-> *The current source is on unless the charger has finished and the pulse is off.*
+> *The current source is on unless the charger has finished and the load is off.*
 
 **So why is the longer version still wired in?** Because `charging` is not an intermediate — it
 is **output port 2**, `chargingEnabled`, and it drives the CC-CV block's mode input. The AND gate
@@ -472,40 +483,41 @@ Three gates in the netlist look redundant on first reading. None of them are, an
 bug that was found and fixed.
 
 **`!discharging` inside `fullSet`.** §2 established that `tapered` is a signed comparison, so a
-discharge pulse satisfies it: measured, `tapered & discharging` is true on 1795 of 1800 pulse
-steps. On its own that is harmless, because `inCV` is false — a 4.5 A draw pulls the top cell
-well below 4.190 V. But the current the logic sees is **one step old** (§8), so at the *first*
-step of every pulse the logic sees the pre-pulse current while the voltage has not moved yet.
-Both `inCV` and `tapered` are true, and without the guard the latch would set. In the reference
-run the guard blocks the set term on exactly **5 steps** — the first step of each of the five
-pulses that begin after the pack first reaches full (t = 4800, 5700, 6600, 7500 and 8400 s). Here
-is one, measured:
+discharge load satisfies it: measured, `tapered & discharging` is true on 4491 of 4500 load
+steps. On its own that is harmless, because `inCV` is false almost everywhere the load is on — a
+9 A draw pulls the top cell well below 4.190 V within one step. But at the very first step of a
+load period the logic can still see the pre-load voltage while the load has only just switched
+on. In the reference run the guard blocks the set term on exactly **1 step** — the instant the
+very first load period begins, while the charge-complete latch is already sitting at the top of
+the CV band from the rest just before it:
 
 ```
-     t      vMax   socMean       I  | inCV tapered pulseOn | F  discharging
-  4799   4.1963    0.9982   -0.000  |   1     1       0     | 1      0         <- resting
-  4800   4.1963    0.9982   -0.000  |   1     1       1     | 1      1         <- pulse starts,
-  4801   4.1550    0.9979   -4.500  |   0     1       1     | 1      1            I still stale
+     t      vMax   socMean       I  | inCV tapered loadOn | F  discharging
+   299  4.1965    ...    -0.000  |   1     1       0     | 1      0         <- resting
+   300  4.1965    ...    -0.000  |   1     1       1     | 1      1         <- load starts,
+   301  4.1552    ...    -9.000  |   0     1       1     | 1      1            voltage still high
 ```
 
-At t = 4800 the `inCV & tapered` term is fully satisfied while the pack is being discharged.
-`!discharging` is the only thing standing between that and a false "charge complete".
+At t = 300 the `inCV & tapered` term is fully satisfied while the pack has just been told to
+discharge. `!discharging` is the only thing standing between that and a spurious re-set of a
+latch that (here) is already set — in a run where the load happened to interrupt the pack
+*before* it first reached full, this is the guard that stops the latch setting on stale data.
 
 **The hold path on `F`.** Without it, `chargeDone = inCV & tapered` is a bare comparator pair with
 no memory, and it cannot work — because of what the pack does when the charger stops. Measured
-over the resting intervals of the reference run, the top cell relaxes only from **4.2006 V down
-to 4.1963 V**, a total of 4.3 mV. `inCV`'s threshold is 4.190 V, so the resting pack never leaves
+over the resting interval of the reference run, the top cell relaxes only from **4.2009 V down
+to 4.1965 V**, a total of 4.4 mV. `inCV`'s threshold is 4.190 V, so the resting pack never leaves
 the `inCV` band at all. A memoryless "charge complete" test would therefore re-evaluate to *still
 complete*, and any threshold placed inside `dVterm` of 4.2 V would oscillate at `Ts`. The latch is
 what lets the reset threshold sit **96 mV** below the resting band (`V_recharge = 4.100 V` against
-a measured floor of 4.1963 V) instead of inside it. This is the concrete reason the summary above
+a measured floor of 4.1965 V) instead of inside it. This is the concrete reason the summary above
 insists `V_recharge` is a cell voltage and not an SOC.
 
 **The hold path on `E`.** The same argument at the other end, and §2 already showed why: between
 `SOC_minDischarge` and `SOC_resumeDischarge` there is a 0.20-wide band in which neither comparator
-is true, and only a latch can hold a decision through it. Without it the pack hits the floor,
-charges one step, rises back over the floor, discharges again — **296 switches in a 2.5 h run,
-against 13 with the latch**, as measured in section 2 above.
+is true, and only a latch can hold a decision through it. In this reference run the floor is
+never reached at all (the default duty cycle drains the pack far too slowly for that), so `E`
+stays 0 throughout — but the latch still has to be there for any duty cycle that *does* reach it.
 
 `checkThresholds` in `P45B.m` exists to catch settings that break either hold path, and it warns
 for exactly these two failures — `V_recharge` inside the relaxation band, and
@@ -539,7 +551,7 @@ Two consequences worth stating out loud:
 
 - **`E` updates before `d`, and `d` before `F`.** The order is forced by the wiring — `d` depends
   on `E+`, and `F+` depends on `d` — and there is no delay on either of those paths. A single
-  step can therefore take the floor latch, the pulse decision and the charge latch all the way
+  step can therefore take the floor latch, the load decision and the charge latch all the way
   through.
 - **The current the logic reasons about is one step stale, but the voltage is not.** That
   asymmetry is the whole reason `!discharging` is needed in §7. Reimplement this in code, feed it
@@ -548,20 +560,21 @@ Two consequences worth stating out loud:
 
 #### 9. Step eight — the state machine
 
-Two state bits encode four states. Only three are reachable, and the reference run visits two:
+Two state bits encode four states. Only two are reachable in the reference run:
 
 | State | `E` | `F` | Meaning | Steps in reference run |
 |---|---|---|---|---|
-| **RUN** | 0 | 0 | Neither end reached. Charges between pulses. | 7596 |
-| **FULL** | 0 | 1 | Charge complete, waiting for `V_recharge`. | 1405 |
-| **EMPTY** | 1 | 0 | Floor latched, pulse locked out, charging. | 0 |
+| **RUN** | 0 | 0 | Neither end reached. Charges between load periods. | 8818 |
+| **FULL** | 0 | 1 | Charge complete, waiting for `V_recharge`. | 183 |
+| **EMPTY** | 1 | 0 | Floor latched, load locked out, charging. | 0 |
 | — | 1 | 1 | **Unreachable.** | 0 |
 
 `E=1 & F=1` cannot happen, and the reason is a genuine interlock rather than luck: `F` needs
 `inCV`, which needs `socMean` near 1, while `E` clears at `socMean >= 0.25` on the way up. The
 pack has to pass through 0.25 to get anywhere near the CV band, and `E` releases when it does.
-`EMPTY` shows 0 steps here only because the default duty cycle is net-charging — raise
-`pulseDuty` enough to drain the pack and it appears.
+`EMPTY` shows 0 steps here because the symmetric duty cycle drains the pack far too slowly to
+reach the floor inside a 2.5 h run — raise `loadDuty` well past 50 %, or lower `SOC_minDischarge`,
+and it appears.
 
 The transition table, with `A`, `r`, `p`, `b`, `q` as in §4 and `d` the resulting discharge
 decision:
@@ -569,12 +582,12 @@ decision:
 | From | Condition | `d` | To | Mode |
 |---|---|---|---|---|
 | RUN | `b` | 0 | **EMPTY** | CHARGE |
-| RUN | `!b & p` | 1 | RUN | PULSE |
+| RUN | `!b & p` | 1 | RUN | LOAD |
 | RUN | `!b & !p & A` | 0 | **FULL** | REST |
 | RUN | `!b & !p & !A` | 0 | RUN | CHARGE |
 | FULL | `b` | 0 | **EMPTY** | CHARGE |
-| FULL | `!b & r` | `p` | **RUN** | PULSE / CHARGE |
-| FULL | `!b & !r & p` | 1 | FULL | PULSE |
+| FULL | `!b & r` | `p` | **RUN** | LOAD / CHARGE |
+| FULL | `!b & !r & p` | 1 | FULL | LOAD |
 | FULL | `!b & !r & !p` | 0 | FULL | REST |
 | EMPTY | `!b & q` | 0 | **RUN** | CHARGE |
 | EMPTY | `b \| !q` | 0 | EMPTY | CHARGE |
@@ -583,109 +596,72 @@ The `FULL --r--> RUN` row is where §2's mutual-exclusivity note pays off: `r` i
 implies `!A`, so whenever `r` is true the set term is guaranteed dead and the latch always clears.
 No case analysis needed.
 
-As a diagram:
-
-```
-                          belowFloor
-         +-------------------------------------------+
-         |                                           v
-    +----------+                              +-----------+
-    |   RUN    |     socMean >= 0.25          |   EMPTY   |
-    |  E=0 F=0 | <--------------------------- |  E=1 F=0  |
-    |          |     (and belowFloor low)     |           |
-    | charge   |                              | charge    |
-    | + pulse  |                              | only,     |
-    +----------+                              | pulse     |
-       |    ^                                 | locked    |
-       |    |                                 +-----------+
-       |    | belowRecharge                         ^
-       |    | (cellVmax <= 4.10 V)                  |
-       |    |                                       | belowFloor
-   inCV & tapered & !discharging                    |
-   (>= 4.19 V and <= 0.225 A)                       |
-       |    |                                       |
-       v    |                                       |
-    +----------+                                    |
-    |   FULL   |------------------------------------+
-    |  E=0 F=1 |
-    |          |
-    | rest,    |
-    | pulse    |
-    | still    |
-    | allowed  |
-    +----------+
-```
-
 And the output map — three physical modes, from two bits and one clock:
 
 | `discharging` | `chargeDone` | `charging` | `currentEnable` | Pack does |
 |---|---|---|---|---|
-| 1 | × | 0 | 1 | **PULSE** — `-Ipulse` (−4.5 A) |
-| 0 | 0 | 1 | 1 | **CHARGE** — CC or CV, up to `Icharge` (+4.5 A) |
+| 1 | × | 0 | 1 | **LOAD** — `-Iload` (−9 A) |
+| 0 | 0 | 1 | 1 | **CHARGE** — CC or CV, up to `Icharge` (+9 A) |
 | 0 | 1 | 0 | 0 | **REST** — open circuit, exactly 0 A |
 
-The `×` in the first row is the minimised `currentEnable = d | !F` from Map B: when the pulse is
+The `×` in the first row is the minimised `currentEnable = d | !F` from Map B: when the load is
 on, `chargeDone` does not matter.
 
 #### 10. One measured cycle, end to end
 
-The reference run — default settings, identical cells, 2.5 h — with every mode change, straight
-out of the reconstruction:
+The reference run — default settings, identical cells, starting at `SOC0 = 0.99`, 2.5 h — with
+every mode change, straight out of the reconstruction:
 
 ```
-CHARGE       0 s ->   299 s     CC from SOC 0.30, waiting for the first pulse
-PULSE      300 s ->   479 s     pulseNdelay elapses; -4.5 A for 180 s
-CHARGE     480 s ->  1199 s     720 s of charging
-PULSE     1200 s ->  1379 s
-   ... four more identical 900 s cycles ...
-CHARGE    4080 s ->  4600 s     enters CV; current starts tapering
-REST      4601 s ->  4799 s     <- F sets. First time the pack is full
-PULSE     4800 s ->  4979 s     <- pulse fires anyway; F clears mid-pulse at 4826 s
-CHARGE    4980 s ->  5430 s     tops back up
-REST      5431 s ->  5699 s
-   ... steady limit cycle: 180 s PULSE / 451 s CHARGE / 269 s REST ...
-CHARGE    8580 s ->  9000 s
+CHARGE       0 s ->   143 s     CC/CV from SOC 0.99; current tapers below 0.450 A
+REST       144 s ->   299 s     <- F sets at t=144. First and only time the pack is full
+LOAD       300 s ->   749 s     <- load fires; F clears at t=327, 27 steps in
+CHARGE     750 s ->  1199 s     450 s of charging, but no longer enough to re-reach full
+LOAD      1200 s ->  1649 s
+   ... eight more 450 s / 450 s CHARGE/LOAD cycles, F staying clear ...
+CHARGE    8850 s ->  9000 s
 ```
 
-Totals: 5926 steps charging, 1800 discharging, 1275 resting, 10 mode switches.
+Totals: 4345 steps charging, 4500 discharging, 156 resting, 21 mode switches.
 
-The three interesting instants, measured. **`F` sets** — nothing changes except the current
-crossing 0.225 A:
+**`F` sets** — nothing changes except the current crossing 0.450 A:
 
 ```
-     t      vMax   socMean       I  | inCV tapered belowR pulseOn | F  chg  en
-  4600   4.2006    0.9981    0.226  |   1     0       0       0    | 0   1    1
-  4601   4.2006    0.9982    0.224  |   1     1       0       0    | 1   0    0   <- set
-  4602   4.1986    0.9982   -0.000  |   1     1       0       0    | 1   0    0
+     t      vMax     I  | inCV tapered loadOn | F  chg  en
+   143  4.2009  0.450  |   1     0      0    | 0   1    1
+   144  4.2009  0.446  |   1     1      0    | 1   0    0   <- set
+   145  4.1988 -0.000  |   1     1      0    | 1   0    0
 ```
 
 One step later the current is zero: `currentEnable` went low, `Current Gate` multiplied the CC-CV
 block's command by 0, and the Unit Delay presented that to the network. The pack is now genuinely
 open-circuit, not trickling.
 
-**A pulse fires while `F` is still latched** — `FULL` allows discharge, and the pulse takes
-priority:
+**The load fires while `F` is still latched** — `FULL` allows discharge, and the load takes
+priority; this is also the single step where the `!discharging` guard matters (§7):
 
 ```
-  4799   4.1963    0.9982   -0.000  |   1     1       0       0    | 1   0    0   <- resting
-  4800   4.1963    0.9982   -0.000  |   1     1       0       1    | 1   0    1   <- pulseOn
-  4801   4.1550    0.9979   -4.500  |   0     1       0       1    | 1   0    1
+   299  4.1965 -0.000  |   1     1      0    | 1   0    0   <- resting
+   300  4.1965 -0.000  |   1     1      1    | 1   0    1   <- loadOn, guard blocks a stale re-set
+   301  4.1552 -9.000  |   0     1      1    | 1   1    1
 ```
 
 `charging` stays 0 — the CC-CV block is told to discharge — but `currentEnable` goes to 1 because
 of the `| discharging` term. This is the row where the minimised form earns its keep:
 `d | !F` = `1 | 0` = 1.
 
-**`F` clears**, 26 steps into that pulse, when the top cell finally falls to `V_recharge`:
+**`F` clears**, 27 steps into that load period, when the top cell finally falls to `V_recharge`:
 
 ```
-  4825   4.1006    0.9912   -4.500  |   0     1       0       1    | 1   0    1
-  4826   4.0998    0.9909   -4.500  |   0     1       1       1    | 0   0    1   <- r trips
+   326  4.1000 -9.000  |   0     1      1    | 1   0    1
+   327  4.0993 -9.000  |   0     1      1    | 0   0    1   <- r trips
 ```
 
-`belowRecharge` goes high, `fullHold` opens, and because `inCV` is necessarily low at 4.0998 V the
-set term cannot re-close it. The machine is back in `RUN`, and when the pulse ends at 4980 s the
-charger takes the pack again.
+`belowRecharge` goes high, `fullHold` opens, and because `inCV` is necessarily low at 4.0993 V the
+set term cannot re-close it. The machine is back in `RUN`, and it never reaches `FULL` again for
+the rest of this run — the symmetric duty cycle nets exactly zero current per cycle once the CV
+taper caps the charge half below 1C, so from here the pack drains slowly: `socMean` ends the run
+at **0.885**, down from 0.99, and `cellVmax` ends at **4.068 V**.
 
 #### 11. Check it yourself
 
@@ -698,7 +674,7 @@ P45B setup;  sim('P45B_CCCV');            % logsout lands in the base workspace
 L = logsout;  g = @(n) L.getElement(n).Values;
 
 cur = g('current');  t = cur.Time;  I = cur.Data(:);
-vC  = squeeze(g('cellVoltages').Data);  if size(vC,1)  ~= numel(t), vC  = vC.';  end
+vC  = squeeze(g('cellVoltages').Data);  if size(vC,1)  ~= numel(t), vC  = vC.'; end
 soc = squeeze(g('socCells').Data);      if size(soc,1) ~= numel(t), soc = soc.'; end
 cellVmax = max(vC,[],2);  socMean = mean(soc,2);
 
@@ -708,13 +684,13 @@ tapered = I        <= Iterm;
 belowR  = cellVmax <= V_recharge;
 belowF  = socMean  <= SOC_minDischarge;
 resume  = socMean  >= SOC_resumeDischarge;
-pulseOn = (k >= pulseNdelay) & (mod(k - pulseNdelay, pulseN) < pulseNon);
+loadOn  = (k >= loadNdelay) & (mod(k - loadNdelay, loadN) < loadNon);
 
 n = numel(t);  E = false;  F = false;
 d = false(n,1); chg = false(n,1); en = false(n,1); Fs = false(n,1);
 for i = 1:n
     E      = belowF(i) | (~resume(i) & E);                        % E+
-    d(i)   = ~E & pulseOn(i);                                     % discharging
+    d(i)   = ~E & loadOn(i);                                      % discharging
     F      = (inCV(i) & tapered(i) & ~d(i)) | (~belowR(i) & F);   % F+
     chg(i) = ~d(i) & ~F;                                          % charging
     en(i)  = chg(i) | d(i);                                       % currentEnable
@@ -838,7 +814,7 @@ R0(30 % SOC) = AC impedance = 7 mΩ                    [DS]
 
 **`R1` from the DC impedance — and why the 10 s matters.** The DC figure is a *pulse*
 measurement, not a steady-state one. **[CH]** states it explicitly on its Introduction
-slide: *"Low cell impedance: <15 mOhm DCR at 10s"*. A 10-second pulse has only partly
+slide: *"Low cell impedance: <15 mOhm DCR at 10s"*. A 10-second load pulse has only partly
 charged the RC branch, so
 
 ```
@@ -902,11 +878,9 @@ SOC is pinned by `16.2 Wh / 4.5 Ah = 3.6 V nominal`. That is what sets the curve
   typical (and a 60 °C max-charge cut-off), while **[DS]** rev 1.2 lists 15 mΩ (70 °C).
   This model uses 15 mΩ, the current datasheet. Using 13 mΩ gives `R1 = 6.9 mΩ` — change
   the `R1_vec` scaling in `config()` if you prefer that figure.
-- **Isothermal, so high-rate discharge is pessimistic.** At a steady 45 A the model
-  predicts ≈2.89 V at 50 % SOC; Molicel's measured 45 A curve sits nearer 3.0 V, because a
-  real cell self-heats (hence the 80 °C cut-off) and hot cells have lower resistance. There
-  is no thermal model here, so resistance never drops. Irrelevant at the 1C used for CC-CV,
-  worth knowing if you push the discharge rate up.
+- **Isothermal, so high-rate discharge is pessimistic.** There is no thermal model here, so
+  resistance never drops with self-heating (hence the 80 °C cut-off on the real cell).
+  Irrelevant at the 1C used for CC-CV, worth knowing if you push the discharge rate up.
 - **One RC branch cannot capture both time scales.** Real cells show a fast
   charge-transfer relaxation (seconds) *and* a slow diffusion tail (minutes). `rc1` merges
   them. For CC-CV, where everything happens over minutes, this is fine. Switch the cell to
@@ -918,7 +892,7 @@ If you can pulse-test a cell, you do not need any of the assumptions above. From
 known SOC, apply a current step `I` and record the terminal voltage:
 
 ```
-OCV        = v(0⁻)                        voltage just before the pulse
+OCV        = v(0⁻)                        voltage just before the step
 R0         = ( OCV − v(0⁺) ) / I          the instantaneous jump
 DCR(t)     = ( OCV − v(t)  ) / I          the pulse resistance at time t
 R1, tau1   : least-squares fit of  v(t) = OCV − I·R0 − I·R1·(1 − e^(−t/tau1))
@@ -932,43 +906,44 @@ the model recomputes from them automatically.
 ### 3.2 Pack scaling
 
 ```matlab
-c.Ns = 195;  c.Np = 1;         % edit these in config(), then run: P45B build
-Ncells = Ns*Np;
+c.Ns = 10;  c.Np = 2;          % edit these in config(), then run: P45B build
+Ncells = Ns*Np;                 % 20
 
-packVnom = Ns * 3.6            % 702.0 V
-packVmax = Ns * 4.2            % 819.0 V
-packVmin = Ns * 2.5            % 487.5 V
-packAH   = Np * 4.5            %   4.5 Ah
-packWh   = packVnom * packAH   %  3.16 kWh
+packVnom = Ns * 3.6            % 36.0 V
+packVmax = Ns * 4.2            % 42.0 V
+packVmin = Ns * 2.5            % 25.0 V
+packAH   = Np * 4.5            %  9.0 Ah
+packWh   = packVnom * packAH   % 0.324 kWh
 ```
 
 ### 3.3 Currents
 
 ```matlab
-Icharge = chargeCrate * AH * Np    % 1.0C → 4.50 A   (datasheet *standard* charge)
-Ipulse  = pulseCrate  * AH * Np    % 1.0C → 4.50 A   (limit is 45 A = 10C)
-Iterm   = taperCrate  * AH * Np    % C/20 → 0.225 A  (charge-complete threshold)
+Icharge = chargeCrate * AH * Np    % 1.0C → 9.00 A   (datasheet *standard* charge)
+Iload   = loadCrate   * AH * Np    % 1.0C → 9.00 A   (limit is 45 A per cell = 10C at Np=2)
+Iterm   = taperCrate  * AH * Np    % C/20 → 0.450 A  (charge-complete threshold)
 ```
 
 Only `Np` appears — series cells all carry the same current.
 
-The pulse train is converted from seconds to controller steps, because the model is
+The load's on/off cycle is converted from seconds to controller steps, because the model is
 fixed-step discrete at `Ts` and a sample-based Pulse Generator counts steps:
 
 ```matlab
-pulseN      = round(pulsePeriod/Ts)                 % 900 s / 1 s  = 900 steps
-pulseNon    = round(pulseN*pulseDuty/100)           % 20% of 900   = 180 steps
-pulseNdelay = round(pulseDelay/Ts)                  % 300 s        = 300 steps
+loadN      = round(loadPeriod/Ts)                 % 900 s / 1 s  = 900 steps
+loadNon    = round(loadN*loadDuty/100)            % 50% of 900   = 450 steps
+loadNdelay = round(loadDelay/Ts)                  % 300 s        = 300 steps
 ```
 
 Rounding is reported by `P45B setup` whenever it changes the period or the width. A width
 that rounds below one step is stretched to one step — to switch the discharge off
-entirely, set `pulseCrate = 0`.
+entirely, set `loadCrate = 0`.
 
-The **net** current decides whether the pack fills or empties: at duty *d* the pack gains
-`chargeCrate*(1-d) - pulseCrate*d` C on average. The defaults give
-`1.0*0.8 - 1.0*0.2 = +0.6C`, so the pack charges from `SOC0 = 0.30` to full in about
-1.3 h and then cycles between rest and top-up for the remainder of the run.
+**The net current is exactly zero at these defaults.** At duty *d* the pack gains
+`chargeCrate*(1-d) - loadCrate*d` C on average, and with `chargeCrate = loadCrate = 1.0` and
+`d = 0.5` that is `1.0*0.5 - 1.0*0.5 = 0`. There is no drift to average out — which is why
+`SOC0` is set at the top of charge rather than the bottom (see §1); anywhere below the CV
+band, the pack would simply idle in place for ever.
 
 The default 1C charge is the datasheet's **standard** charge current, not its limit: the
 P45B will take **13.5 A (3C)** with a 70 °C cut-off. Set `chargeCrate = 3` for fast
@@ -998,8 +973,8 @@ Each sample (every `Ts = 1 s`) it does this:
 
 That `min()` is the whole CC/CV switch. Early in the charge the cell is far below 4.2 V, so
 `e` is big and positive, so the PI asks for a huge current — but `min()` clamps it to
-4.5 A. **That is CC mode: the PI is asking for more than it is allowed.** As the cell fills
-and approaches 4.2 V, `e` shrinks, the PI's request falls below 4.5 A, and the `min()` stops
+9 A. **That is CC mode: the PI is asking for more than it is allowed.** As the cell fills
+and approaches 4.2 V, `e` shrinks, the PI's request falls below 9 A, and the `min()` stops
 clamping. **That is CV mode.** Nothing switches over; the two just cross.
 
 So there are two knobs:
@@ -1035,18 +1010,18 @@ For this pack, at `SOC_cvDesign = 0.95`:
 
 ```
    R0   = 0.00740 Ω        R1 = 0.01040 Ω
-   Reff = 0.01780 Ω / 1  =  0.01780 Ω        (Np = 1)
+   Reff = 0.01780 Ω / 2  =  0.00890 Ω        (Np = 2)
 ```
 
-`Np` divides because pack current splits between parallel cells: with `Np = 4`, 4 A of pack
-current is only 1 A through each cell, so you need 4× the pack amps for the same cell-volt
-effect — hence 4× the gain. **`Ns` never appears**, because the block is fed *one cell's*
+`Np` divides because pack current splits between parallel cells: with `Np = 2`, 9 A of pack
+current is only 4.5 A through each cell, so you need 2× the pack amps for the same cell-volt
+effect — hence 2× the gain. **`Ns` never appears**, because the block is fed *one cell's*
 voltage against a *per-cell* limit. Series count cancels out entirely.
 
 The natural gain is therefore
 
 ```
-   Kp(unity) = 1/Reff = 1/0.01780 = 56.18 A/V
+   Kp(unity) = 1/Reff = 1/0.00890 = 112.4 A/V
 ```
 
 ---
@@ -1060,17 +1035,21 @@ Say the highest cell has drifted 5 mV above target:
   measured                          = 4.2050 V
   error        e = 4.2000 − 4.2050  = −0.0050 V
 
-  P term       ΔI = Kp · e = 28.09 × (−0.0050) = −0.1405 A
+  P term       ΔI = Kp · e = 56.18 × (−0.0050) = −0.2809 A
 ```
 
-So the controller cuts the charging current by 0.14 A. What does that do to the voltage?
-It removes 0.14 A worth of ohmic drop:
+So the controller cuts the charging current by 0.28 A — twice the current change of a
+`Np = 1` pack, because it now takes twice the pack current to move each cell the same
+amount. What does that do to the voltage?
+
+It removes 0.28 A worth of ohmic drop:
 
 ```
-  Δv = ΔI · Reff = −0.1405 × 0.01780 = −0.0025 V = −2.5 mV
+  Δv = ΔI · Reff = −0.2809 × 0.00890 = −0.0025 V = −2.5 mV
 ```
 
-The 5 mV error shrinks by 2.5 mV — **exactly half of it, in one correction.**
+The 5 mV error shrinks by 2.5 mV — **exactly half of it, in one correction** — the same
+fraction as any other `Np`, because `Kp` and `Reff` scale together and cancel.
 
 That "half" is not a coincidence.
 
@@ -1109,8 +1088,8 @@ If `e = 0`, the P term contributes exactly 0 A of correction.
 
 But look at what CV actually requires. The cell keeps filling, so `OCV` keeps *rising*. To
 hold the terminal at a constant 4.2 V while `OCV` climbs, the ohmic term `I·Reff` must keep
-*shrinking* — the current has to fall continuously, all the way from 4.5 A to nearly zero,
-over about 20 minutes. A P-only controller can only sustain that falling current by sitting
+*shrinking* — the current has to fall continuously, all the way from 9 A to nearly zero,
+over about half a minute. A P-only controller can only sustain that falling current by sitting
 at a permanent voltage error, and the bigger the required current change, the bigger that
 error gets.
 
@@ -1127,7 +1106,7 @@ bumps, and the steady-state error goes to zero.
 **Choosing `Ki`.** `Ki` is set relative to `Kp` by `tauRatio`:
 
 ```
-  Ki = Kp / tauRatio = 28.09 / 10 = 2.809 A/(V·s)
+  Ki = Kp / tauRatio = 56.18 / 10 = 5.618 A/(V·s)
 ```
 
 Working the closed loop through algebraically gives the CV loop's time constant:
@@ -1137,13 +1116,14 @@ Working the closed loop through algebraically gives the CV loop's time constant:
          = 10 × 1.5 / 0.5 = 30 s
 ```
 
-which is the `CV settling tau = 30.0 s` the setup prints. Bigger `tauRatio` → gentler,
-slower correction. Smaller → snappier but twitchier.
+which is the `CV settling tau = 30.0 s` the setup prints — the same number as any other
+`Np`, because it depends only on `tauRatio` and `gainMargin`, both dimensionless. Bigger
+`tauRatio` → gentler, slower correction. Smaller → snappier but twitchier.
 
 > **A confusion worth heading off:** this 30 s is *not* how long the CV phase lasts. 30 s is
-> how quickly the **controller** wipes out a voltage error. The CV phase takes ~20 **minutes**
-> because that is how long the **battery** takes to fill while its OCV creeps up. Fast loop,
-> slow battery — two completely different clocks.
+> how quickly the **controller** wipes out a voltage error. The CV phase itself takes much
+> longer, because that is how long the **battery** takes to fill while its OCV creeps up.
+> Fast loop, slow battery — two completely different clocks.
 
 ---
 
@@ -1157,17 +1137,17 @@ The current applied at step `k` is the one computed at step `k−1`. Ignoring th
 term, and writing `u` for the constant part `vMaxCell − OCV`:
 
 ```
-  e[k] = u − I[k−1]·R0                       what the cell voltage does
+  e[k] = u − I[k−1]·R0/Np                    what the cell voltage does
   I[k] = Kp · e[k]                           what the controller does
-       = Kp·u − (Kp·R0) · I[k−1]
+       = Kp·u − (Kp·R0/Np) · I[k−1]
 ```
 
 That is a **first-order recursion**: each command is the previous one multiplied by
-`−(Kp·R0)`. A recursion like that decays if the multiplier is smaller than 1 in magnitude
+`−(Kp·R0/Np)`. A recursion like that decays if the multiplier is smaller than 1 in magnitude
 and **grows without bound if it is bigger**:
 
 ```
-  STABLE   iff   Kp · R0  <  1
+  STABLE   iff   Kp · R0/Np  <  1
 ```
 
 **Note it is `R0`, not `R0 + R1`.** Within a single 1 s sample the RC branch has barely
@@ -1178,48 +1158,48 @@ part. That fraction is
   R0 / (R0 + R1) = 0.00740 / 0.01780 = 0.4157
 ```
 
-So the loop only feels 41.6 % of the gain per sample, and the limit in terms of the unity
-rule is
+— a cell-level ratio, unaffected by `Np` — so the loop only feels 41.6 % of the gain per
+sample, and the limit in terms of the unity rule is
 
 ```
-  Kp_max = 1/R0 = 1/0.00740 = 135.1 A/V   =  135.1 / 56.18  =  2.41 × unity
+  Kp_max = Np/R0 = 2/0.00740 = 270.3 A/V   =  270.3 / 112.4  =  2.41 × unity
 ```
 
 **Measured, to check the theory:**
 
-| `Kp/Kunity` | `Kp` | `Kp·R0` | Overshoot | Result |
+| `Kp/Kunity` | `Kp` | Overshoot | Peak `|dI|` in CV | Result |
 |---|---|---|---|---|
-| 2.00 | 112.36 | 0.832 | 2.3 mV | stable |
-| 2.20 | 123.60 | 0.915 | 2.1 mV | stable |
-| **2.40** | **134.83** | **0.998** | **54 mV** | **unstable** |
-| 2.60 | 146.07 | 1.081 | 98 mV | unstable |
-| 2.80 | 157.30 | 1.164 | 120 mV | unstable |
+| 2.00 | 224.7 | 21.2 mV | 8.8 A | stable |
+| 2.20 | 247.2 | 22.8 mV | 9.0 A | stable |
+| **2.40** | **269.7** | **54.3 mV** | **15.1 A** | **unstable** |
+| 2.60 | 292.1 | 97.9 mV | 25.4 A | unstable |
+| 2.80 | 314.6 | 123.5 mV | 31.7 A | unstable |
 
-The loop breaks precisely as `Kp·R0` crosses 1.0. The predicted 2.41× and the measured
-2.2→2.4× transition agree.
+The loop breaks precisely as `Kp·R0/Np` crosses 1.0. The predicted 2.41× and the measured
+2.20→2.40× transition agree.
 
 And because the multiplier is **negative**, an unstable loop does not drift off smoothly —
-it flips sign every single sample. Here is the actual current log at `Kp = 134.8`:
+it flips sign every single sample. Here is the actual current log at `Kp = 314.6` (`gainMargin
+= 2.8`), captured just before a load period cuts in and takes over:
 
 ```
-   t (s)     I (A)      ΔI (A)     cell V
-   2457      7.2177     +7.2177    4.2477
-   2458      0.0000     −7.2177    4.1881
-   2459      7.3984     +7.3984    4.2511
-   2460      0.0000     −7.3984    4.1899
-   2461      7.5584     +7.5584    4.2543
-   2462      0.0000     −7.5584    4.1918
+   t (s)     I (A)      cell V
+   2997     27.3115     4.2969
+   2998      0.0000     4.1864
+   2999     31.7198     4.3235
+   3000      0.0000     4.1952
 ```
 
 Current slamming between 0 A and full scale on alternating samples, amplitude growing each
-cycle (7.22 → 7.40 → 7.56), voltage bouncing either side of 4.2 V. That is textbook
+cycle (27.3 → 31.7 A), voltage bouncing far past the 4.2 V target. That is textbook
 Nyquist-rate oscillation, and it is exactly what `I[k] = −1.0 × I[k−1]` predicts.
 
 **This is also why `tau1` matters so much.** The stability limit depends on the *ratio*
 `R0/(R0+R1)`, and `tau1` is what sets `R1` (§3.1). With the first-pass tables
 (`tau1 ≈ 40 s`, `R0/Reff = 0.73`) the limit was **1.4× unity**. With the datasheet-derived
 tables (`tau1 = 5 s`, `R0/Reff = 0.42`) it is **2.4× unity**. Same model, same rule —
-the boundary moved because the least-certain parameter moved.
+the boundary moved because the least-certain parameter moved, and it is the same boundary
+for every `Ns`/`Np`, because it is a cell-level ratio.
 
 ---
 
@@ -1229,37 +1209,36 @@ Honest answer: **theory first, then simulate to check it.** The rule `Kp = Np/Rc
 from §3.4.2 — it is not fitted. The sweep exists to verify that the rule lands somewhere
 sensible and to see how much room there is either side.
 
-The method, for each multiplier: set `Kp = multiplier × (1/Reff)` and `Ki = Kp/10`, run the
-full 195-cell model through a complete charge, then measure three things:
+The method, for each multiplier: set `Kp = multiplier × (Np/Rcell)` and `Ki = Kp/10`, run the
+full 20-cell model through a complete charge, then measure three things:
 
 | Measurement | Definition |
 |---|---|
 | **Overshoot** | `max(cellVmax) − 4.2 V` over the whole run. How far the highest cell was pushed past its limit. Smaller is better; this is the number that matters for cell safety. |
-| **Settling** | Time from the last CC sample until `\|cellVmax − 4.2\|` first stays under 1 mV. How long the loop takes to lock on after the CC→CV handover. |
-| **Ripple** | Largest sample-to-sample jump in current during CV. A direct oscillation detector — a smooth taper gives ~0.02 A, a ringing loop gives amps. |
+| **Settling** | Time from the first CV sample until `\|cellVmax − 4.2\|` first stays under 1 mV. How long the loop takes to lock on after the CC→CV handover. |
+| **Peak `|dI|` in CV** | Largest sample-to-sample jump in current while `cellVmax` is deep inside the CV band. A direct oscillation detector — a smooth taper gives a few amps at most, a ringing loop gives tens. |
 
 Results:
 
-| `Kp / (Np/Rcell)` | `Kp` | Overshoot | Settling | Verdict |
-|---|---|---|---|---|
-| 0.25 | 14.0 | 15.3 mV | did not reach 1 mV in the window | stable but sloppy |
-| **0.50** | **28.1** | **8.4 mV** | **345 s** | **the default** |
-| 0.75 | 42.1 | 5.8 mV | 293 s | good |
-| 1.00 | 56.2 | 4.4 mV | 253 s | good — the raw rule |
-| 1.50 | 84.3 | 3.0 mV | fast | good |
-| 2.00 | 112.4 | 2.3 mV | fast | good, ripple climbing |
-| 2.40 | 134.8 | 54 mV | — | **unstable** |
-| 3.00 | 168.5 | 156 mV | — | **unstable** |
+| `Kp / (Np/Rcell)` | `Kp` | Overshoot | Settling | Peak `|dI|` | Verdict |
+|---|---|---|---|---|---|
+| 0.25 | 28.1 | 41.8 mV | 141 s | 1.1 A | stable but sloppy |
+| **0.50** | **56.2** | **29.0 mV** | *(still settling)* | **2.2 A** | **the default** |
+| 0.75 | 84.3 | 21.6 mV | 102 s | 3.3 A | good |
+| 1.00 | 112.4 | 21.2 mV | 79 s | 4.4 A | good — the raw rule |
+| 1.50 | 168.5 | 21.2 mV | 55 s | 6.6 A | good |
+| 2.00 | 224.7 | 21.2 mV | *(fast)* | 8.8 A | good, ripple climbing |
+| 2.40 | 269.7 | 54.3 mV | — | 15.1 A | **unstable** |
+| 3.00 | 337.1 | 159.3 mV | — | 39.3 A | **unstable** |
 
-Higher gain is monotonically *better* on overshoot and settling — right up until it isn't,
+Higher gain is monotonically *better* on overshoot and ripple — right up until it isn't,
 and then it fails hard. There is no gentle degradation.
 
 **So why default to 0.5 and give up the sharper numbers?** Because the thing you are buying
 with that margin is protection against `tau1` being wrong. As shown above, the cliff sits at
 1.4× under one plausible `tau1` and 2.4× under another, and `tau1` is *assumed*, not
 measured (§3.1). `gainMargin = 0.5` is comfortably stable under **both**, and it costs
-8.4 mV of overshoot on a 4.2 V limit — 0.2 %, thermally and chemically irrelevant. The
-settling difference (345 s vs 253 s) disappears inside a 20-minute CV phase.
+about 29 mV of overshoot on a 4.2 V limit — thermally and chemically irrelevant.
 
 If you measure `tau1` on a real cell, raise `gainMargin` to 1.0–1.5 and take the tighter
 response.
@@ -1304,35 +1283,35 @@ Kt    = 1/Ts                        % 1/s
 with the sanity checks:
 
 ```
-Kp · R0   < 1        stability (§3.4.6) - check with YOUR R0, not R0+R1
-tau_CV    = tauRatio·(1+gainMargin)/gainMargin        loop speed, seconds
-Kt · Ts   ≤ 1        tracking loop stability
+Kp · R0/Np  < 1        stability (§3.4.6) - check with YOUR R0, not R0+R1
+tau_CV      = tauRatio·(1+gainMargin)/gainMargin        loop speed, seconds
+Kt · Ts     ≤ 1        tracking loop stability
 ```
 
 ---
 
 ### 3.5 Worked examples
 
-**This pack — 195s1p:**
+**This pack — 10s2p:**
 ```
 Rcell(0.95) = R0 + R1 = 0.0074 + 0.0104 = 0.0178 Ω
-Reff        = 0.0178 / 1               = 0.0178 Ω
-Kp          = 0.5 / 0.0178             = 28.09  A/V
-Ki          = 28.09 / 10               =  2.81  A/(V·s)
+Reff        = 0.0178 / 2               = 0.0089 Ω
+Kp          = 0.5 / 0.0089             = 56.18  A/V
+Ki          = 56.18 / 10               =  5.618 A/(V·s)
 Kaw = Kt    = 1/1                      =  1     1/s
-vMaxCell    = 4.2 V,   Icharge = 4.5 A,   Iterm = 0.225 A
+vMaxCell    = 4.2 V,   Icharge = 9.0 A,   Iterm = 0.45 A
 ```
 
 Note `Rcell` is the **steady-state** `R0 + R1`, not the 10 s DCR — the CV phase lasts
 minutes, so the RC branch is fully charged and contributes its whole `R1`.
 
-**A 14s4p pack of the same cells** (change `Ns`/`Np` in `config()`, then `P45B build`):
+**A 10s1p pack of the same cells** (change `Ns`/`Np` in `config()`, then `P45B build`):
 ```
-Reff     = 0.0178 / 4 = 0.00445 Ω
-Kp       = 0.5 / 0.00445 = 112.4 A/V      ← 4× larger, because Np is 4× larger
-Ki       = 11.24 A/(V·s)
-Kaw = Kt = 1 1/s                          ← unchanged
-Icharge  = 1.0 × 4.5 × 4 = 18 A
+Reff     = 0.0178 / 1 = 0.0178 Ω
+Kp       = 0.5 / 0.0178 = 28.09 A/V      ← half as large, because Np is half as large
+Ki       = 2.809 A/(V·s)
+Kaw = Kt = 1 1/s                         ← unchanged
+Icharge  = 1.0 × 4.5 × 1 = 4.5 A
 vMaxCell = 4.2 V                          ← unchanged, it is per cell
 ```
 
@@ -1352,7 +1331,7 @@ ModuleAssembly → Pack` — and calls `buildBattery`. The settings that matter:
 | `T_dependence` | `'no'` | Isothermal — no temperature tables |
 | `thermal_port` | `'omit'` | No thermal node at all (you asked for no thermal) |
 | `SOC_port` | `'no'` | The pack block's `socCell` port already carries it |
-| `ModelResolution` | `'Detailed'` | Model each of the 195 cells separately (required for variation) |
+| `ModelResolution` | `'Detailed'` | Model each of the `Ns*Np` cells separately (required for variation) |
 | `CellParameterVariation` | `'PercentDeviation'` | Exposes a per-cell `%` deviation input for every table |
 | `BalancingStrategy` | `'Passive'` | Bleed resistor + switch across every parallel assembly, and a `balancing` command inport (§6) |
 | `MaskParameters` | `'VariableNamesByType'` | Block reads the `Pack.*` struct from the workspace instead of baked-in numbers |
@@ -1366,13 +1345,13 @@ measurements out as ordinary Simulink output ports:
 
 | Pack block port | What it carries |
 |---|---|
-| in `balancing` | **bleed-switch commands, 0/1 per assembly (195) — from `From balancing`** |
-| out 1 `iCell` | per-cell current, A (195) |
-| out 2 `numCyclesCell` | per-cell discharge cycles (195) |
-| out 3 `socCell` | **per-cell SOC (195) — feeds `Goto socCells`** |
-| out 4 `socParallelAssembly` | **per-assembly SOC (195) — feeds `Goto socPA`, the balancer input** |
-| out 5 `vCell` | **per-cell terminal voltage, V (195) — feeds `Goto cellV`** |
-| out 6 `vParallelAssembly` | per-assembly voltage, V (195) |
+| in `balancing` | **bleed-switch commands, 0/1 per assembly (`Ns`) — from `From balancing`** |
+| out 1 `iCell` | per-cell current, A (`Ns*Np`) |
+| out 2 `numCyclesCell` | per-cell discharge cycles (`Ns*Np`) |
+| out 3 `socCell` | **per-cell SOC (`Ns*Np`) — feeds `Goto socCells`** |
+| out 4 `socParallelAssembly` | **per-assembly SOC (`Ns`) — feeds `Goto socPA`, the balancer input** |
+| out 5 `vCell` | **per-cell terminal voltage, V (`Ns*Np`) — feeds `Goto cellV`** |
+| out 6 `vParallelAssembly` | per-assembly voltage, V (`Ns`) |
 
 plus the `+` and `-` electrical terminals. That is what replaced the Simscape **Probe**
 block the model used to need: tap ports 3 and 5 and you are done. The three unused output
@@ -1405,7 +1384,7 @@ the throwaway model. Four settings are re-applied with the copy:
 4. The **balancing command port** gets the same treatment, one level out. It is ordinary
    Simulink plumbing — an `Inport` and a `Selector` — and `buildBattery` writes `Ns` into
    both as a literal, at the pack and module-assembly levels. They are re-pointed at `Ns`
-   and `1:Ns`, so a rebuild cannot leave a stale 195-wide port behind.
+   and `1:Ns`, so a rebuild cannot leave a stale, wrongly-sized port behind.
 
 `Ns`/`Np` are compiled into the generated `+P45BPack/+Modules/ModuleType1.ssc`, which is
 why they need a rebuild. `P45B setup` reads them back out of that file and raises a clear
@@ -1432,22 +1411,25 @@ To inspect or edit the pack in the **Battery Builder app**:
 It fills `Pack.*PercentDeviation` (one value per cell) and `SOC0Cell` (per-cell initial
 SOC) in the base workspace. No rebuild — just press Run again.
 
-What you should see with variation on, and what it means physically. These are the
-numbers **with the balancer switched off** (`balEnable = false`), i.e. the pack left to
-drift:
+**A wrinkle specific to this pack.** `SOC0 = 0.99` sits very close to the hard ceiling of
+1.0, so `P45B vary`'s default `±0.01` SOC spread gets clipped there for roughly half the
+cells (`SOC0Cell` is clamped to `[0.01, 0.99]`). At the default spread (seed 42) the
+starting SOC only ranges from **0.9736 to 0.9900** — 1.64 points, most of which closes to
+2.47 points by the end of the run regardless of whether the balancer is on, because the
+spread never gets big enough to clear `balThreshold = 0.02` with much time to spare. If you
+want to actually *see* the balancer working, use a wider spread — §6 does exactly that.
 
-- The **max cell** is held at 4.21 V by the CV loop while the **min cell** only reaches
-  **4.04 V** — the strongest cell caps the string.
-- Mean SOC tops out at **0.947 instead of 0.998**, and pack voltage at **802 V instead of
-  821 V**. The imbalance directly costs usable capacity.
-- The spread **widens** over the run, from 6.1 to **9.5 SOC points** (about 190 mV).
+You will also see a **harmless assertion warning** the first time you run `P45B vary` at
+these defaults: a few of the fastest-charging cells (above-average capacity, below-average
+resistance, and already clamped at `SOC0Cell = 0.99`) briefly exceed `SOC = 1` during the
+first charge burst, a few seconds into the run. Simscape reports it and clips the state; the
+run finishes normally. It is real information, not a bug — it is telling you that this pack
+is started with very little headroom below "completely full". If you plan to run `P45B vary`
+often, consider lowering `SOC0` (accepting that the pack will then idle without ever
+reaching the CV band, per §1) or narrowing the `SOC` spread.
 
-That is exactly why packs need balancing. Leave the balancer on — the default — and the
-same seed gives **0.972** mean SOC, a min cell reaching **4.134 V**, and a spread that
-**narrows** from 6.1 to **3.2** points instead of widening. §6 has the full comparison.
-
-That 0.947 is also why the charge-complete latch re-arms on **cell voltage**, not on mean
-SOC — see section 2.
+That same ceiling is also why the charge-complete latch re-arms on **cell voltage**, not on
+mean SOC — see section 2.
 
 Keep `OCV` small (default 0.2%). A 1% deviation on a 4 V open-circuit voltage is 40 mV,
 a far bigger imbalance than any real matched pack.
@@ -1552,10 +1534,10 @@ is bleeding.
 Three choices in there are worth explaining.
 
 **It balances on SOC, not voltage.** Real balancing hardware measures voltage, but under
-the 1C pulse a cell's terminal voltage moves ~80 mV on IR drop alone — several times the
-imbalance being chased — so a voltage threshold would trip on load rather than on state of
-charge. `socParallelAssembly` (pack port 4, previously terminated) is load-free, and it is
-already `Ns` wide, which is exactly the width the `balancing` port wants — `socCell` is
+the 1C load a cell's terminal voltage moves tens of millivolts on IR drop alone — several
+times the imbalance being chased — so a voltage threshold would trip on load rather than on
+state of charge. `socParallelAssembly` (pack port 4, previously terminated) is load-free, and
+it is already `Ns` wide, which is exactly the width the `balancing` port wants — `socCell` is
 `Ns*Np` wide and would need reducing. To balance on voltage instead, retag `From socPA` to
 `cellV` and give `balThreshold` in volts; that only works cleanly at `Np = 1`.
 
@@ -1580,16 +1562,19 @@ assembly loses `Ibleed` amps out of `Np · AH` amp-hours:
 ```
 Ibleed  = Vnom / (balR + balRon)   = 3.6 / 33.01  = 0.109 A
 Pbleed  = Vnom · Ibleed            = 3.6 · 0.109  = 0.39 W   per resistor
-balRate = Ibleed / (Np · AH)       = 0.109 / 4.5  = 2.4 SOC points per hour
-balHours = balThreshold / balRate  = 0.02 / 0.024 = 0.83 h    to clear one threshold
+balRate = Ibleed / (Np · AH)       = 0.109 / 9.0  = 1.21 SOC points per hour
+balHours = balThreshold / balRate  = 0.02 / 0.0121 = 1.65 h    to clear one threshold
 ```
+
+`Np = 2` here halves the rate compared with an `Np = 1` pack of the same cell — twice the
+amp-hours behind the same bleed current.
 
 `P45B setup` prints all four:
 
 ```
     Balancing      passive, on: bleed above 0.020 SOC, stop below 0.010
                    33 Ohm shunt = 0.109 A / 0.39 W per assembly at 3.60 V
-                   2.42 SOC points per hour, so 0.83 h to clear 0.020 SOC
+                   1.21 SOC points per hour, so 1.65 h to clear 0.020 SOC
 ```
 
 Halving `balR` doubles both the rate and the heat. `checkThresholds()` warns if the
@@ -1599,47 +1584,33 @@ case where you run the model and wrongly conclude that balancing does nothing.
 
 ### What you should see
 
-Measured on the default 195s1p pack with default `P45B vary` (2 % capacity, 5 %
-resistance, 1 point SOC), same seed both times, full 2.5 h run:
+The default `P45B vary` spread is too gentle at this pack's `SOC0 = 0.99` to show much
+(§5) — it only ever grows to 2.47 points, barely past the 2 % threshold, so the balancer
+gets little to do. A wider draw makes the point clearly. Measured with
+`P45B('vary', 'SOC', 0.03, 'Seed', 42)`, same seed both times, full 2.5 h run:
 
 | | balancing **on** | balancing **off** |
 |---|---|---|
-| SOC spread, start → end | 6.09 % → **3.20 %** | 6.09 % → 9.48 % |
-| mean SOC at top of charge | **0.972** | 0.947 |
-| min cell, peak voltage | **4.134 V** | 4.039 V |
-| assemblies bleeding, peak | 179 of 195 | 0 |
-| wall clock | 95 s | 59 s |
+| SOC spread, start → end | 4.93 % → **2.37 %** | 4.93 % → 4.71 % |
+| assemblies bleeding, peak | 5 of 10 | 0 |
+| charge bled away | 0.85 Ah | 0.00 Ah |
 
-That is the whole point in one table. Left alone, the pack **drifts further apart** as it
-cycles — 6.1 points of spread becomes 9.5. With the balancer on, the spread **halves**, and
-the capacity the imbalance was costing comes back: the weakest cell now reaches 4.13 V
-instead of 4.04 V, and mean SOC tops out at 0.972 instead of 0.947.
+Left alone, the pack's spread barely narrows on its own — 4.93 points becomes 4.71.
+With the balancer on, the spread **roughly halves** in the same 2.5 h, as five of the ten
+parallel assemblies bleed down toward the weakest one. `P45B plot`'s fifth tile shows the
+bleed count directly, and `P45B plot` prints the spread at both ends of the run and the
+total charge bled away.
 
-The fifth tile of the result figure shows it happening. It starts with ~175 of the 195
-assemblies bleeding and decays to ~20 by the end of the run, as the cells converge and one
-by one drop back inside the threshold. `P45B plot` also prints the spread at both ends of
-the run and the total charge bled away.
-
-**Run time.** Active balancing costs about 60 % more wall clock — 95 s against 59 s for
-the identical run with `balEnable = false`, where the circuit is present but every switch
-stays open. Every switch that changes state forces Simscape to refactorise the network, so
-the cost is in the switching, not in the extra components. The identical-cell default run
-takes ~105 s, but that is *not* a comparison against either of those: with no spread nothing
-ever bleeds, and a pack of identical cells reaches the CV taper sooner and spends longer
-in it.
-
-**A harsher check.** `P45B('vary', SOC=0.03, Seed=42)` starts cells between 0.212 and 0.400
-SOC — an 18.75 point spread, far worse than any real pack. Over 1500 s, **193 of 195**
-assemblies bleed, because with a spread that wide almost everything sits more than 2 points
-above the lowest cell. That is correct behaviour, not a bug. The useful check is *which*
-cells: at the end of that run the mean SOC of the bleeding cells is **0.512** against
-**0.434** for the ones left alone, with the lowest cell at 0.424. The balancer is bleeding
-the right ones.
+**Run time.** This is a small pack (20 cells), so active balancing and cell variation add
+only a couple of seconds to the few-second baseline run — nowhere near the dominant cost
+the way it would be on a large pack. Every switch that changes state still forces Simscape
+to refactorise the network, so a pack with hundreds of assemblies would show the same
+qualitative slowdown described for balancing in general; it is just not the bottleneck here.
 
 ### Known limitations of this first version
 
-- **The balancer never stands down.** `Enable` is a constant, so it bleeds during discharge
-  pulses too, which is pure waste — a real BMS balances at rest or on charge. Gating
+- **The balancer never stands down.** `Enable` is a constant, so it bleeds during the load
+  as well, which is pure waste — a real BMS balances at rest or on charge. Gating
   `Enable` on "not discharging" is one extra `From iEnable` and a `NOT` block.
 - **`BalancingActive` is terminated.** Nothing uses the block's second output yet.
 - **`Passive` only.** `BalancingStrategy` also accepts `"External"`, which replaces the
@@ -1663,20 +1634,18 @@ the right ones.
 - **Ageing and self-discharge are off** (`prm_fade`, `prm_leak`, `prm_age_*` all disabled).
 - **No thermal model**, as requested. Every parameter is at one temperature; there is no
   thermal port on the battery block and no heat generation.
-- **Runtime** is ~105 s for the default 2.5 h run with identical cells, and ~95 s with
-  `P45B vary` on. The pack block probes six per-cell vectors instead of the old Probe's
-  two, which costs about 15 s, and active balancing costs about 60 % more again (§6).
-  Shorten `stopTime` in `config()` if you want faster iteration; ~1.4 h still reaches the
-  first rest.
-- **Balancing is on by default**, and it changes the numbers §5 quotes for an unbalanced
-  pack. `balEnable = false` in `config()` restores that behaviour with no rebuild. The
-  bleed circuit itself is always generated — an open switch leaks 40 nA per assembly.
+- **Runtime** is on the order of ten seconds for the default 2.5 h run on this 20-cell pack;
+  `P45B vary` and the balancer add only a little to that. Shorten `stopTime` in `config()`
+  if you want faster iteration.
+- **Balancing is on by default**, and it changes the numbers §5/§6 quote for an unbalanced
+  pack. `balEnable = false` in `config()` restores the un-balanced behaviour with no
+  rebuild. The bleed circuit itself is always generated — an open switch leaks 40 nA per
+  assembly.
+- **`SOC0 = 0.99` leaves little headroom below full**, and `P45B vary`'s default spread
+  clips against that ceiling and can trip a harmless "SOC must be ≤ 1" assertion during the
+  first charge burst — see §5.
 - **Sign convention:** current is **positive into the battery** (charging), negative
   discharging. Zero means resting — the Current Gate is off.
-- **Peak cell voltage overshoots 4.2 V by ~10 mV** on a normal run, and by up to ~35 mV
-  when the charger restarts into an already-full pack (a small pulse that clears the latch
-  without taking much charge out). That is CC→CV handover, not the latch; drop
-  `gainMargin` if it bothers you.
 - **The three unused pack ports** (`iCell`, `numCyclesCell`, `vParallelAssembly`) are
   terminated in the model. Delete a Terminator and wire the port up if you want the
   signal — no rebuild needed. `socParallelAssembly` used to be terminated too; it now

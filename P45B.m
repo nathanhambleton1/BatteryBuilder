@@ -24,15 +24,15 @@ function P45B(action, varargin)
 %   edit the config() function immediately below - it is the only place any
 %   number is written down. Everything else is derived from it.
 %
-%   THE DUTY CYCLE is a discharge pulse train against a charger that stops when
-%   the pack is full:
-%     pulseCrate / pulsePeriod / pulseDuty / pulseDelay  size and time the pulse
+%   THE DUTY CYCLE is a discharge load against a charger that stops when the
+%   pack is full:
+%     loadCrate / loadPeriod / loadDuty / loadDelay   size and time the load
 %     V_recharge          once full, the pack rests until the highest cell
 %                         falls back to this, then charges again
-%     SOC_minDischarge    protection floor; the pulse is refused below it,
+%     SOC_minDischarge    protection floor; the load is refused below it,
 %     SOC_resumeDischarge and stays refused until the charger reaches this
-%   The pulse always wins. Between pulses the pack charges if it needs to and
-%   sits at zero current if it does not.
+%   The load always wins. Between load periods the pack charges if it needs
+%   to and sits at zero current if it does not.
 %
 %   PASSIVE CELL BALANCING is built into the pack and enabled by default. Every
 %   parallel assembly carries a bleed resistor and a switch across it, and the
@@ -72,12 +72,24 @@ function c = config()
 % Edit anything in this function. Nothing else in the file needs to change.
 
 % ---- Pack configuration ("P45B build" required after changing) --------
-c.Ns = 195;                 % Cells in series
-c.Np = 1;                   % Cells in parallel
+c.Ns = 10;                  % Cells in series
+c.Np = 2;                   % Cells in parallel
 
 % ---- Charging ----------------------------------------------------------
 c.chargeCrate       = 1.0;  % Charge current as a multiple of cell capacity (P45B standard = 1C)
-c.SOC0              = 0.30; % Initial state of charge of every cell
+c.SOC0              = 0.99; % Initial state of charge of every cell. Started at the
+                            % top of charge because loadDuty = 50% at loadCrate =
+                            % chargeCrate makes the net current exactly zero over
+                            % a cycle: starting anywhere below the CV band just
+                            % idles there forever, alternating charge and load
+                            % with nothing left over, and never reaches the top
+                            % of charge at all. Starting here instead shows the
+                            % one part of the cycle the symmetric load actually
+                            % exercises - the charge-complete latch, the rest,
+                            % and the passive balancer - and then a slow net
+                            % drain, because the CV taper caps the charge half
+                            % of the cycle below 1C while the load half still
+                            % draws the full 1C.
 c.taperCrate        = 0.05; % Charge is complete when the CV current tapers below this C-rate
 c.V_recharge        = 4.10; % Once complete, charge again only after the highest
                             % cell falls back to this. This is the anti-chatter
@@ -86,20 +98,20 @@ c.V_recharge        = 4.10; % Once complete, charge again only after the highest
                             % threshold high enough to trip is only millivolts
                             % clear of the CV band. See README section 2.
 
-% ---- Discharge pulse train --------------------------------------------
-% A Pulse Generator inside "Charge Logic" drives the discharge. The pulse has
-% absolute priority: whenever it is high the pack discharges, whatever the
-% charger wants. Between pulses the pack charges if it needs to, and rests if
-% it does not.
-c.pulseCrate        = 1.0;  % Pulse amplitude as a multiple of cell capacity (limit = 10C)
-c.pulsePeriod       = 900;  % Pulse repeat period, s
-c.pulseDuty         = 20;   % Percent of each period the pulse is on
-c.pulseDelay        = 300;  % Delay before the first pulse, s
-c.SOC_minDischarge  = 0.05; % Stop the pulse below this mean SOC, and
+% ---- Discharge load ------------------------------------------------
+% A Pulse Generator inside "Charge Logic" alternates the load on and off. The
+% load has absolute priority: whenever it is on the pack discharges, whatever
+% the charger wants. Between load periods the pack charges if it needs to,
+% and rests if it does not.
+c.loadCrate         = 1.0;  % Load amplitude as a multiple of cell capacity (limit = 10C)
+c.loadPeriod        = 900;  % Load repeat period, s
+c.loadDuty          = 50;   % Percent of each period the load is on
+c.loadDelay         = 300;  % Delay before the first load period, s
+c.SOC_minDischarge  = 0.05; % Stop the load below this mean SOC, and
 c.SOC_resumeDischarge = 0.25; % do not let it start again until the charger has
                             % brought the pack back up to here. Same one-way
                             % hysteresis as V_recharge, at the other end. Set
-                            % SOC_minDischarge = 0 to let the pulse run the
+                            % SOC_minDischarge = 0 to let the load run the
                             % pack flat with no floor at all.
 
 % ---- Passive cell balancing -------------------------------------------
@@ -111,10 +123,11 @@ c.SOC_resumeDischarge = 0.25; % do not let it start again until the charger has
 % the lowest one in the pack and commands a 1 wherever the gap exceeds
 % balThreshold.
 %
-% The comparison is on SOC, not voltage. Under the 1C pulse a cell's terminal
-% voltage moves ~80 mV on IR alone - far more than the imbalance being chased -
-% so a voltage threshold would trip on load rather than on charge.
-% socParallelAssembly comes straight off the pack block and is load-free.
+% The comparison is on SOC, not voltage. Under the 1C load a cell's terminal
+% voltage moves tens of millivolts on IR alone - enough to swamp the imbalance
+% being chased - so a voltage threshold would trip on load rather than on
+% charge. socParallelAssembly comes straight off the pack block and is
+% load-free.
 c.balEnable     = true;     % Master enable. false holds every switch open.
 c.balThreshold  = 0.02;     % Bleed an assembly this far in SOC above the lowest one
 c.balHysteresis = 0.01;     % ...and stop once it is back inside threshold - this.
@@ -138,7 +151,7 @@ c.balVt         = 0.5;      % Command above this closes the switch (commands are
 % ---- Controller --------------------------------------------------------
 c.Ts           = 1;         % Controller + local solver sample time (s)
 c.gainMargin   = 0.5;       % Safety factor on Kp. 1.0 = the raw rule; the loop goes
-                            % unstable around 1.4, so 0.5 leaves ~2.8x margin.
+                            % unstable around 2.4x for this cell, so 0.5 leaves margin.
 c.tauRatio     = 10;        % Kp/Ki. Larger = slower, gentler CV settling
 c.SOC_cvDesign = 0.95;      % SOC at which the CV loop is tuned (top of charge)
 
@@ -232,20 +245,21 @@ S.packWh   = S.packVnom*S.packAH;
 
 % ---- Duty-cycle currents ----------------------------------------------
 S.Icharge = S.chargeCrate*cellP.AH*S.Np;   % Pack charging current, A
-S.Ipulse  = S.pulseCrate *cellP.AH*S.Np;   % Discharge-pulse amplitude, A
+S.Iload   = S.loadCrate  *cellP.AH*S.Np;   % Discharge-load amplitude, A
 S.Iterm   = S.taperCrate *cellP.AH*S.Np;   % Charge-termination current, A
 S.dVterm  = 0.010;                         % How close to vMaxCell counts as "in CV", V
 
-% ---- Discharge pulse train, in controller samples ----------------------
-% The model is fixed-step discrete at Ts, so the Pulse Generator runs in
-% sample-based mode and its period / width have to be whole numbers of steps.
-% Round here, once, and report what the pack will actually see.
-S.pulseN      = max(1, round(S.pulsePeriod/S.Ts));               % steps per period
-S.pulseNon    = min(S.pulseN, max(1, round(S.pulseN*S.pulseDuty/100)));  % steps on
-S.pulseNdelay = max(0, round(S.pulseDelay/S.Ts));                % steps before the first pulse
-S.pulseOnTime = S.pulseNon*S.Ts;                 % Achieved pulse width, s
-S.pulseTime   = S.pulseN  *S.Ts;                 % Achieved period, s
-S.pulseDutyOn = 100*S.pulseNon/S.pulseN;         % Achieved duty cycle, percent
+% ---- Discharge load, in controller samples -----------------------------
+% The model is fixed-step discrete at Ts, so the Pulse Generator that drives
+% the load runs in sample-based mode and its period / width have to be whole
+% numbers of steps. Round here, once, and report what the pack will actually
+% see.
+S.loadN      = max(1, round(S.loadPeriod/S.Ts));               % steps per period
+S.loadNon    = min(S.loadN, max(1, round(S.loadN*S.loadDuty/100)));  % steps on
+S.loadNdelay = max(0, round(S.loadDelay/S.Ts));                 % steps before the first load period
+S.loadOnTime = S.loadNon*S.Ts;                 % Achieved on time, s
+S.loadTime   = S.loadN  *S.Ts;                 % Achieved period, s
+S.loadDutyOn = 100*S.loadNon/S.loadN;          % Achieved duty cycle, percent
 
 % ---- Passive balancing -------------------------------------------------
 % The shunt sits across a whole parallel assembly, so it drains all Np cells at
@@ -286,17 +300,17 @@ fprintf('\n  P45B pack  %ds%dp  (%d cells)\n', S.Ns, S.Np, S.Ncells);
 fprintf('    Voltage        %.1f V nominal   %.1f V full   %.1f V empty\n', ...
         S.packVnom, S.packVmax, S.packVmin);
 fprintf('    Capacity       %.2f Ah   =  %.2f kWh\n', S.packAH, S.packWh/1000);
-fprintf('    Currents       %.2f A charge (%.2gC)   %.2f A pulse (%.2gC)\n', ...
-        S.Icharge, S.chargeCrate, S.Ipulse, S.pulseCrate);
+fprintf('    Currents       %.2f A charge (%.2gC)   %.2f A load (%.2gC)\n', ...
+        S.Icharge, S.chargeCrate, S.Iload, S.loadCrate);
 fprintf('    Charge ends    when the CV current tapers below %.3f A (C/%.0f)\n', ...
         S.Iterm, 1/S.taperCrate);
 fprintf('    Then rests     until the highest cell falls back to %.3f V\n', S.V_recharge);
-fprintf('    Pulse train    %.4g s on / %.4g s off   (%.4g s period, %.3g%% duty)', ...
-        S.pulseOnTime, S.pulseTime - S.pulseOnTime, S.pulseTime, S.pulseDutyOn);
-if S.pulseNdelay > 0, fprintf('   first pulse at %.4g s', S.pulseNdelay*S.Ts); end
+fprintf('    Load           %.4g s on / %.4g s off   (%.4g s period, %.3g%% duty)', ...
+        S.loadOnTime, S.loadTime - S.loadOnTime, S.loadTime, S.loadDutyOn);
+if S.loadNdelay > 0, fprintf('   first load at %.4g s', S.loadNdelay*S.Ts); end
 fprintf('\n');
 if S.SOC_minDischarge > 0
-    fprintf('    Pulse blocked  below %.2f mean SOC, until the charger reaches %.2f\n', ...
+    fprintf('    Load blocked   below %.2f mean SOC, until the charger reaches %.2f\n', ...
             S.SOC_minDischarge, S.SOC_resumeDischarge);
 end
 if S.balEnable
@@ -346,19 +360,19 @@ end
 if S.SOC_minDischarge > 0 && S.SOC_resumeDischarge <= S.SOC_minDischarge
     warning('P45B:floorThresholds', ...
         ['SOC_resumeDischarge (%.3f) is at or below SOC_minDischarge (%.3f). ' ...
-         'With no gap between them the pulse switches on and off every Ts once ' ...
+         'With no gap between them the load switches on and off every Ts once ' ...
          'the pack reaches the floor.'], S.SOC_resumeDischarge, S.SOC_minDischarge);
 end
-if S.pulseNon*S.Ts > S.pulsePeriod*S.pulseDuty/100 + S.Ts/2
-    warning('P45B:pulseTooShort', ...
-        ['pulseDuty = %g%% of a %g s period is less than one %g s step, so the ' ...
-         'pulse is being stretched to one step. Set pulseCrate = 0 to switch the ' ...
-         'discharge off altogether.'], S.pulseDuty, S.pulsePeriod, S.Ts);
+if S.loadNon*S.Ts > S.loadPeriod*S.loadDuty/100 + S.Ts/2
+    warning('P45B:loadTooShort', ...
+        ['loadDuty = %g%% of a %g s period is less than one %g s step, so the ' ...
+         'load is being stretched to one step. Set loadCrate = 0 to switch the ' ...
+         'discharge off altogether.'], S.loadDuty, S.loadPeriod, S.Ts);
 end
-if S.pulseNon >= S.pulseN
-    warning('P45B:pulseAlwaysOn', ...
-        ['pulseDuty = %g%% rounds to a pulse that is on for the whole period, so ' ...
-         'the pack only ever discharges.'], S.pulseDuty);
+if S.loadNon >= S.loadN
+    warning('P45B:loadAlwaysOn', ...
+        ['loadDuty = %g%% rounds to a load that is on for the whole period, so ' ...
+         'the pack only ever discharges.'], S.loadDuty);
 end
 if S.balHysteresis > S.balThreshold
     warning('P45B:balHysteresis', ...
@@ -383,11 +397,11 @@ if S.balEnable && S.Pbleed > 5
         ['The %.3g Ohm shunt dissipates %.1f W per assembly. Real bleed resistors ' ...
          'are sized for a fraction of a watt; raise balR.'], S.balR, S.Pbleed);
 end
-if abs(S.pulseTime - S.pulsePeriod) > 1e-9 || ...
-   abs(S.pulseOnTime - S.pulsePeriod*S.pulseDuty/100) > 1e-9
-    fprintf(['  Note: the pulse was rounded to whole Ts steps - %g s period / ' ...
+if abs(S.loadTime - S.loadPeriod) > 1e-9 || ...
+   abs(S.loadOnTime - S.loadPeriod*S.loadDuty/100) > 1e-9
+    fprintf(['  Note: the load was rounded to whole Ts steps - %g s period / ' ...
              '%g s on, instead of %g s / %g s.\n'], ...
-            S.pulseTime, S.pulseOnTime, S.pulsePeriod, S.pulsePeriod*S.pulseDuty/100);
+            S.loadTime, S.loadOnTime, S.loadPeriod, S.loadPeriod*S.loadDuty/100);
 end
 end
 
@@ -558,7 +572,7 @@ set_param(mb, 'S', 'Ns', 'P', 'Np');
 % Same problem, one level out. The balancing command port is ordinary Simulink
 % plumbing rather than a Simscape parameter - an Inport and a Selector - and
 % buildBattery writes Ns into both as a literal. Point them at the workspace so
-% that changing Ns cannot leave a stale 195-wide port behind.
+% that changing Ns cannot leave a stale port behind.
 for lvl = {'P45BPack_lib/Pack','P45BPack_lib/Pack/ModuleAssembly'}
     set_param([lvl{1} '/balancing'], 'PortDimensions', 'Ns');
     set_param([lvl{1} '/balancingSelector1'], 'InputPortWidth', 'Ns', ...
@@ -757,7 +771,7 @@ tl = tiledlayout(fh, nTiles, 1, 'TileSpacing','compact', 'Padding','compact');
 ax(1) = nexttile;
 plot(t, Ipack, 'LineWidth', 1.5, 'Color', blue); grid on
 ylabel('Current (A)');
-title('Pack current   (+ charging, - discharge pulse, 0 resting)');
+title('Pack current   (+ charging, - discharge load, 0 resting)');
 
 ax(2) = nexttile;
 plot(t, vCmax, '-',  'LineWidth', 2.0, 'Color', orange); hold on
@@ -789,7 +803,7 @@ if ~isempty(bal)
 end
 
 linkaxes(ax, 'x'); xlim(ax(1), [0 max(t)]);
-title(tl, sprintf('P45B %ds%dp  CC-CV charge with discharge pulses', Ns, Np));
+title(tl, sprintf('P45B %ds%dp  CC-CV charge with discharge load', Ns, Np));
 
 fprintf(['  Simulated %.2f h  |  peak cell %.4f V  |  cell spread at end ' ...
          '%.1f mV / %.2f %% SOC\n'], t(end), max(vCmax), ...
