@@ -1,0 +1,70 @@
+* ============================================================================
+*  Molicel INR-21700-P45B  -  first-order (1-RC Thevenin) equivalent circuit
+*  Target simulator: ngspice (KiCad 7/8/9 built-in simulator). Plain SPICE +
+*  B-sources only (no XSPICE code models needed).
+*
+*        POS o--[Vi]--[ R0 ]--+--[ R1 ]--+--(+ OCV(SOC) -)--o NEG
+*                             |          |
+*                             +--||C1||--+
+*
+*  SOC (0..1) is integrated from terminal current:  dSOC/dt = I / (3600*Q)
+*  Current INTO POS is positive (charging).
+*
+*  Datasheet anchors (E-One Moli INR-21700-P45B spec sheet):
+*    Capacity      4500 mAh typ / 4300 mAh min
+*    Voltage       4.20 V charge / 3.6 V nominal / 2.50 V cutoff
+*    AC impedance  7 mOhm  (1 kHz, 30% SOC)       -> R0
+*    DC impedance  15 mOhm (50% SOC, pulse)       -> R0 + R1 (approx.)
+*    Max cont. discharge 45 A, max charge 13.5 A
+*  R1/TAU1 and the OCV table are ESTIMATES for a high-Ni NCA/NMC 21700 and
+*  are not published by Molicel. Replace them with your own HPPC fit (e.g.
+*  from the Simscape model) for quantitative work.
+*
+*  Parameters (override per instance, e.g.  SOC0=0.5 NP=4):
+*    SOC0  initial state of charge, 0..1           (default 1.0)
+*    QAH   cell capacity, Ah                       (default 4.5)
+*    NP    number of identical cells in parallel   (default 1)
+*    RS    ohmic resistance R0, ohm                (default 7m)
+*    RP    polarization resistance R1, ohm         (default 8m)
+*    TAU1  R1*C1 time constant, s                  (default 5)
+*    KOCV  OCV offset, V (cell-to-cell spread)     (default 0)
+*
+*  MOLICEL_P45B      : 2-pin version (POS NEG) for a normal battery symbol
+*  MOLICEL_P45B_SOC  : 3-pin version (POS NEG SOC); SOC pin is a 0..1 V
+*                      signal referenced to simulation ground (node 0).
+*                      Leave it on a net label to plot it. Do not load it.
+* ============================================================================
+
+.subckt MOLICEL_P45B_SOC POS NEG SOC
++ params: SOC0=1 QAH=4.5 NP=1 RS=7m RP=8m TAU1=5 KOCV=0
+
+* terminal current sense (I(Vi) > 0 = charging)
+Vi   POS p1 0
+Rs0  p1  p2 {RS/NP}
+* R1||C1 polarization branch, realised as a first-order state on node vp
+* (avoids a ~600 F physical capacitor, which upsets the solver at small
+*  time steps):  TAU1*dVp/dt = I*R1 - Vp
+Bpol p2  p3 V = V(vp)
+Cvp  vp  0 1u
+Rvp  vp  0 {TAU1/1u}
+Bvp  0  vp I = I(Vi)*({RP/NP})/({TAU1/1u})
+
+* open-circuit voltage vs SOC (clamped beyond the table ends)
+Bocv p3 NEG V = KOCV + pwl(V(SOC),
++ -0.05,2.000, 0.000,2.500, 0.010,2.900, 0.020,3.050, 0.050,3.250,
++  0.100,3.420, 0.150,3.500, 0.200,3.555, 0.300,3.625, 0.400,3.685,
++  0.500,3.745, 0.600,3.820, 0.700,3.905, 0.800,3.995, 0.900,4.085,
++  0.950,4.135, 1.000,4.200, 1.050,4.300)
+
+* coulomb counter: SOC = SOC0 + integral( I / (3600*QAH*NP) )
+* (1 uF state capacitor; the restoring term is only active in the DC
+*  operating point, time = 0, and sets the initial condition to SOC0)
+Csoc SOC 0 1u
+Bsoc 0 SOC I = time > 0 ? 1u*I(Vi)/({3600*QAH*NP}) : 1u*(({SOC0}) - V(SOC))
+.ends MOLICEL_P45B_SOC
+
+.subckt MOLICEL_P45B POS NEG
++ params: SOC0=1 QAH=4.5 NP=1 RS=7m RP=8m TAU1=5 KOCV=0
+X1 POS NEG soc MOLICEL_P45B_SOC SOC0={SOC0} QAH={QAH} NP={NP} RS={RS}
++ RP={RP} TAU1={TAU1} KOCV={KOCV}
+.ends MOLICEL_P45B
