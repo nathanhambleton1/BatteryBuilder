@@ -42,10 +42,18 @@
 *
 *  Useful internal nodes to plot (prefix with the instance, e.g. XU1.):
 *   cv1..cv16 cell voltages, vmax, vmin, isns (A, + = charge), t1..t3 (degC)
+*   ccq = accumulated charge, Ah (+ = charge)
+*  PROBE NETS (global, no pin needed - add a global label + SIM_PROBE):
+*   BMS_AH_OUT  Ah the IC has counted out of the pack (1 V = 1 Ah)
+*   BMS_SOC     host-style SOC = BMS_SOC0 + 100*ccq/BMS_CAP_AH (1 V = 1 %)
+*   (the BQ76952 itself only reports accumulated charge; SOC is what the
+*    host MCU would compute from it)
 *   f_cov f_cuv f_occ f_ocd1 f_ocd2 f_ocd3 f_scd f_otc f_otd f_utc f_utd f_pf
 *   rdy shut chg_ok dsg_ok chg_s dsg_s pchg_s pdsg_s b1..b16 (balancing)
 *  All internal logic nodes are 0/1 V referenced to node 0.
 * ============================================================================
+
+.global BMS_AH_OUT BMS_SOC
 
 *  PARAMETERS
 *   CE1..CE16     1       cell n enabled (1) / unused-shorted input (0)
@@ -119,6 +127,10 @@
 *   VPOR          3.5     BAT power-on reset threshold, V
 *   IQ            286u    NORMAL mode BAT current, A
 *   RCIN          2.1Meg  effective differential cell input resistance
+*   CC_GAIN       1       coulomb-counter gain (1 = calibrated; 1.01 = +1 % error)
+*   CC_OFFSET     0       coulomb-counter input offset, V (datasheet <~1 uV)
+*   BMS_SOC0      100     host SOC estimate at t = 0, %
+*   BMS_CAP_AH    4.5     capacity the host divides by, Ah
 *   DDSG_EN       1       DDSG pin = DSG-fault logic output
 *   DCHG_EN       1       DCHG pin = CHG-fault logic output
 *   ALERT_EN      1       ALERT pin = open-drain, low on any fault
@@ -162,7 +174,8 @@ Bpd out vss I = (1-V(en))*V(out,vss)/({RPD})
 + PCHG_START=3.0 PCHG_STOP=3.2 PDSG_EN=0 PDSG_TO=0.5 PDSG_DELTA=0.5
 + CFETOFF_MODE=0 DFETOFF_MODE=0 REG0_EN=1 REG1_V=3.3 REG2_V=0 CB_EN=0
 + CB_START=40m CB_STOP=20m CB_MINV=3.9 CB_IDSG=50m RCB=28 CB_TS=0.25
-+ TSTART=0.28 VPOR=3.5 IQ=286u RCIN=2.1Meg DDSG_EN=1 DCHG_EN=1 ALERT_EN=1
++ TSTART=0.28 VPOR=3.5 IQ=286u RCIN=2.1Meg CC_GAIN=1 CC_OFFSET=0
++ BMS_SOC0=100 BMS_CAP_AH=4.5 DDSG_EN=1 DCHG_EN=1 ALERT_EN=1
 
 * ---- pin leakage / DC paths (keeps unconnected pins solvable) ----
 Rlk_VC15 VC15 VSS 1G
@@ -215,6 +228,18 @@ Rlk_VC16 VC16 VSS 1G
 Rsns SRP SRN 2Meg
 Rld  LD VSS 2Meg
 Rpk  PACK VSS 10Meg
+* pin capacitances (also keep the driver nodes well-conditioned numerically)
+Cpin_CHG CHG VSS 10p
+Cpin_DSG DSG VSS 10p
+Cpin_PCHG PCHG VSS 10p
+Cpin_PDSG PDSG VSS 10p
+Cpin_LD LD VSS 10p
+Cpin_PACK PACK VSS 10p
+Cpin_BREG BREG VSS 10p
+Cpin_FUSE FUSE VSS 10p
+Cpin_ALERT ALERT VSS 10p
+Cpin_DDSG DDSG VSS 10p
+Cpin_DCHG DCHG VSS 10p
 
 * ---- cell inputs ----
 .model BQ_DESD D(IS=1e-15 N=1 RS=10)
@@ -323,6 +348,16 @@ Bcm16 cm16 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h16) : V(cv16)
 Bvmax vmax 0 V = max((({CE16})>0.5 ? V(cm16) : -10), max((({CE15})>0.5 ? V(cm15) : -10), max((({CE14})>0.5 ? V(cm14) : -10), max((({CE13})>0.5 ? V(cm13) : -10), max((({CE12})>0.5 ? V(cm12) : -10), max((({CE11})>0.5 ? V(cm11) : -10), max((({CE10})>0.5 ? V(cm10) : -10), max((({CE9})>0.5 ? V(cm9) : -10), max((({CE8})>0.5 ? V(cm8) : -10), max((({CE7})>0.5 ? V(cm7) : -10), max((({CE6})>0.5 ? V(cm6) : -10), max((({CE5})>0.5 ? V(cm5) : -10), max((({CE4})>0.5 ? V(cm4) : -10), max((({CE3})>0.5 ? V(cm3) : -10), max((({CE2})>0.5 ? V(cm2) : -10), max((({CE1})>0.5 ? V(cm1) : -10), -10))))))))))))))))
 Bvmin vmin 0 V = min((({CE16})>0.5 ? V(cm16) : 10), min((({CE15})>0.5 ? V(cm15) : 10), min((({CE14})>0.5 ? V(cm14) : 10), min((({CE13})>0.5 ? V(cm13) : 10), min((({CE12})>0.5 ? V(cm12) : 10), min((({CE11})>0.5 ? V(cm11) : 10), min((({CE10})>0.5 ? V(cm10) : 10), min((({CE9})>0.5 ? V(cm9) : 10), min((({CE8})>0.5 ? V(cm8) : 10), min((({CE7})>0.5 ? V(cm7) : 10), min((({CE6})>0.5 ? V(cm6) : 10), min((({CE5})>0.5 ? V(cm5) : 10), min((({CE4})>0.5 ? V(cm4) : 10), min((({CE3})>0.5 ? V(cm3) : 10), min((({CE2})>0.5 ? V(cm2) : 10), min((({CE1})>0.5 ? V(cm1) : 10), 10))))))))))))))))
 Bisns isns 0 V = V(SRP,SRN)/({RSENSE})
+* ---- coulomb counter: accumulated charge, Ah (+ = charge, like the IC's
+*      PASSQ / "Accumulated Charge"). Integrates what the IC sees on SRP-SRN
+*      using its programmed sense resistor (RSENSE), gain and offset.
+Cccq ccq 0 1u
+Bccq 0 ccq I = time > 0 ? 1u*V(act)*((({CC_GAIN}))*V(SRP,SRN) + (({CC_OFFSET})))/(({RSENSE}))/3600 : -1u*V(ccq)
+* probe nets (global): Ah out (+ = discharge) and a host-style SOC estimate
+Bbah bah 0 V = -V(ccq)
+Rbah bah BMS_AH_OUT 1k
+Bbsc bsc 0 V = min(100, max(0, (({BMS_SOC0})) + 100*V(ccq)/(({BMS_CAP_AH}))))
+Rbsc bsc BMS_SOC 1k
 
 * ---- power, reset, shutdown, startup ----
 Bpor_s por_s 0 V = V(BAT,VSS) > ({VPOR})
@@ -383,67 +418,89 @@ Btmin tmin 0 V = min(min((({TS1_EN})>0.5 ? V(t1) : 200), (({TS2_EN})>0.5 ? V(t2)
 * COV
 Bc_cov c_cov 0 V = V(act)>0.5 && (({OV_TH})>0 && V(vmax) > ({OV_TH}))
 Xd_cov c_cov s_cov BQ76952_DLY TD={OV_DLY}
-Bq_cov q_cov 0 V = V(f_cov)>0.5 && (V(vmax) < ({OV_TH-OV_HYS}))
+Rfd_cov f_cov fd_cov 10k
+Cfd_cov fd_cov 0 1n
+Bq_cov q_cov 0 V = V(fd_cov)>0.5 && (V(vmax) < ({OV_TH-OV_HYS}))
 Xr_cov q_cov r_cov BQ76952_DLY TD={REC_TIME}
 Xl_cov s_cov r_cov nact f_cov BQ76952_SR
 * CUV
 Bc_cuv c_cuv 0 V = V(act)>0.5 && (({UV_TH})>0 && V(vmin) < ({UV_TH}))
 Xd_cuv c_cuv s_cuv BQ76952_DLY TD={UV_DLY}
-Bq_cuv q_cuv 0 V = V(f_cuv)>0.5 && (V(vmin) > ({UV_TH+UV_HYS}))
+Rfd_cuv f_cuv fd_cuv 10k
+Cfd_cuv fd_cuv 0 1n
+Bq_cuv q_cuv 0 V = V(fd_cuv)>0.5 && (V(vmin) > ({UV_TH+UV_HYS}))
 Xr_cuv q_cuv r_cuv BQ76952_DLY TD={REC_TIME}
 Xl_cuv s_cuv r_cuv nact f_cuv BQ76952_SR
 * OCC
 Bc_occ c_occ 0 V = V(act)>0.5 && (({OCC_TH})>0 && V(SRP,SRN) > ({OCC_TH}))
 Xd_occ c_occ s_occ BQ76952_DLY TD={OCC_DLY}
-Bq_occ q_occ 0 V = V(f_occ)>0.5 && (V(isns) < ({OCC_REC}))
+Rfd_occ f_occ fd_occ 10k
+Cfd_occ fd_occ 0 1n
+Bq_occ q_occ 0 V = V(fd_occ)>0.5 && (V(isns) < ({OCC_REC}))
 Xr_occ q_occ r_occ BQ76952_DLY TD={REC_TIME}
 Xl_occ s_occ r_occ nact f_occ BQ76952_SR
 * OCD1
 Bc_ocd1 c_ocd1 0 V = V(act)>0.5 && (({OCD1_TH})>0 && V(SRP,SRN) < ({-OCD1_TH}))
 Xd_ocd1 c_ocd1 s_ocd1 BQ76952_DLY TD={OCD1_DLY}
-Bq_ocd1 q_ocd1 0 V = V(f_ocd1)>0.5 && (V(isns) > ({OCD_REC}))
+Rfd_ocd1 f_ocd1 fd_ocd1 10k
+Cfd_ocd1 fd_ocd1 0 1n
+Bq_ocd1 q_ocd1 0 V = V(fd_ocd1)>0.5 && (V(isns) > ({OCD_REC}))
 Xr_ocd1 q_ocd1 r_ocd1 BQ76952_DLY TD={REC_TIME}
 Xl_ocd1 s_ocd1 r_ocd1 nact f_ocd1 BQ76952_SR
 * OCD2
 Bc_ocd2 c_ocd2 0 V = V(act)>0.5 && (({OCD2_TH})>0 && V(SRP,SRN) < ({-OCD2_TH}))
 Xd_ocd2 c_ocd2 s_ocd2 BQ76952_DLY TD={OCD2_DLY}
-Bq_ocd2 q_ocd2 0 V = V(f_ocd2)>0.5 && (V(isns) > ({OCD_REC}))
+Rfd_ocd2 f_ocd2 fd_ocd2 10k
+Cfd_ocd2 fd_ocd2 0 1n
+Bq_ocd2 q_ocd2 0 V = V(fd_ocd2)>0.5 && (V(isns) > ({OCD_REC}))
 Xr_ocd2 q_ocd2 r_ocd2 BQ76952_DLY TD={REC_TIME}
 Xl_ocd2 s_ocd2 r_ocd2 nact f_ocd2 BQ76952_SR
 * OCD3
 Bc_ocd3 c_ocd3 0 V = V(act)>0.5 && (({OCD3_TH})>0 && V(SRP,SRN) < ({-OCD3_TH}))
 Xd_ocd3 c_ocd3 s_ocd3 BQ76952_DLY TD={OCD3_DLY}
-Bq_ocd3 q_ocd3 0 V = V(f_ocd3)>0.5 && (V(isns) > ({OCD_REC}))
+Rfd_ocd3 f_ocd3 fd_ocd3 10k
+Cfd_ocd3 fd_ocd3 0 1n
+Bq_ocd3 q_ocd3 0 V = V(fd_ocd3)>0.5 && (V(isns) > ({OCD_REC}))
 Xr_ocd3 q_ocd3 r_ocd3 BQ76952_DLY TD={REC_TIME}
 Xl_ocd3 s_ocd3 r_ocd3 nact f_ocd3 BQ76952_SR
 * SCD
 Bc_scd c_scd 0 V = V(act)>0.5 && (({SCD_TH})>0 && V(SRP,SRN) < ({-SCD_TH}))
 Xd_scd c_scd s_scd BQ76952_DLY TD={SCD_DLY}
-Bq_scd q_scd 0 V = V(f_scd)>0.5 && (1)
+Rfd_scd f_scd fd_scd 10k
+Cfd_scd fd_scd 0 1n
+Bq_scd q_scd 0 V = V(fd_scd)>0.5 && (1)
 Xr_scd q_scd r_scd BQ76952_DLY TD={SCD_REC}
 Xl_scd s_scd r_scd nact f_scd BQ76952_SR
 * OTC
 Bc_otc c_otc 0 V = V(act)>0.5 && (({OT_EN})>0.5 && V(tmax) > ({OTC_TH}))
 Xd_otc c_otc s_otc BQ76952_DLY TD={OTC_DLY}
-Bq_otc q_otc 0 V = V(f_otc)>0.5 && (V(tmax) < ({OTC_TH-T_HYS}))
+Rfd_otc f_otc fd_otc 10k
+Cfd_otc fd_otc 0 1n
+Bq_otc q_otc 0 V = V(fd_otc)>0.5 && (V(tmax) < ({OTC_TH-T_HYS}))
 Xr_otc q_otc r_otc BQ76952_DLY TD={REC_TIME}
 Xl_otc s_otc r_otc nact f_otc BQ76952_SR
 * OTD
 Bc_otd c_otd 0 V = V(act)>0.5 && (({OT_EN})>0.5 && V(tmax) > ({OTD_TH}))
 Xd_otd c_otd s_otd BQ76952_DLY TD={OTD_DLY}
-Bq_otd q_otd 0 V = V(f_otd)>0.5 && (V(tmax) < ({OTD_TH-T_HYS}))
+Rfd_otd f_otd fd_otd 10k
+Cfd_otd fd_otd 0 1n
+Bq_otd q_otd 0 V = V(fd_otd)>0.5 && (V(tmax) < ({OTD_TH-T_HYS}))
 Xr_otd q_otd r_otd BQ76952_DLY TD={REC_TIME}
 Xl_otd s_otd r_otd nact f_otd BQ76952_SR
 * UTC
 Bc_utc c_utc 0 V = V(act)>0.5 && (({UT_EN})>0.5 && V(tmin) < ({UTC_TH}))
 Xd_utc c_utc s_utc BQ76952_DLY TD={UTC_DLY}
-Bq_utc q_utc 0 V = V(f_utc)>0.5 && (V(tmin) > ({UTC_TH+T_HYS}))
+Rfd_utc f_utc fd_utc 10k
+Cfd_utc fd_utc 0 1n
+Bq_utc q_utc 0 V = V(fd_utc)>0.5 && (V(tmin) > ({UTC_TH+T_HYS}))
 Xr_utc q_utc r_utc BQ76952_DLY TD={REC_TIME}
 Xl_utc s_utc r_utc nact f_utc BQ76952_SR
 * UTD
 Bc_utd c_utd 0 V = V(act)>0.5 && (({UT_EN})>0.5 && V(tmin) < ({UTD_TH}))
 Xd_utd c_utd s_utd BQ76952_DLY TD={UTD_DLY}
-Bq_utd q_utd 0 V = V(f_utd)>0.5 && (V(tmin) > ({UTD_TH+T_HYS}))
+Rfd_utd f_utd fd_utd 10k
+Cfd_utd fd_utd 0 1n
+Bq_utd q_utd 0 V = V(fd_utd)>0.5 && (V(tmin) > ({UTD_TH+T_HYS}))
 Xr_utd q_utd r_utd BQ76952_DLY TD={REC_TIME}
 Xl_utd s_utd r_utd nact f_utd BQ76952_SR
 
@@ -499,7 +556,7 @@ Bchon  CP1 CHG I = V(chg_s)*V(CP1,CHG)*0.5*(1+tanh(V(CP1,CHG)/0.05))/200
 Bchoff CHG BAT I = (1-V(chg_s))*V(CHG,BAT)/1k
 Bdson  CP1 DSG I = V(dsg_s)*V(CP1,DSG)*0.5*(1+tanh(V(CP1,DSG)/0.05))/200
 * DSG turn-off: sink to VSS, regulated so DSG stops at the LD (PACK+) level
-Bdsoff DSG VSS I = (1-V(dsg_s))*V(DSG,LD)*0.5*(1+tanh(V(DSG,LD)/0.1))/50
+Bdsoff DSG VSS I = (1-V(dsg_s))*min(50, max(-1, V(DSG,LD)))*0.5*(1+tanh(V(DSG,LD)/0.3))/50
 * PCHG / PDSG PFET drivers: sink up to 30 uA toward max(PACK,BAT)-8.4 V
 Bpchg PCHG VSS I = V(pchg_s)>0.5 ? min(30u, max(0, 1e-4*(V(PCHG,VSS) - max(0, max(V(PACK,VSS),V(BAT,VSS))-8.4)))) : 0
 Bpdsg PDSG VSS I = V(pdsg_s)>0.5 ? min(30u, max(0, 1e-4*(V(PDSG,VSS) - max(0, max(V(LD,VSS),V(BAT,VSS))-8.4)))) : 0

@@ -3,12 +3,29 @@
 *  Draws I amps from P to N once enabled at TON (ramped over TRISE).
 *  Unlike an ideal current source it folds back below VMIN, so it cannot
 *  force the node to impossible voltages when the BMS opens the FETs.
+*  CIN models the load's input (bulk) capacitance - a real motor controller
+*  has hundreds of uF - and keeps FET switching events solvable.
 *    P, N   load terminals (current flows into P, out of N)
 *    I      load current, A          TON    turn-on time, s
 *    TRISE  ramp time, s             VMIN   fold-back voltage, V
+*    CIN    load input capacitance, F (default 10u)
+*    RESR   series resistance of CIN incl. wiring, ohm (default 0.1) -
+*           limits the inrush when the DSG FET closes onto the load
 * ============================================================================
-.subckt LOAD_CC P N params: I=1 TON=0 TRISE=1m VMIN=2
+.subckt LOAD_CC P N params: I=1 TON=0 TRISE=1m VMIN=20 CIN=10u RESR=0.1
 Ven en 0 PWL(0 0 {TON+1u} 0 {TON+1u+TRISE} 1)
 Bld P N I = ({I})*V(en)*min(1, max(0, V(P,N)/({VMIN})))
+Cin P pc {CIN}
+Resr pc N {RESR}
 Rpn P N 100Meg
 .ends LOAD_CC
+
+* ============================================================================
+*  SIM_PROBE - one-pin probe for a test-point symbol. Put a global label on
+*  its pin (e.g. PACK_SOC, PACK_AH_OUT, PACK_TEMP, BMS_AH_OUT, BMS_SOC) and
+*  click the wire in the simulator to plot that quantity. 1e12 ohm to ground,
+*  so it does not load anything.
+* ============================================================================
+.subckt SIM_PROBE P
+Rp P 0 1e12
+.ends SIM_PROBE

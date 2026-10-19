@@ -1,70 +1,111 @@
 * ============================================================================
-*  Molicel INR-21700-P45B  -  first-order (1-RC Thevenin) equivalent circuit
-*  Target simulator: ngspice (KiCad 7/8/9 built-in simulator). Plain SPICE +
-*  B-sources only (no XSPICE code models needed).
+*  Molicel INR-21700-P45B  -  first-order (1-RC) equivalent circuit with
+*  SOC- and temperature-dependent resistance and a lumped thermal model
+*  Target: ngspice (KiCad 7/8/9/10 built-in simulator). Plain SPICE + B-sources.
 *
-*        POS o--[Vi]--[ R0 ]--+--[ R1 ]--+--(+ OCV(SOC) -)--o NEG
-*                             |          |
-*                             +--||C1||--+
+*   POS o--[Vi]--[ R0(T,SOC) ]--[ R1(T,SOC) || C1 ]--(+ OCV(SOC) -)--o NEG
 *
-*  SOC (0..1) is integrated from terminal current:  dSOC/dt = I / (3600*Q)
-*  Current INTO POS is positive (charging).
+*   SOC  : coulomb counted from the terminal current (+ into POS = charge)
+*   T    : one thermal node, CTH*dT/dt = I^2*R0 + I*V(RC) - (T-TAMB)/RTH
+*   R(T) : Arrhenius, R = R25*exp(EA*(1/T - 1/298.15))  -> ~0.5x at 55 degC
+*   R(SOC): rises below ~20 % SOC (low-SOC knee), slightly above 95 %
 *
-*  Datasheet anchors (E-One Moli INR-21700-P45B spec sheet):
-*    Capacity      4500 mAh typ / 4300 mAh min
-*    Voltage       4.20 V charge / 3.6 V nominal / 2.50 V cutoff
-*    AC impedance  7 mOhm  (1 kHz, 30% SOC)       -> R0
-*    DC impedance  15 mOhm (50% SOC, pulse)       -> R0 + R1 (approx.)
-*    Max cont. discharge 45 A, max charge 13.5 A
-*  R1/TAU1 and the OCV table are ESTIMATES for a high-Ni NCA/NMC 21700 and
-*  are not published by Molicel. Replace them with your own HPPC fit (e.g.
-*  from the Simscape model) for quantitative work.
+*  Calibration anchors (E-One Moli INR-21700-P45B spec sheet + bench data):
+*    4500 mAh typ, 4.20 V / 2.50 V, 45 A continuous (80 degC cut-off)
+*    AC impedance 7 mOhm (30 % SOC)          -> RS
+*    DC impedance 15 mOhm (50 % SOC)         -> RS + RP*(1-exp(-10/TAU1))
+*    ~25 A for ~2.5-3 min to 3.6 V (Mooch)   -> checked
+*    45 A from 25 degC ends at ~75-80 degC   -> CTH, RTH, EA
+*  The OCV table and the R(SOC) shape are ESTIMATES for a high-Ni 21700 cell;
+*  Molicel does not publish them. Replace with your HPPC fit for real work.
 *
-*  Parameters (override per instance, e.g.  SOC0=0.5 NP=4):
-*    SOC0  initial state of charge, 0..1           (default 1.0)
-*    QAH   cell capacity, Ah                       (default 4.5)
-*    NP    number of identical cells in parallel   (default 1)
-*    RS    ohmic resistance R0, ohm                (default 7m)
-*    RP    polarization resistance R1, ohm         (default 8m)
-*    TAU1  R1*C1 time constant, s                  (default 5)
-*    KOCV  OCV offset, V (cell-to-cell spread)     (default 0)
+*  Parameters:
+*    SOC0  initial SOC 0..1 (1)        QAH   capacity, Ah (4.5)
+*    NP    cells in parallel (1)       KOCV  OCV offset, V (0)
+*    RS    R0 at 25 degC, 50% SOC (7m) RP    R1 at 25 degC, 50% SOC (8m)
+*    TAU1  R1*C1 time constant, s (5)
+*    THERMAL 1 = self-heating on, 0 = cell held at T0
+*    T0    initial cell temperature, degC (25)   TAMB  ambient, degC (25)
+*    CTH   heat capacity, J/K per cell (75)      RTH   cell-to-ambient, K/W (10)
+*    EA    resistance activation temperature, K (2260; 0 = no T dependence)
 *
-*  MOLICEL_P45B      : 2-pin version (POS NEG) for a normal battery symbol
-*  MOLICEL_P45B_SOC  : 3-pin version (POS NEG SOC); SOC pin is a 0..1 V
-*                      signal referenced to simulation ground (node 0).
-*                      Leave it on a net label to plot it. Do not load it.
+*  PROBES - every cell also drives three global "averaging" nets.
+*  Each cell feeds its value through 1 Meg, so the net settles at the
+*  average over all cells in the circuit. Put a global label of the same name
+*  on a SIM_PROBE test point (sim_loads.lib) and click it in the simulator:
+*    PACK_SOC     average true SOC, %             (1 V = 1 %)
+*    PACK_AH_OUT  Ah delivered since t = 0        (1 V = 1 Ah, + = discharge)
+*                 (series string: every cell carries the pack current, so the
+*                  average equals the pack's output)
+*    PACK_TEMP    average cell temperature, degC  (1 V = 1 degC)
+*  Per-cell internals (ngspice names): x<ref>.x1.soc (0..1), x<ref>.x1.tc
+*  (degC), e.g. xbt7.x1.soc for BT7.
+*
+*  MOLICEL_P45B      : 2-pin (POS NEG) for the Device:Battery_Cell symbol
+*  MOLICEL_P45B_SOC  : 3-pin (POS NEG SOC), SOC pin 0..1 V vs ground
 * ============================================================================
+
+.global PACK_SOC PACK_AH_OUT PACK_TEMP
 
 .subckt MOLICEL_P45B_SOC POS NEG SOC
 + params: SOC0=1 QAH=4.5 NP=1 RS=7m RP=8m TAU1=5 KOCV=0
++ THERMAL=1 T0=25 TAMB=25 CTH=75 RTH=10 EA=2260
 
-* terminal current sense (I(Vi) > 0 = charging)
+* terminal current (I(Vi) > 0 = charging)
 Vi   POS p1 0
-Rs0  p1  p2 {RS/NP}
-* R1||C1 polarization branch, realised as a first-order state on node vp
-* (avoids a ~600 F physical capacitor, which upsets the solver at small
-*  time steps):  TAU1*dVp/dt = I*R1 - Vp
-Bpol p2  p3 V = V(vp)
-Cvp  vp  0 1u
-Rvp  vp  0 {TAU1/1u}
-Bvp  0  vp I = I(Vi)*({RP/NP})/({TAU1/1u})
 
-* open-circuit voltage vs SOC (clamped beyond the table ends)
-Bocv p3 NEG V = KOCV + pwl(V(SOC),
+* --- resistance scaling with temperature and SOC
+Btu  tu 0 V = ({THERMAL})>0.5 ? min(110, max(-40, V(tc))) : ({T0})
+Bft  ft 0 V = exp(({EA})*(1/(V(tu)+273.15) - 1/298.15))
+Bfs  fs 0 V = pwl(V(SOC),
++ -0.05,4.0, 0.00,2.6, 0.02,2.0, 0.05,1.55, 0.10,1.25, 0.15,1.12,
++  0.20,1.05, 0.30,1.00, 0.80,1.00, 0.95,1.03, 1.00,1.06, 1.05,1.10)
+Bkr  kr 0 V = min(20, max(0.05, V(ft)*V(fs)))/({NP})
+
+* --- ohmic drop R0(T,SOC)
+Br0  p1 p2 V = I(Vi)*({RS})*V(kr)
+
+* --- polarization R1||C1 as a first-order state on node vp:
+*     TAU1*dVp/dt = I*R1(T,SOC) - Vp   (keeps C1 out of the circuit matrix)
+Bpol p2 p3 V = V(vp)
+Cvp  vp 0 1u
+Rvp  vp 0 {TAU1/1u}
+Bvp  0 vp I = I(Vi)*({RP})*V(kr)/({TAU1/1u})
+
+* --- open-circuit voltage vs SOC (estimate, clamped beyond the ends)
+Bocv p3 NEG V = ({KOCV}) + pwl(V(SOC),
 + -0.05,2.000, 0.000,2.500, 0.010,2.900, 0.020,3.050, 0.050,3.250,
 +  0.100,3.420, 0.150,3.500, 0.200,3.555, 0.300,3.625, 0.400,3.685,
 +  0.500,3.745, 0.600,3.820, 0.700,3.905, 0.800,3.995, 0.900,4.085,
 +  0.950,4.135, 1.000,4.200, 1.050,4.300)
 
-* coulomb counter: SOC = SOC0 + integral( I / (3600*QAH*NP) )
-* (1 uF state capacitor; the restoring term is only active in the DC
-*  operating point, time = 0, and sets the initial condition to SOC0)
+* --- coulomb counter: SOC = SOC0 + integral(I)/(3600*QAH*NP), held in
+*     [-0.05, 1.05]. The time<=0 term sets the initial condition in the OP.
 Csoc SOC 0 1u
-Bsoc 0 SOC I = time > 0 ? 1u*I(Vi)/({3600*QAH*NP}) : 1u*(({SOC0}) - V(SOC))
+Bsoc 0 SOC I = time > 0 ?
++ 1u*I(Vi)/({3600*QAH*NP}) * ((V(SOC) > -0.05 || I(Vi) > 0) && (V(SOC) < 1.05 || I(Vi) < 0))
++ : 1u*(({SOC0}) - V(SOC))
+
+* --- lumped thermal model (node tc in degC)
+*     (inputs are clamped so a wild Newton iterate cannot overflow the products)
+Bil  il 0 V = min(2k, max(-2k, I(Vi)))
+Bph  ph 0 V = V(il)*V(il)*({RS})*V(kr) + V(il)*min(10, max(-10, V(vp)))
+Ctc  tc 0 1u
+Btc  0 tc I = time > 0 ? (1u/({CTH}))*(V(ph) - (V(tc) - ({TAMB}))/({RTH})) : 1u*(({T0}) - V(tc))
+
+* --- probe buses (averaged over all cells)
+Bpb1 pb1 0 V = 100*V(SOC)
+Rpb1 pb1 PACK_SOC 1Meg
+Bpb2 pb2 0 V = (({SOC0}) - V(SOC))*({QAH*NP})
+Rpb2 pb2 PACK_AH_OUT 1Meg
+Bpb3 pb3 0 V = V(tu)
+Rpb3 pb3 PACK_TEMP 1Meg
 .ends MOLICEL_P45B_SOC
 
 .subckt MOLICEL_P45B POS NEG
 + params: SOC0=1 QAH=4.5 NP=1 RS=7m RP=8m TAU1=5 KOCV=0
++ THERMAL=1 T0=25 TAMB=25 CTH=75 RTH=10 EA=2260
 X1 POS NEG soc MOLICEL_P45B_SOC SOC0={SOC0} QAH={QAH} NP={NP} RS={RS}
-+ RP={RP} TAU1={TAU1} KOCV={KOCV}
++ RP={RP} TAU1={TAU1} KOCV={KOCV} THERMAL={THERMAL} T0={T0} TAMB={TAMB}
++ CTH={CTH} RTH={RTH} EA={EA}
 .ends MOLICEL_P45B
