@@ -1,0 +1,18 @@
+* ============================================================================
+*  CSD19532Q5B  100 V N-channel power MOSFET - GENERIC simulation model
+*  Level-1 NMOS + body diode + fixed capacitances, fitted to the TI datasheet
+*  headline numbers (RDS(on) ~4 mOhm @ VGS=10 V, VGS(th) ~2.6 V,
+*  Ciss ~3.9 nF, Crss ~12 pF, Coss ~0.7 nF). Chosen for robust convergence in
+*  ngspice; it is not TI's PSpice model. For accurate switching losses, swap
+*  in TI's model (Sim.Library/Sim.Name) - pin names are D G S.
+* ============================================================================
+.subckt CSD19532Q5B D G S
+M1   D Gi S S CSD19532_M W=1 L=1
+Rg   G Gi 1.2
+Cgs  Gi S 3.9n
+Cgd  Gi D 0.15n
+Cds  D  S 0.7n
+Db   S  D CSD19532_DB
+.model CSD19532_M NMOS(LEVEL=1 VTO=2.6 KP=60 LAMBDA=0.005 RD=1.2m RS=0.6m)
+.model CSD19532_DB D(IS=2e-11 N=1.05 RS=2m TT=60n CJO=0.5n)
+.ends CSD19532Q5B

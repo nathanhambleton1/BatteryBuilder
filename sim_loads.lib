@@ -1,0 +1,14 @@
+* ============================================================================
+*  LOAD_CC - constant-current electronic load for simulation
+*  Draws I amps from P to N once enabled at TON (ramped over TRISE).
+*  Unlike an ideal current source it folds back below VMIN, so it cannot
+*  force the node to impossible voltages when the BMS opens the FETs.
+*    P, N   load terminals (current flows into P, out of N)
+*    I      load current, A          TON    turn-on time, s
+*    TRISE  ramp time, s             VMIN   fold-back voltage, V
+* ============================================================================
+.subckt LOAD_CC P N params: I=1 TON=0 TRISE=1m VMIN=2
+Ven en 0 PWL(0 0 {TON+1u} 0 {TON+1u+TRISE} 1)
+Bld P N I = ({I})*V(en)*min(1, max(0, V(P,N)/({VMIN})))
+Rpn P N 100Meg
+.ends LOAD_CC

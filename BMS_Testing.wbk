@@ -3,6 +3,16 @@
   "last_sch_text_sim_command": "",
   "tabs": [
     {
+      "analysis": "TRAN",
+      "commands": [
+        ".tran 50u 1",
+        ".kicad adjustpaths",
+        ".save all",
+        ".probe alli",
+        ".probe allp"
+      ]
+    },
+    {
       "analysis": "OP",
       "commands": [
         ".op",

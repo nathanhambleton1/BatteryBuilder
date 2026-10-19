@@ -4545,6 +4545,43 @@
 		(uuid "fd2a6c53-291f-46b8-81e6-bf6742ba344a")
 	)
 	(junction
+		(at 105.41 138.43)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "8b6bac83-2d1e-4dcf-ae4d-a2b0c066e812")
+	)
+	(label "CD"
+		(at 289.56 142.24 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "665d67ee-d8b4-41c7-9c0b-15bb77425512")
+	)
+	(label "CD"
+		(at 279.4 45.72 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "6a0b5027-c606-4c77-8667-13451c4aa497")
+	)
+	(text ".options rshunt=1e12 method=gear reltol=1e-3"
+		(exclude_from_sim no)
+		(at 25.4 259.08 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "8e64116a-8f54-42cb-9677-1805feb5fb5a")
+	)
+	(junction
 		(at 62.23 224.79)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -5872,7 +5909,7 @@
 	)
 	(wire
 		(pts
-			(xy 289.56 81.28) (xy 289.56 142.24)
+			(xy 289.56 81.28) (xy 289.56 125.73)
 		)
 		(stroke
 			(width 0)
@@ -9543,7 +9580,7 @@
 		(at 177.8 186.69 90)
 		(unit 1)
 		(body_style 1)
-		(exclude_from_sim no)
+		(exclude_from_sim yes)
 		(in_bom yes)
 		(on_board yes)
 		(in_pos_files yes)
@@ -9781,7 +9818,7 @@
 		(at 185.42 172.72 90)
 		(unit 1)
 		(body_style 1)
-		(exclude_from_sim no)
+		(exclude_from_sim yes)
 		(in_bom yes)
 		(on_board yes)
 		(in_pos_files yes)
@@ -10129,7 +10166,7 @@
 				)
 			)
 		)
-		(property "Sim.Pins" "1=+ 2=-"
+		(property "Sim.Pins" "1=P 2=N"
 			(at 386.08 119.38 0)
 			(hide yes)
 			(show_name no)
@@ -10140,7 +10177,7 @@
 				)
 			)
 		)
-		(property "Sim.Type" "DC"
+		(property "Sim.Device" "SUBCKT"
 			(at 386.08 119.38 0)
 			(hide yes)
 			(show_name no)
@@ -10151,7 +10188,29 @@
 				)
 			)
 		)
-		(property "Sim.Device" "I"
+		(property "Sim.Library" "sim_loads.lib"
+			(at 386.08 119.38 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Name" "LOAD_CC"
+			(at 386.08 119.38 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "I=50 TON=0.4 TRISE=1m"
 			(at 386.08 119.38 0)
 			(hide yes)
 			(show_name no)
@@ -10567,7 +10626,7 @@
 				)
 			)
 		)
-		(property "Sim.Device" "NMOS"
+		(property "Sim.Device" "SUBCKT"
 			(at 269.24 48.26 0)
 			(hide yes)
 			(show_name no)
@@ -10578,7 +10637,7 @@
 				)
 			)
 		)
-		(property "Sim.Type" "VDMOS"
+		(property "Sim.Pins" "1=S 4=G 5=D"
 			(at 269.24 48.26 0)
 			(hide yes)
 			(show_name no)
@@ -10589,7 +10648,18 @@
 				)
 			)
 		)
-		(property "Sim.Pins" "1=D 2=G 3=S 4=<TJ> 5=<TCASE>"
+		(property "Sim.Library" "csd19532q5b.lib"
+			(at 269.24 48.26 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Name" "CSD19532Q5B"
 			(at 269.24 48.26 0)
 			(hide yes)
 			(show_name no)
@@ -11526,6 +11596,39 @@
 				)
 			)
 		)
+		(property "Sim.Device" "R"
+			(at 83.82 208.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Pins" "1=+ 2=-"
+			(at 83.82 208.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "r=10u"
+			(at 83.82 208.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "f4f4b301-c013-4cc8-a07c-82383b898bdc")
 		)
@@ -11960,7 +12063,7 @@
 				)
 			)
 		)
-		(property "Value" "0"
+		(property "Value" "BUS-"
 			(at 161.29 229.108 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12908,7 +13011,18 @@
 				)
 			)
 		)
-		(property "Sim.Pins" "1=A 2=K"
+		(property "Sim.Pins" "1=K 2=A"
+			(at 335.28 142.24 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "is=1u n=1.05 rs=50m cjo=150p bv=100 ibv=10u"
 			(at 335.28 142.24 0)
 			(hide yes)
 			(show_name no)
@@ -13958,7 +14072,7 @@
 		(at 172.72 186.69 90)
 		(unit 1)
 		(body_style 1)
-		(exclude_from_sim no)
+		(exclude_from_sim yes)
 		(in_bom yes)
 		(on_board yes)
 		(in_pos_files yes)
@@ -14645,7 +14759,7 @@
 		(mirror x)
 		(unit 1)
 		(body_style 1)
-		(exclude_from_sim no)
+		(exclude_from_sim yes)
 		(in_bom yes)
 		(on_board yes)
 		(in_pos_files yes)
@@ -15152,7 +15266,7 @@
 				)
 			)
 		)
-		(property "Sim.Device" "NMOS"
+		(property "Sim.Device" "SUBCKT"
 			(at 289.56 48.26 0)
 			(hide yes)
 			(show_name no)
@@ -15163,7 +15277,7 @@
 				)
 			)
 		)
-		(property "Sim.Type" "VDMOS"
+		(property "Sim.Pins" "1=S 4=G 5=D"
 			(at 289.56 48.26 0)
 			(hide yes)
 			(show_name no)
@@ -15174,7 +15288,18 @@
 				)
 			)
 		)
-		(property "Sim.Pins" "1=D 2=G 3=S 4=<TJ> 5=<TCASE>"
+		(property "Sim.Library" "csd19532q5b.lib"
+			(at 289.56 48.26 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Name" "CSD19532Q5B"
 			(at 289.56 48.26 0)
 			(hide yes)
 			(show_name no)
@@ -15367,7 +15492,18 @@
 				)
 			)
 		)
-		(property "Sim.Pins" "1=A 2=K"
+		(property "Sim.Pins" "1=K 2=A"
+			(at 185.42 71.12 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "is=1u n=1.05 rs=50m cjo=150p bv=100 ibv=10u"
 			(at 185.42 71.12 0)
 			(hide yes)
 			(show_name no)
@@ -15702,6 +15838,17 @@
 			)
 		)
 		(property "Sim.Pins" "1=VC15 2=VC14 3=VC13 4=VC12 5=VC11 6=VC10 7=VC9 8=VC8 9=VC7 10=VC6 11=VC5 12=VC4 13=VC3 14=VC2 15=VC1 16=VC0 17=VSS 18=SRP 19=NC19 20=SRN 21=TS1 22=TS2 23=TS3 24=REG18 25=ALERT 26=SCL 27=SDA 28=HDQ 29=CFETOFF 30=DFETOFF 31=DCHG 32=DDSG 33=RST_SHUT 34=REG2 35=REG1 36=REGIN 37=BREG 38=FUSE 39=PDSG 40=PCHG 41=LD 42=PACK 43=DSG 44=NC44 45=CHG 46=CP1 47=BAT 48=VC16"
+			(at 228.6 153.67 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "REG2_V=5"
 			(at 228.6 153.67 0)
 			(hide yes)
 			(show_name no)
@@ -16460,7 +16607,7 @@
 				)
 			)
 		)
-		(property "Value" "0"
+		(property "Value" "BUS-"
 			(at 351.79 98.298 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17040,7 +17187,18 @@
 				)
 			)
 		)
-		(property "Sim.Pins" "1=A 2=K"
+		(property "Sim.Pins" "1=K 2=A"
+			(at 242.57 52.07 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "is=1e-12 n=1.2 rs=5 bv=16 ibv=1m cjo=50p"
 			(at 242.57 52.07 0)
 			(hide yes)
 			(show_name no)
@@ -17343,7 +17501,18 @@
 				)
 			)
 		)
-		(property "Sim.Pins" "1=A 2=K"
+		(property "Sim.Pins" "1=K 2=A"
+			(at 312.42 52.07 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "is=1e-12 n=1.2 rs=5 bv=16 ibv=1m cjo=50p"
 			(at 312.42 52.07 0)
 			(hide yes)
 			(show_name no)
@@ -17613,7 +17782,7 @@
 		(at 180.34 172.72 90)
 		(unit 1)
 		(body_style 1)
-		(exclude_from_sim no)
+		(exclude_from_sim yes)
 		(in_bom yes)
 		(on_board yes)
 		(in_pos_files yes)
@@ -17855,7 +18024,7 @@
 		(at 182.88 186.69 90)
 		(unit 1)
 		(body_style 1)
-		(exclude_from_sim no)
+		(exclude_from_sim yes)
 		(in_bom yes)
 		(on_board yes)
 		(in_pos_files yes)
@@ -17936,7 +18105,7 @@
 		(at 278.13 179.07 0)
 		(unit 1)
 		(body_style 1)
-		(exclude_from_sim no)
+		(exclude_from_sim yes)
 		(in_bom yes)
 		(on_board yes)
 		(in_pos_files yes)
@@ -18198,7 +18367,7 @@
 		(at 175.26 172.72 90)
 		(unit 1)
 		(body_style 1)
-		(exclude_from_sim no)
+		(exclude_from_sim yes)
 		(in_bom yes)
 		(on_board yes)
 		(in_pos_files yes)
