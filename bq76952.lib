@@ -38,7 +38,9 @@
 *  Settings are instance parameters (KiCad: Sim.Params), SI units:
 *  volts, amps, seconds, degC. Current-based protection thresholds are
 *  sense-resistor VOLTAGES, exactly like the IC (68m = 68 mV = 68 A @ 1 mOhm).
-*  Defaults = datasheet Table 16-1 example 16S design.
+*  DEFAULTS ARE TUNED FOR A 16S1P MOLICEL P45B PACK WITH A 1 mOhm SENSE
+*  RESISTOR (4.20 V / 2.50 V cells, 45 A continuous, 13.5 A max charge).
+*  The datasheet Table 16-1 example values are listed as [TI ex. ...].
 *
 *  Useful internal nodes to plot (prefix with the instance, e.g. XU1.):
 *   cv1..cv16 cell voltages, vmax, vmin, isns (A, + = charge), t1..t3 (degC)
@@ -58,24 +60,24 @@
 *  PARAMETERS
 *   CE1..CE16     1       cell n enabled (1) / unused-shorted input (0)
 *   RSENSE        1m      sense resistor value, ohm (used for A-based settings)
-*   OV_TH         4.30    COV threshold, V (50.6 mV steps on silicon)
+*   OV_TH         4.25    COV threshold, V (50.6 mV steps; 4.2504 = 84 steps) [TI ex. 4.30]
 *   OV_DLY        0.5     COV delay, s (3.3 ms steps)
 *   OV_HYS        0.1     COV recovery hysteresis, V
-*   UV_TH         2.50    CUV threshold, V (50.6 mV steps)
-*   UV_DLY        20m     CUV delay, s
+*   UV_TH         2.53    CUV threshold, V (2.53 = 50 steps, P45B cut-off 2.5) [TI ex. 2.50]
+*   UV_DLY        1       CUV delay, s (rides through high-rate sag) [TI ex. 20m]
 *   UV_HYS        0.1     CUV recovery hysteresis, V
-*   OCC_TH        8m      OCC threshold, V across RSENSE (4-124 mV)
+*   OCC_TH        14m     OCC threshold, V across RSENSE (P45B max charge 13.5 A) [TI ex. 8m]
 *   OCC_DLY       160m    OCC delay, s
 *   OCC_REC       -0.2    OCC recovers when I < OCC_REC (A) for REC_TIME
-*   OCD1_TH       68m     OCD1 threshold, V (4-200 mV)
-*   OCD1_DLY      10m     OCD1 delay, s
-*   OCD2_TH       56m     OCD2 threshold, V
-*   OCD2_DLY      80m     OCD2 delay, s
-*   OCD3_TH       28m     OCD3 threshold, V (0 = disabled)
-*   OCD3_DLY      160m    OCD3 delay, s
+*   OCD1_TH       100m    OCD1 threshold, V (4-200 mV) [TI ex. 68m]
+*   OCD1_DLY      20m     OCD1 delay, s [TI ex. 10m]
+*   OCD2_TH       70m     OCD2 threshold, V [TI ex. 56m]
+*   OCD2_DLY      200m    OCD2 delay, s (max 425 ms) [TI ex. 80m]
+*   OCD3_TH       50m     OCD3 threshold, V (P45B 45 A cont.) (0 = off) [TI ex. 28m]
+*   OCD3_DLY      2       OCD3 delay, s [TI ex. 160m]
 *   OCD_REC       0.2     OCDx recovers when I > OCD_REC (A) for REC_TIME
-*   SCD_TH        80m     SCD threshold, V (10..500 mV list)
-*   SCD_DLY       50u     SCD delay, s (15 us steps)
+*   SCD_TH        150m    SCD threshold, V (10..500 mV list) [TI ex. 80m]
+*   SCD_DLY       90u     SCD delay, s (15 us steps) [TI ex. 50u]
 *   SCD_REC       5       SCD recovery time, s
 *   REC_TIME      3       generic protection recovery time, s
 *   TS1_EN        0       TS1 thermistor measurement enabled
@@ -85,9 +87,9 @@
 *   TS_BETA       3435    thermistor beta, K (Semitec 103AT)
 *   OT_EN         1       OTC/OTD enabled
 *   UT_EN         1       UTC/UTD enabled
-*   OTC_TH        45      degC
+*   OTC_TH        55      degC (P45B charge max 60) [TI ex. 45]
 *   OTC_DLY       2       s
-*   OTD_TH        60      degC
+*   OTD_TH        60      degC (P45B discharge max 60)
 *   OTD_DLY       2       s
 *   UTC_TH        0       degC
 *   UTC_DLY       5       s
@@ -163,17 +165,17 @@ Bpd out vss I = (1-V(en))*V(out,vss)/({RPD})
 + DFETOFF DCHG DDSG RST_SHUT REG2 REG1 REGIN BREG FUSE PDSG PCHG LD PACK DSG
 + NC44 CHG CP1 BAT VC16
 + params: CE1=1 CE2=1 CE3=1 CE4=1 CE5=1 CE6=1 CE7=1 CE8=1 CE9=1 CE10=1
-+ CE11=1 CE12=1 CE13=1 CE14=1 CE15=1 CE16=1 RSENSE=1m OV_TH=4.30 OV_DLY=0.5
-+ OV_HYS=0.1 UV_TH=2.50 UV_DLY=20m UV_HYS=0.1 OCC_TH=8m OCC_DLY=160m
-+ OCC_REC=-0.2 OCD1_TH=68m OCD1_DLY=10m OCD2_TH=56m OCD2_DLY=80m OCD3_TH=28m
-+ OCD3_DLY=160m OCD_REC=0.2 SCD_TH=80m SCD_DLY=50u SCD_REC=5 REC_TIME=3
-+ TS1_EN=0 TS2_EN=0 TS3_EN=0 TS_R25=10k TS_BETA=3435 OT_EN=1 UT_EN=1
-+ OTC_TH=45 OTC_DLY=2 OTD_TH=60 OTD_DLY=2 UTC_TH=0 UTC_DLY=5 UTD_TH=-20
-+ UTD_DLY=10 T_HYS=5 SOV_TH=0 SOV_DLY=5 SUV_TH=0 SUV_DLY=5 FUSE_BLOW=0
-+ FUSE_PF_EN=0 FET_EN=1 SERIES=1 BD_TH=50m CP_EN=1 VCP=11 PCHG_EN=0
-+ PCHG_START=3.0 PCHG_STOP=3.2 PDSG_EN=0 PDSG_TO=0.5 PDSG_DELTA=0.5
-+ CFETOFF_MODE=0 DFETOFF_MODE=0 REG0_EN=1 REG1_V=3.3 REG2_V=0 CB_EN=0
-+ CB_START=40m CB_STOP=20m CB_MINV=3.9 CB_IDSG=50m RCB=28 CB_TS=0.25
++ CE11=1 CE12=1 CE13=1 CE14=1 CE15=1 CE16=1 RSENSE=1m OV_TH=4.25 OV_DLY=0.5
++ OV_HYS=0.1 UV_TH=2.53 UV_DLY=1 UV_HYS=0.1 OCC_TH=14m OCC_DLY=160m
++ OCC_REC=-0.2 OCD1_TH=100m OCD1_DLY=20m OCD2_TH=70m OCD2_DLY=200m
++ OCD3_TH=50m OCD3_DLY=2 OCD_REC=0.2 SCD_TH=150m SCD_DLY=90u SCD_REC=5
++ REC_TIME=3 TS1_EN=0 TS2_EN=0 TS3_EN=0 TS_R25=10k TS_BETA=3435 OT_EN=1
++ UT_EN=1 OTC_TH=55 OTC_DLY=2 OTD_TH=60 OTD_DLY=2 UTC_TH=0 UTC_DLY=5
++ UTD_TH=-20 UTD_DLY=10 T_HYS=5 SOV_TH=0 SOV_DLY=5 SUV_TH=0 SUV_DLY=5
++ FUSE_BLOW=0 FUSE_PF_EN=0 FET_EN=1 SERIES=1 BD_TH=50m CP_EN=1 VCP=11
++ PCHG_EN=0 PCHG_START=3.0 PCHG_STOP=3.2 PDSG_EN=0 PDSG_TO=0.5
++ PDSG_DELTA=0.5 CFETOFF_MODE=0 DFETOFF_MODE=0 REG0_EN=1 REG1_V=3.3 REG2_V=0
++ CB_EN=0 CB_START=40m CB_STOP=20m CB_MINV=3.9 CB_IDSG=50m RCB=28 CB_TS=0.25
 + TSTART=0.28 VPOR=3.5 IQ=286u RCIN=2.1Meg CC_GAIN=1 CC_OFFSET=0
 + BMS_SOC0=100 BMS_CAP_AH=4.5 DDSG_EN=1 DCHG_EN=1 ALERT_EN=1
 

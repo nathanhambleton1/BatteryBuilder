@@ -28,6 +28,13 @@
 *    T0    initial cell temperature, degC (25)   TAMB  ambient, degC (25)
 *    CTH   heat capacity, J/K per cell (75)      RTH   cell-to-ambient, K/W (10)
 *    EA    resistance activation temperature, K (2260; 0 = no T dependence)
+*    KR    resistance multiplier for R0 and R1 (1)  - cell-to-cell spread
+*    ISD   self-discharge current, A (0)            - e.g. 50u..150u
+*
+*  CELL-TO-CELL VARIATION: give each cell its own QAH, KR, SOC0, ISD, RTH
+*  (and KOCV for a measurement-style offset). Typical spreads for new cells
+*  of one lot: capacity sigma ~0.5 %, resistance ~2-4 %, self-discharge
+*  +/-50 %; interior cells of a pack run hotter (higher RTH).
 *
 *  PROBES - every cell also drives three global "averaging" nets.
 *  Each cell feeds its value through 1 Meg, so the net settles at the
@@ -49,7 +56,7 @@
 
 .subckt MOLICEL_P45B_SOC POS NEG SOC
 + params: SOC0=1 QAH=4.5 NP=1 RS=7m RP=8m TAU1=5 KOCV=0
-+ THERMAL=1 T0=25 TAMB=25 CTH=75 RTH=10 EA=2260
++ THERMAL=1 T0=25 TAMB=25 CTH=75 RTH=10 EA=2260 KR=1 ISD=0
 
 * terminal current (I(Vi) > 0 = charging)
 Vi   POS p1 0
@@ -60,7 +67,7 @@ Bft  ft 0 V = exp(({EA})*(1/(V(tu)+273.15) - 1/298.15))
 Bfs  fs 0 V = pwl(V(SOC),
 + -0.05,4.0, 0.00,2.6, 0.02,2.0, 0.05,1.55, 0.10,1.25, 0.15,1.12,
 +  0.20,1.05, 0.30,1.00, 0.80,1.00, 0.95,1.03, 1.00,1.06, 1.05,1.10)
-Bkr  kr 0 V = min(20, max(0.05, V(ft)*V(fs)))/({NP})
+Bkr  kr 0 V = ({KR})*min(20, max(0.05, V(ft)*V(fs)))/({NP})
 
 * --- ohmic drop R0(T,SOC)
 Br0  p1 p2 V = I(Vi)*({RS})*V(kr)
@@ -83,7 +90,7 @@ Bocv p3 NEG V = ({KOCV}) + pwl(V(SOC),
 *     [-0.05, 1.05]. The time<=0 term sets the initial condition in the OP.
 Csoc SOC 0 1u
 Bsoc 0 SOC I = time > 0 ?
-+ 1u*I(Vi)/({3600*QAH*NP}) * ((V(SOC) > -0.05 || I(Vi) > 0) && (V(SOC) < 1.05 || I(Vi) < 0))
++ 1u*(I(Vi) - ({ISD*NP}))/({3600*QAH*NP}) * ((V(SOC) > -0.05 || I(Vi) > 0) && (V(SOC) < 1.05 || I(Vi) < 0))
 + : 1u*(({SOC0}) - V(SOC))
 
 * --- lumped thermal model (node tc in degC)
@@ -96,7 +103,10 @@ Btc  0 tc I = time > 0 ? (1u/({CTH}))*(V(ph) - (V(tc) - ({TAMB}))/({RTH})) : 1u*
 * --- probe buses (averaged over all cells)
 Bpb1 pb1 0 V = 100*V(SOC)
 Rpb1 pb1 PACK_SOC 1Meg
-Bpb2 pb2 0 V = (({SOC0}) - V(SOC))*({QAH*NP})
+* Ah delivered at the terminals (self-discharge is internal, not counted)
+Cah  ah 0 1u
+Bah  0 ah I = time > 0 ? -1u*I(Vi)/3600 : -1u*V(ah)
+Bpb2 pb2 0 V = V(ah)
 Rpb2 pb2 PACK_AH_OUT 1Meg
 Bpb3 pb3 0 V = V(tu)
 Rpb3 pb3 PACK_TEMP 1Meg
@@ -104,8 +114,8 @@ Rpb3 pb3 PACK_TEMP 1Meg
 
 .subckt MOLICEL_P45B POS NEG
 + params: SOC0=1 QAH=4.5 NP=1 RS=7m RP=8m TAU1=5 KOCV=0
-+ THERMAL=1 T0=25 TAMB=25 CTH=75 RTH=10 EA=2260
++ THERMAL=1 T0=25 TAMB=25 CTH=75 RTH=10 EA=2260 KR=1 ISD=0
 X1 POS NEG soc MOLICEL_P45B_SOC SOC0={SOC0} QAH={QAH} NP={NP} RS={RS}
 + RP={RP} TAU1={TAU1} KOCV={KOCV} THERMAL={THERMAL} T0={T0} TAMB={TAMB}
-+ CTH={CTH} RTH={RTH} EA={EA}
++ CTH={CTH} RTH={RTH} EA={EA} KR={KR} ISD={ISD}
 .ends MOLICEL_P45B

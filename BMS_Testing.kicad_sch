@@ -5335,6 +5335,712 @@
 			)
 		)
 	)
+	(symbol
+		(lib_id "Simulation_SPICE:IDC")
+		(at 279.4 271.78 180)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(in_pos_files no)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "41e0db00-956e-4c4a-b8b7-09d0e4532d2c")
+		(property "Reference" "I2"
+			(at 283.21 270.5099 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0"
+			(at 283.21 273.0499 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-416"
+			(at 279.4 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://ngspice.sourceforge.io/docs/ngspice-html-manual/manual.xhtml#sec_Independent_Sources_for"
+			(at 279.4 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Current source, DC"
+			(at 279.4 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Pins" "1=+ 2=-"
+			(at 279.4 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Type" "DC"
+			(at 279.4 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Device" "I"
+			(at 279.4 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "8f8b3e9a-9850-45a4-a136-52c8830bffe5")
+		)
+		(pin "1"
+			(uuid "0bf65f44-5558-42f5-8f8b-f5d218ecd326")
+		)
+		(instances
+			(project "BMS_Testing"
+				(path "/d9c3b789-9d21-48ad-aa8a-96aeb19029a2"
+					(reference "I2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 279.4 266.7) (xy 279.4 261.61999999999995)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3c066502-2e54-4f45-ad97-04e584e891c0")
+	)
+	(global_label "LOAD_CTRL"
+		(shape passive)
+		(at 279.4 261.61999999999995 90)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "509546a0-64d2-4ce4-b8df-4adf14cc4435")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 279.4 261.61999999999995 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:VSS")
+		(at 279.4 276.86 180)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "75f24d3d-0f3f-49c1-b47a-5e19bcb58b16")
+		(property "Reference" "#PWR020"
+			(at 279.4 273.05 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "0"
+			(at 279.4 281.94 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_QFP:TQFP-44_10x10mm_P0.8mm"
+			(at 279.4 276.86 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 279.4 276.86 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"VSS\""
+			(at 279.4 276.86 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "76b3c2ea-eede-4382-8755-621f0e9a61e5")
+		)
+		(instances
+			(project "BMS_Testing"
+				(path "/d9c3b789-9d21-48ad-aa8a-96aeb19029a2"
+					(reference "#PWR020")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(text "LOAD PROFILE SOURCE (used when load I1 has PROF=2)\nSet I2 to any KiCad source type - PWL drive cycle, pulse, sine, random...\nIts value becomes the load set-point: A (MODE=0), W (1), ohm (2) or V (3)."
+		(exclude_from_sim no)
+		(at 287.02 259.08 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "43942c23-60dd-4866-bac8-f862bd70df72")
+	)
+	(symbol
+		(lib_id "Connector:TestPoint")
+		(at 50.8 271.78 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(in_pos_files no)
+		(dnp no)
+		(uuid "0fadae98-f16b-42f4-81c4-5346c53d55ce")
+		(property "Reference" "TP9"
+			(at 52.07 266.192 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "Load current A"
+			(at 52.07 268.478 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 50.8 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 50.8 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "test point"
+			(at 50.8 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Device" "SUBCKT"
+			(at 50.8 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Library" "sim_loads.lib"
+			(at 50.8 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Name" "SIM_PROBE"
+			(at 50.8 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Pins" "1=P"
+			(at 50.8 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "e76fecb8-d2e5-4fc1-9d92-405080bf0855")
+		)
+		(instances
+			(project "BMS_Testing"
+				(path "/d9c3b789-9d21-48ad-aa8a-96aeb19029a2"
+					(reference "TP9")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 50.8 271.78) (xy 55.88 271.78)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "72976a2c-57d5-49b7-aa0d-802b585bc840")
+	)
+	(global_label "LOAD_I"
+		(shape passive)
+		(at 55.88 271.78 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "10bcde76-7553-4c6e-bb7c-b79ff1da0593")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 55.88 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector:TestPoint")
+		(at 96.52 271.78 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(in_pos_files no)
+		(dnp no)
+		(uuid "98a208b0-ccb7-47b5-894b-45950651bffa")
+		(property "Reference" "TP10"
+			(at 97.79 266.192 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "Load power W"
+			(at 97.79 268.478 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 96.52 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 96.52 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "test point"
+			(at 96.52 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Device" "SUBCKT"
+			(at 96.52 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Library" "sim_loads.lib"
+			(at 96.52 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Name" "SIM_PROBE"
+			(at 96.52 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Pins" "1=P"
+			(at 96.52 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "79b5e4e5-77e7-4550-ab2a-b918b1d93f0b")
+		)
+		(instances
+			(project "BMS_Testing"
+				(path "/d9c3b789-9d21-48ad-aa8a-96aeb19029a2"
+					(reference "TP10")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 96.52 271.78) (xy 101.6 271.78)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ca4ef7c2-8b68-49b1-85f2-126197f272a8")
+	)
+	(global_label "LOAD_P"
+		(shape passive)
+		(at 101.6 271.78 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "e7543c9a-bafe-4f33-b5af-b1c5675a086a")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 101.6 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector:TestPoint")
+		(at 142.24 271.78 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(in_pos_files no)
+		(dnp no)
+		(uuid "32f65982-30e8-40d7-ab2e-58e5dbe0b7d3")
+		(property "Reference" "TP11"
+			(at 143.51 266.192 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "Load energy Wh"
+			(at 143.51 268.478 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 142.24 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 142.24 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "test point"
+			(at 142.24 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Device" "SUBCKT"
+			(at 142.24 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Library" "sim_loads.lib"
+			(at 142.24 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Name" "SIM_PROBE"
+			(at 142.24 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Pins" "1=P"
+			(at 142.24 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "00734116-a54b-44c6-8a7f-d608aa62f988")
+		)
+		(instances
+			(project "BMS_Testing"
+				(path "/d9c3b789-9d21-48ad-aa8a-96aeb19029a2"
+					(reference "TP11")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 142.24 271.78) (xy 147.32 271.78)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a3ca7acd-622e-4192-a247-806f644a048d")
+	)
+	(global_label "LOAD_WH"
+		(shape passive)
+		(at 147.32 271.78 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "ad4e09c4-8efe-4e7c-b0f0-652a65747d1b")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 147.32 271.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+	)
 	(junction
 		(at 105.41 138.43)
 		(diameter 0)
@@ -9299,6 +10005,17 @@
 				)
 			)
 		)
+		(property "Sim.Params" "SOC0=0.9963 QAH=4.4911 KR=1.023 ISD=174u RTH=12.34"
+			(at 86.36 143.51 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "50fc81e8-4f56-4309-988c-afc90c84cc51")
 		)
@@ -9907,6 +10624,17 @@
 				)
 			)
 		)
+		(property "Sim.Params" "SOC0=0.9999 QAH=4.4720 KR=1.024 ISD=140u RTH=11.44"
+			(at 86.36 120.65 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "85db3586-3672-4bdc-bfc6-eceb80214a70")
 		)
@@ -10341,6 +11069,17 @@
 			)
 		)
 		(property "Sim.Name" "MOLICEL_P45B"
+			(at 86.36 105.41 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "SOC0=0.9942 QAH=4.5109 KR=0.958 ISD=100u RTH=10.70"
 			(at 86.36 105.41 0)
 			(hide yes)
 			(show_name no)
@@ -10875,6 +11614,17 @@
 				)
 			)
 		)
+		(property "Sim.Params" "SOC0=0.9976 QAH=4.4820 KR=0.979 ISD=110u RTH=8.70"
+			(at 86.36 82.55 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "4243ff50-d5f7-4184-bb43-186361ef8af3")
 		)
@@ -10913,7 +11663,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "50"
+		(property "Value" "LOAD_PROFILE (see Sim.Params)"
 			(at 389.89 120.6499 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10990,7 +11740,7 @@
 				)
 			)
 		)
-		(property "Sim.Name" "LOAD_CC"
+		(property "Sim.Name" "LOAD_PROFILE"
 			(at 386.08 119.38 0)
 			(hide yes)
 			(show_name no)
@@ -11001,7 +11751,7 @@
 				)
 			)
 		)
-		(property "Sim.Params" "I=45 TON=0.4 TRISE=1m"
+		(property "Sim.Params" "MODE=0 PROF=1 VAL=10 VAL2=45 TD=0.4 PW=10 PER=30 TON=0.4"
 			(at 386.08 119.38 0)
 			(hide yes)
 			(show_name no)
@@ -11586,6 +12336,17 @@
 			)
 		)
 		(property "Sim.Name" "MOLICEL_P45B"
+			(at 86.36 151.13 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "SOC0=0.9970 QAH=4.4827 KR=0.975 ISD=27u RTH=11.48"
 			(at 86.36 151.13 0)
 			(hide yes)
 			(show_name no)
@@ -12297,6 +13058,17 @@
 			)
 		)
 		(property "Sim.Name" "MOLICEL_P45B"
+			(at 86.36 181.61 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "SOC0=0.9946 QAH=4.4995 KR=0.982 ISD=91u RTH=9.59"
 			(at 86.36 181.61 0)
 			(hide yes)
 			(show_name no)
@@ -13020,6 +13792,17 @@
 				)
 			)
 		)
+		(property "Sim.Params" "SOC0=1.0000 QAH=4.4938 KR=0.946 ISD=85u RTH=11.39"
+			(at 86.36 158.75 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "d7c05888-10c1-47fe-8d7e-90ad55744cf5")
 		)
@@ -13459,6 +14242,17 @@
 			)
 		)
 		(property "Sim.Name" "MOLICEL_P45B"
+			(at 86.36 173.99 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "SOC0=0.9938 QAH=4.4606 KR=1.002 ISD=90u RTH=10.76"
 			(at 86.36 173.99 0)
 			(hide yes)
 			(show_name no)
@@ -13950,6 +14744,17 @@
 				)
 			)
 		)
+		(property "Sim.Params" "SOC0=0.9989 QAH=4.4876 KR=0.981 ISD=134u RTH=8.35"
+			(at 86.36 196.85 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "43e842c8-6b81-43c5-a891-c3527fa4c236")
 		)
@@ -14145,6 +14950,17 @@
 			)
 		)
 		(property "Sim.Name" "MOLICEL_P45B"
+			(at 86.36 166.37 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "SOC0=0.9878 QAH=4.4892 KR=0.970 ISD=67u RTH=11.53"
 			(at 86.36 166.37 0)
 			(hide yes)
 			(show_name no)
@@ -14435,6 +15251,17 @@
 			)
 		)
 		(property "Sim.Name" "MOLICEL_P45B"
+			(at 86.36 90.17 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "SOC0=0.9925 QAH=4.4823 KR=1.008 ISD=122u RTH=8.81"
 			(at 86.36 90.17 0)
 			(hide yes)
 			(show_name no)
@@ -15277,6 +16104,17 @@
 			)
 		)
 		(property "Sim.Name" "MOLICEL_P45B"
+			(at 86.36 113.03 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "SOC0=0.9981 QAH=4.5052 KR=0.998 ISD=160u RTH=11.35"
 			(at 86.36 113.03 0)
 			(hide yes)
 			(show_name no)
@@ -16431,6 +17269,17 @@
 				)
 			)
 		)
+		(property "Sim.Params" "SOC0=0.9945 QAH=4.5071 KR=1.016 ISD=64u RTH=9.30"
+			(at 86.36 189.23 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "f445870f-3ee7-4177-908a-6082e9d954f3")
 		)
@@ -16639,7 +17488,7 @@
 				)
 			)
 		)
-		(property "Sim.Params" "REG2_V=5 OCD3_TH=50m OCD3_DLY=2 OCD2_TH=70m OCD2_DLY=200m OCD1_TH=100m OCD1_DLY=20m SCD_TH=150m SCD_DLY=90u OCC_TH=14m UV_DLY=1"
+		(property "Sim.Params" "REG2_V=5"
 			(at 228.6 153.67 0)
 			(hide yes)
 			(show_name no)
@@ -16904,6 +17753,17 @@
 			)
 		)
 		(property "Sim.Name" "MOLICEL_P45B"
+			(at 86.36 97.79 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "SOC0=0.9907 QAH=4.4529 KR=1.024 ISD=50u RTH=10.19"
 			(at 86.36 97.79 0)
 			(hide yes)
 			(show_name no)
@@ -17193,6 +18053,17 @@
 			)
 		)
 		(property "Sim.Name" "MOLICEL_P45B"
+			(at 86.36 128.27 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "SOC0=0.9970 QAH=4.4902 KR=0.975 ISD=146u RTH=12.02"
 			(at 86.36 128.27 0)
 			(hide yes)
 			(show_name no)
@@ -17554,6 +18425,17 @@
 			)
 		)
 		(property "Sim.Name" "MOLICEL_P45B"
+			(at 86.36 135.89 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Params" "SOC0=0.9922 QAH=4.4498 KR=1.016 ISD=109u RTH=11.42"
 			(at 86.36 135.89 0)
 			(hide yes)
 			(show_name no)

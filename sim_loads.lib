@@ -1,16 +1,105 @@
 * ============================================================================
-*  LOAD_CC - constant-current electronic load for simulation
-*  Draws I amps from P to N once enabled at TON (ramped over TRISE).
-*  Unlike an ideal current source it folds back below VMIN, so it cannot
-*  force the node to impossible voltages when the BMS opens the FETs.
-*  CIN models the load's input (bulk) capacitance - a real motor controller
-*  has hundreds of uF - and keeps FET switching events solvable.
-*    P, N   load terminals (current flows into P, out of N)
-*    I      load current, A          TON    turn-on time, s
-*    TRISE  ramp time, s             VMIN   fold-back voltage, V
-*    CIN    load input capacitance, F (default 10u)
-*    RESR   series resistance of CIN incl. wiring, ohm (default 0.1) -
-*           limits the inrush when the DSG FET closes onto the load
+*  sim_loads.lib - simulation-only loads and probes for BMS_Testing
+*  ngspice / KiCad built-in simulator. Plain SPICE + B-sources.
+*
+*  LOAD_PROFILE  universal programmable load / source (recommended)
+*  LOAD_CC       simple constant-current load (kept for compatibility)
+*  SIM_PROBE     1-pin probe for a test-point symbol
+* ============================================================================
+
+.global LOAD_CTRL LOAD_I LOAD_P LOAD_WH
+
+* ============================================================================
+*  LOAD_PROFILE P N  -  programmable electronic load / charger / regen source
+*
+*  MODE  what the set-point means                     (I > 0 = discharging)
+*    0   CC  constant current, set-point in A          (negative = charge)
+*    1   CP  constant power,   set-point in W          (negative = regen)
+*    2   CR  constant resistance, set-point in ohm
+*    3   CV  constant voltage, set-point in V. Sinks or sources whatever
+*            current (up to ILIM) holds V(P,N) at the set-point, so with the
+*            set-point above the pack voltage it is a CC/CV charger
+*            (ILIM = charge current, VAL = charge voltage).
+*
+*  PROF  how the set-point varies with time
+*    0   DC      set-point = VAL
+*    1   PULSE   VAL (base) / VAL2 (pulse), TD delay, TR/TF edges, PW width,
+*                PER period - same meaning as a SPICE PULSE source
+*    2   EXT     set-point = K * V(LOAD_CTRL). Drive the global net
+*                LOAD_CTRL with ANY KiCad source (PWL drive cycle, sine,
+*                pulse train, random, exponential, behavioral...). The net
+*                is terminated in 1 ohm here, so a current source of x A
+*                into LOAD_CTRL gives a set-point of x (use one LOAD_PROFILE
+*                per LOAD_CTRL net).
+*    3   SINE    VAL offset + VAL2 amplitude at FREQ Hz, starting at TD
+*
+*  Common:
+*    TON, TRISE  load enabled at TON, ramped over TRISE (s)
+*    VMIN        CC/CP sink folds back linearly below VMIN (V) so it cannot
+*                drag a disconnected bus negative when the BMS opens a FET
+*    VMAX        CC/CP source (charge/regen) folds back above VMAX (V)
+*    ILIM        current limit both ways (A)
+*    GCV         CV-mode regulation gain (A/V)
+*    CIN, RESR   load input capacitance and its series resistance
+*
+*  Probes (global nets - put a global label of that name on a SIM_PROBE):
+*    LOAD_I   load current, A (+ = taken from the pack)     1 V = 1 A
+*    LOAD_P   load power, W   (+ = taken from the pack)     1 V = 1 W
+*    LOAD_WH  energy taken since t = 0, Wh                  1 V = 1 Wh
+*
+*  Examples (KiCad: Simulation Model > Parameters):
+*    45 A DC from 0.4 s .............. MODE=0 PROF=0 VAL=45 TON=0.4
+*    10 A base, 60 A x 5 s every 20 s  MODE=0 PROF=1 VAL=10 VAL2=60 TD=1 PW=5 PER=20
+*    2.5 kW constant power ........... MODE=1 PROF=0 VAL=2500
+*    1.5 ohm resistor ................ MODE=2 PROF=0 VAL=1.5
+*    CC/CV charger 67.2 V / 10 A ..... MODE=3 PROF=0 VAL=67.2 ILIM=10
+*    drive cycle from a KiCad PWL .... MODE=0 PROF=2 (or MODE=1 for watts)
+* ============================================================================
+.subckt LOAD_PROFILE P N params: MODE=0 PROF=0 VAL=10 VAL2=0 TD=0 TR=1m TF=1m
++ PW=1 PER=2 FREQ=1 K=1 TON=0 TRISE=1m VMIN=20 VMAX=70 ILIM=300 GCV=50
++ CIN=10u RESR=0.1
+
+* --- set-point waveform
+Vpul wp 0 PULSE({VAL} {VAL2} {TD} {TR} {TF} {PW} {PER})
+Vsin ws 0 SIN({VAL} {VAL2} {FREQ} {TD})
+Rlc  LOAD_CTRL 0 1
+Bsp  sp 0 V = ({PROF}) < 0.5 ? ({VAL}) : ({PROF}) < 1.5 ? V(wp) :
++ ({PROF}) < 2.5 ? ({K})*V(LOAD_CTRL) : V(ws)
+Ven  en 0 PWL(0 0 {TON+1u} 0 {TON+1u+TRISE} 1)
+
+* --- current demand for the selected mode
+Bvv  vv 0 V = V(P,N)
+Bdem dem 0 V = ({MODE}) < 0.5 ? V(sp) :
++ ({MODE}) < 1.5 ? V(sp)/max(V(vv), 1) :
++ ({MODE}) < 2.5 ? V(vv)/max(abs(V(sp)), 1m) :
++ ({GCV})*(V(vv) - V(sp))
+
+* --- fold-back (CC/CP only), current limit, enable
+Bfb  fb 0 V = ({MODE}) > 1.5 ? 1 : (V(dem) > 0 ?
++ min(1, max(0, V(vv)/({VMIN}))) : min(1, max(0, ({VMAX}) - V(vv))))
+Bil  il 0 V = V(en)*V(fb)*min(({ILIM}), max(-({ILIM}), V(dem)))
+Bld  P N I = V(il)
+
+* --- input capacitance
+Cin  P pc {CIN}
+Resr pc N {RESR}
+Rpn  P N 100Meg
+
+* --- probes
+Bpi  pi 0 V = V(il)
+Rpi  pi LOAD_I 1k
+Bpp  pp 0 V = V(il)*V(vv)
+Rpp  pp LOAD_P 1k
+Cwh  wh 0 1u
+Bwh  0 wh I = time > 0 ? 1u*V(il)*V(vv)/3600 : -1u*V(wh)
+Bpw  pw 0 V = V(wh)
+Rpw  pw LOAD_WH 1k
+.ends LOAD_PROFILE
+
+* ============================================================================
+*  LOAD_CC - constant-current electronic load (simple, kept for compatibility)
+*  Draws I amps from P to N once enabled at TON (ramped over TRISE); folds
+*  back below VMIN. CIN/RESR = load input capacitance and its ESR.
 * ============================================================================
 .subckt LOAD_CC P N params: I=1 TON=0 TRISE=1m VMIN=20 CIN=10u RESR=0.1
 Ven en 0 PWL(0 0 {TON+1u} 0 {TON+1u+TRISE} 1)
@@ -22,9 +111,9 @@ Rpn P N 100Meg
 
 * ============================================================================
 *  SIM_PROBE - one-pin probe for a test-point symbol. Put a global label on
-*  its pin (e.g. PACK_SOC, PACK_AH_OUT, PACK_TEMP, BMS_AH_OUT, BMS_SOC) and
-*  click the wire in the simulator to plot that quantity. 1e12 ohm to ground,
-*  so it does not load anything.
+*  its pin (PACK_SOC, PACK_AH_OUT, PACK_TEMP, BMS_AH_OUT, BMS_SOC, LOAD_I,
+*  LOAD_P, LOAD_WH) and click the wire in the simulator to plot it.
+*  1e12 ohm to ground, so it loads nothing.
 * ============================================================================
 .subckt SIM_PROBE P
 Rp P 0 1e12
