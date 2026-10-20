@@ -50,12 +50,24 @@
 *   BMS_SOC     host-style SOC = BMS_SOC0 + 100*ccq/BMS_CAP_AH (1 V = 1 %)
 *   (the BQ76952 itself only reports accumulated charge; SOC is what the
 *    host MCU would compute from it)
+*   BMS_AH_DIS_X10  10 x Ah the IC counted out of the pack (counts up only)
+*   BMS_AH_CHG_X10  10 x Ah the IC counted into the pack (counts up only)
+*   CELL_MAX_X10    10 x highest cell voltage the IC sees (42 = 4.2 V)
+*   CELL_MIN_X10    10 x lowest cell voltage
+*   CELL_SPREAD_MV  highest - lowest cell, mV
+*   BMS_FAULT       highest active fault: 10 COV, 20 CUV, 30 OCC,
+*                   40 OCD1/2/3, 50 SCD, 60 OT/UT, 70 PF, 0 none
+*   BMS_FETS        10 = CHG driver on, + 5 = DSG driver on (15 = both)
+*   BMS_DSG_OK / BMS_CHG_OK  1 = discharge / charge allowed (no fault);
+*                   used by LOAD_PROFILE INTERLOCK=1 (host reacting to the BMS)
+*   BMS_BALANCING   number of cells selected for balancing (odd and even
+*                   cells conduct in alternate CB_TS intervals)
 *   f_cov f_cuv f_occ f_ocd1 f_ocd2 f_ocd3 f_scd f_otc f_otd f_utc f_utd f_pf
 *   rdy shut chg_ok dsg_ok chg_s dsg_s pchg_s pdsg_s b1..b16 (balancing)
 *  All internal logic nodes are 0/1 V referenced to node 0.
 * ============================================================================
 
-.global BMS_AH_OUT BMS_SOC
+.global BMS_DSG_OK BMS_CHG_OK BMS_AH_OUT BMS_SOC BMS_AH_DIS_X10 BMS_AH_CHG_X10 CELL_MAX_X10 CELL_MIN_X10 CELL_SPREAD_MV BMS_FAULT BMS_FETS BMS_BALANCING
 
 *  PARAMETERS
 *   CE1..CE16     1       cell n enabled (1) / unused-shorted input (0)
@@ -124,7 +136,7 @@
 *   CB_MINV       3.9     minimum cell voltage to balance, V
 *   CB_IDSG       50m     no balancing while discharging above this, A
 *   RCB           28      internal balance FET resistance, ohm
-*   CB_TS         0.25    measurement loop period (balancing paused 3 ms), s
+*   CB_TS         5       balancing interval: FETs paused 50 ms for sampling, s
 *   TSTART        0.28    wake -> FETs enabled delay, s
 *   VPOR          3.5     BAT power-on reset threshold, V
 *   IQ            286u    NORMAL mode BAT current, A
@@ -141,15 +153,20 @@
 * ---- delay: out = in, but only after in has been high for TD seconds -------
 .subckt BQ76952_DLY in out params: TD=1
 Ct  t 0 1u
-Bt  0 t I = V(in)>0.5 ? min(1u, 1u*(({2*TD}) - V(t))/({0.01*TD+1n})) : -1*V(t)
-Bo  out 0 V = (V(in)>0.5) * 0.5*(1+tanh((V(t) - ({0.999*TD}))/({0.0003*TD+1n})))
+Bt  0 t I = V(in)>0.5 ? min(1u, 1u*(({2*TD}) - V(t))/({0.01*TD+1n})) : -1*min(1e6, max(-1e6, V(t)))
+Bo  out 0 V = (V(in)>0.5) * 0.5*(1+tanh(min(50, max(-50, (V(t) - ({0.999*TD}))/({0.0003*TD+1n})))))
 .ends BQ76952_DLY
 
 * ---- set/reset latch with clear (clr > set > reset > hold); inputs 0..1 ---
 .subckt BQ76952_SR s r clr q
 Cq  q 0 1n
-Bq  0 q I = 1e-2*( (1-V(clr))*( V(s)*(1-V(q)) - (1-V(s))*V(r)*V(q) ) - V(clr)*V(q) )
-+ + 1e-9*( 0.5*(1+tanh(20*(V(q)-0.5))) - V(q) )
+* inputs/state are clamped so a wild Newton iterate cannot overflow the products
+Bql qc 0 V = min(2, max(-1, V(q)))
+Bsl sc 0 V = min(1, max(0, V(s)))
+Brl rc 0 V = min(1, max(0, V(r)))
+Bcl cc 0 V = min(1, max(0, V(clr)))
+Bq  0 q I = 1e-2*( (1-V(cc))*( V(sc)*(1-V(qc)) - (1-V(sc))*V(rc)*V(qc) ) - V(cc)*V(qc) )
++ + 1e-9*( 0.5*(1+tanh(20*(V(qc)-0.5))) - V(qc) )
 .ends BQ76952_SR
 
 * ---- transconductance LDO with current limit and off-state pull-down -------
@@ -175,7 +192,7 @@ Bpd out vss I = (1-V(en))*V(out,vss)/({RPD})
 + FUSE_BLOW=0 FUSE_PF_EN=0 FET_EN=1 SERIES=1 BD_TH=50m CP_EN=1 VCP=11
 + PCHG_EN=0 PCHG_START=3.0 PCHG_STOP=3.2 PDSG_EN=0 PDSG_TO=0.5
 + PDSG_DELTA=0.5 CFETOFF_MODE=0 DFETOFF_MODE=0 REG0_EN=1 REG1_V=3.3 REG2_V=0
-+ CB_EN=0 CB_START=40m CB_STOP=20m CB_MINV=3.9 CB_IDSG=50m RCB=28 CB_TS=0.25
++ CB_EN=0 CB_START=40m CB_STOP=20m CB_MINV=3.9 CB_IDSG=50m RCB=28 CB_TS=5
 + TSTART=0.28 VPOR=3.5 IQ=286u RCIN=2.1Meg CC_GAIN=1 CC_OFFSET=0
 + BMS_SOC0=100 BMS_CAP_AH=4.5 DDSG_EN=1 DCHG_EN=1 ALERT_EN=1
 
@@ -294,59 +311,73 @@ Bcv15 cv15 0 V = V(VC15,VC14)
 Rcin16 VC16 VC15 {RCIN}
 Desd16 VC15 VC16 BQ_DESD
 Bcv16 cv16 0 V = V(VC16,VC15)
-* measurement window: every CB_TS the device pauses balancing for 3 ms and
-* samples all cells; while any cell is balancing, protections and balancing
-* decisions use these samples (like the real IC), otherwise live values.
-Vmwin mwin_p 0 PULSE(0 1 0 1u 1u 3m {CB_TS})
+* balancing / measurement scheme (like the IC): every CB_TS the balancing
+* FETs are paused for 50 ms and all cells are sampled mid-window. While any
+* cell is balancing, protections and balancing decisions use those samples
+* (the live pin voltages are distorted by the balance current); otherwise
+* they use live values. Odd and even cells balance in alternate CB_TS
+* intervals, so adjacent cells are never balanced at the same time.
+Vmwin mwin_p 0 PULSE(0 1 {(1-CB_EN)*1e9} 1u 1u 50m {CB_TS})
 Bmwin mwin 0 V = V(mwin_p)>0.5 || time <= 0
+Vtrw trw_p 0 PULSE(0 1 {10m+(1-CB_EN)*1e9} 1u 1u 30m {CB_TS})
+Btrk trkc 0 V = V(trw_p)>0.5 || V(wb)<0.5 || time <= 0
+Rtrk trkc trk 10k
+Ctrk trk 0 1n
+Vcbph cbph 0 PULSE(0 1 {CB_TS+(1-CB_EN)*1e9} 1m 1m {CB_TS-1m} {2*CB_TS})
+* hold weight: switches to the held samples within ~10 us when balancing
+* starts (before the balance FETs ramp on, ~200 us) and back to live values
+* only ~2 ms after it stops (after the FETs are fully off)
+Bwbc wbc 0 V = V(cbany)>0.5
+Cwb  wb 0 1n
+Bwb  0 wb I = 1n*((V(wbc)-V(wb)) > 0 ? (V(wbc)-V(wb))/10u : (V(wbc)-V(wb))/2m)
 Ch1 h1 0 1u
-Bh1 0 h1 I = V(mwin)>0.5 ? 1e-2*(V(cv1)-V(h1)) : 0
-Bcm1 cm1 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h1) : V(cv1)
+Bh1 0 h1 I = 1e-2*min(1, max(0, V(trk)))*(V(cv1)-V(h1))
+Bcm1 cm1 0 V = V(wb)*V(h1) + (1-V(wb))*V(cv1)
 Ch2 h2 0 1u
-Bh2 0 h2 I = V(mwin)>0.5 ? 1e-2*(V(cv2)-V(h2)) : 0
-Bcm2 cm2 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h2) : V(cv2)
+Bh2 0 h2 I = 1e-2*min(1, max(0, V(trk)))*(V(cv2)-V(h2))
+Bcm2 cm2 0 V = V(wb)*V(h2) + (1-V(wb))*V(cv2)
 Ch3 h3 0 1u
-Bh3 0 h3 I = V(mwin)>0.5 ? 1e-2*(V(cv3)-V(h3)) : 0
-Bcm3 cm3 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h3) : V(cv3)
+Bh3 0 h3 I = 1e-2*min(1, max(0, V(trk)))*(V(cv3)-V(h3))
+Bcm3 cm3 0 V = V(wb)*V(h3) + (1-V(wb))*V(cv3)
 Ch4 h4 0 1u
-Bh4 0 h4 I = V(mwin)>0.5 ? 1e-2*(V(cv4)-V(h4)) : 0
-Bcm4 cm4 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h4) : V(cv4)
+Bh4 0 h4 I = 1e-2*min(1, max(0, V(trk)))*(V(cv4)-V(h4))
+Bcm4 cm4 0 V = V(wb)*V(h4) + (1-V(wb))*V(cv4)
 Ch5 h5 0 1u
-Bh5 0 h5 I = V(mwin)>0.5 ? 1e-2*(V(cv5)-V(h5)) : 0
-Bcm5 cm5 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h5) : V(cv5)
+Bh5 0 h5 I = 1e-2*min(1, max(0, V(trk)))*(V(cv5)-V(h5))
+Bcm5 cm5 0 V = V(wb)*V(h5) + (1-V(wb))*V(cv5)
 Ch6 h6 0 1u
-Bh6 0 h6 I = V(mwin)>0.5 ? 1e-2*(V(cv6)-V(h6)) : 0
-Bcm6 cm6 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h6) : V(cv6)
+Bh6 0 h6 I = 1e-2*min(1, max(0, V(trk)))*(V(cv6)-V(h6))
+Bcm6 cm6 0 V = V(wb)*V(h6) + (1-V(wb))*V(cv6)
 Ch7 h7 0 1u
-Bh7 0 h7 I = V(mwin)>0.5 ? 1e-2*(V(cv7)-V(h7)) : 0
-Bcm7 cm7 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h7) : V(cv7)
+Bh7 0 h7 I = 1e-2*min(1, max(0, V(trk)))*(V(cv7)-V(h7))
+Bcm7 cm7 0 V = V(wb)*V(h7) + (1-V(wb))*V(cv7)
 Ch8 h8 0 1u
-Bh8 0 h8 I = V(mwin)>0.5 ? 1e-2*(V(cv8)-V(h8)) : 0
-Bcm8 cm8 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h8) : V(cv8)
+Bh8 0 h8 I = 1e-2*min(1, max(0, V(trk)))*(V(cv8)-V(h8))
+Bcm8 cm8 0 V = V(wb)*V(h8) + (1-V(wb))*V(cv8)
 Ch9 h9 0 1u
-Bh9 0 h9 I = V(mwin)>0.5 ? 1e-2*(V(cv9)-V(h9)) : 0
-Bcm9 cm9 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h9) : V(cv9)
+Bh9 0 h9 I = 1e-2*min(1, max(0, V(trk)))*(V(cv9)-V(h9))
+Bcm9 cm9 0 V = V(wb)*V(h9) + (1-V(wb))*V(cv9)
 Ch10 h10 0 1u
-Bh10 0 h10 I = V(mwin)>0.5 ? 1e-2*(V(cv10)-V(h10)) : 0
-Bcm10 cm10 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h10) : V(cv10)
+Bh10 0 h10 I = 1e-2*min(1, max(0, V(trk)))*(V(cv10)-V(h10))
+Bcm10 cm10 0 V = V(wb)*V(h10) + (1-V(wb))*V(cv10)
 Ch11 h11 0 1u
-Bh11 0 h11 I = V(mwin)>0.5 ? 1e-2*(V(cv11)-V(h11)) : 0
-Bcm11 cm11 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h11) : V(cv11)
+Bh11 0 h11 I = 1e-2*min(1, max(0, V(trk)))*(V(cv11)-V(h11))
+Bcm11 cm11 0 V = V(wb)*V(h11) + (1-V(wb))*V(cv11)
 Ch12 h12 0 1u
-Bh12 0 h12 I = V(mwin)>0.5 ? 1e-2*(V(cv12)-V(h12)) : 0
-Bcm12 cm12 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h12) : V(cv12)
+Bh12 0 h12 I = 1e-2*min(1, max(0, V(trk)))*(V(cv12)-V(h12))
+Bcm12 cm12 0 V = V(wb)*V(h12) + (1-V(wb))*V(cv12)
 Ch13 h13 0 1u
-Bh13 0 h13 I = V(mwin)>0.5 ? 1e-2*(V(cv13)-V(h13)) : 0
-Bcm13 cm13 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h13) : V(cv13)
+Bh13 0 h13 I = 1e-2*min(1, max(0, V(trk)))*(V(cv13)-V(h13))
+Bcm13 cm13 0 V = V(wb)*V(h13) + (1-V(wb))*V(cv13)
 Ch14 h14 0 1u
-Bh14 0 h14 I = V(mwin)>0.5 ? 1e-2*(V(cv14)-V(h14)) : 0
-Bcm14 cm14 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h14) : V(cv14)
+Bh14 0 h14 I = 1e-2*min(1, max(0, V(trk)))*(V(cv14)-V(h14))
+Bcm14 cm14 0 V = V(wb)*V(h14) + (1-V(wb))*V(cv14)
 Ch15 h15 0 1u
-Bh15 0 h15 I = V(mwin)>0.5 ? 1e-2*(V(cv15)-V(h15)) : 0
-Bcm15 cm15 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h15) : V(cv15)
+Bh15 0 h15 I = 1e-2*min(1, max(0, V(trk)))*(V(cv15)-V(h15))
+Bcm15 cm15 0 V = V(wb)*V(h15) + (1-V(wb))*V(cv15)
 Ch16 h16 0 1u
-Bh16 0 h16 I = V(mwin)>0.5 ? 1e-2*(V(cv16)-V(h16)) : 0
-Bcm16 cm16 0 V = (V(cbany)>0.5 && V(mwin)<0.5) ? V(h16) : V(cv16)
+Bh16 0 h16 I = 1e-2*min(1, max(0, V(trk)))*(V(cv16)-V(h16))
+Bcm16 cm16 0 V = V(wb)*V(h16) + (1-V(wb))*V(cv16)
 Bvmax vmax 0 V = max((({CE16})>0.5 ? V(cm16) : -10), max((({CE15})>0.5 ? V(cm15) : -10), max((({CE14})>0.5 ? V(cm14) : -10), max((({CE13})>0.5 ? V(cm13) : -10), max((({CE12})>0.5 ? V(cm12) : -10), max((({CE11})>0.5 ? V(cm11) : -10), max((({CE10})>0.5 ? V(cm10) : -10), max((({CE9})>0.5 ? V(cm9) : -10), max((({CE8})>0.5 ? V(cm8) : -10), max((({CE7})>0.5 ? V(cm7) : -10), max((({CE6})>0.5 ? V(cm6) : -10), max((({CE5})>0.5 ? V(cm5) : -10), max((({CE4})>0.5 ? V(cm4) : -10), max((({CE3})>0.5 ? V(cm3) : -10), max((({CE2})>0.5 ? V(cm2) : -10), max((({CE1})>0.5 ? V(cm1) : -10), -10))))))))))))))))
 Bvmin vmin 0 V = min((({CE16})>0.5 ? V(cm16) : 10), min((({CE15})>0.5 ? V(cm15) : 10), min((({CE14})>0.5 ? V(cm14) : 10), min((({CE13})>0.5 ? V(cm13) : 10), min((({CE12})>0.5 ? V(cm12) : 10), min((({CE11})>0.5 ? V(cm11) : 10), min((({CE10})>0.5 ? V(cm10) : 10), min((({CE9})>0.5 ? V(cm9) : 10), min((({CE8})>0.5 ? V(cm8) : 10), min((({CE7})>0.5 ? V(cm7) : 10), min((({CE6})>0.5 ? V(cm6) : 10), min((({CE5})>0.5 ? V(cm5) : 10), min((({CE4})>0.5 ? V(cm4) : 10), min((({CE3})>0.5 ? V(cm3) : 10), min((({CE2})>0.5 ? V(cm2) : 10), min((({CE1})>0.5 ? V(cm1) : 10), 10))))))))))))))))
 Bisns isns 0 V = V(SRP,SRN)/({RSENSE})
@@ -554,11 +585,11 @@ Cpds pdsg_s 0 1n
 * ---- charge pump (CP1 cap to BAT) and high-side NFET drivers ----
 Bcpe cpe 0 V = V(act)>0.5 && ({CP_EN})>0.5
 Bcp  BAT CP1 I = V(cpe)>0.5 ? min(100u, max(0, (({VCP}) - V(CP1,BAT))/10k)) : V(BAT,CP1)/1Meg
-Bchon  CP1 CHG I = V(chg_s)*V(CP1,CHG)*0.5*(1+tanh(V(CP1,CHG)/0.05))/200
-Bchoff CHG BAT I = (1-V(chg_s))*V(CHG,BAT)/1k
-Bdson  CP1 DSG I = V(dsg_s)*V(CP1,DSG)*0.5*(1+tanh(V(CP1,DSG)/0.05))/200
+Bchon  CP1 CHG I = min(1, max(0, V(chg_s)))*min(100, max(-100, V(CP1,CHG)))*0.5*(1+tanh(min(50, max(-50, V(CP1,CHG)/0.05))))/200
+Bchoff CHG BAT I = (1-min(1, max(0, V(chg_s))))*min(100, max(-100, V(CHG,BAT)))/1k
+Bdson  CP1 DSG I = min(1, max(0, V(dsg_s)))*min(100, max(-100, V(CP1,DSG)))*0.5*(1+tanh(min(50, max(-50, V(CP1,DSG)/0.05))))/200
 * DSG turn-off: sink to VSS, regulated so DSG stops at the LD (PACK+) level
-Bdsoff DSG VSS I = (1-V(dsg_s))*min(50, max(-1, V(DSG,LD)))*0.5*(1+tanh(V(DSG,LD)/0.3))/50
+Bdsoff DSG VSS I = (1-min(1, max(0, V(dsg_s))))*min(50, max(-1, V(DSG,LD)))*0.5*(1+tanh(min(50, max(-50, V(DSG,LD)/0.3))))/50
 * PCHG / PDSG PFET drivers: sink up to 30 uA toward max(PACK,BAT)-8.4 V
 Bpchg PCHG VSS I = V(pchg_s)>0.5 ? min(30u, max(0, 1e-4*(V(PCHG,VSS) - max(0, max(V(PACK,VSS),V(BAT,VSS))-8.4)))) : 0
 Bpdsg PDSG VSS I = V(pdsg_s)>0.5 ? min(30u, max(0, 1e-4*(V(PDSG,VSS) - max(0, max(V(LD,VSS),V(BAT,VSS))-8.4)))) : 0
@@ -576,67 +607,144 @@ Bcbn cb_n 0 V = V(cb_ok) < 0.5
 Bbs1 bs1 0 V = V(cb_ok)>0.5 && ({CE1})>0.5 && V(cm1) > ({CB_MINV}) && V(cm1)-V(vmin) > ({CB_START})
 Bbr1 br1 0 V = V(cm1)-V(vmin) < ({CB_STOP})
 Xb1 bs1 br1 cb_n b1 BQ76952_SR
-Bcb1 VC1 VC0 I = (V(b1)>0.5 && V(mwin)<0.5) ? V(VC1,VC0)/({RCB}) : 0
+Bgc1 gc1 0 V = V(b1)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)<0.5
+Cg1 g1 0 1n
+Bg1 0 g1 I = 1n*((V(gc1)-V(g1)) > 0 ? (V(gc1)-V(g1))/200u : (V(gc1)-V(g1))/20u)
+Bcb1 VC1 VC0 I = min(1, max(0, V(g1)))*V(VC1,VC0)/({RCB})
 Bbs2 bs2 0 V = V(cb_ok)>0.5 && ({CE2})>0.5 && V(cm2) > ({CB_MINV}) && V(cm2)-V(vmin) > ({CB_START})
 Bbr2 br2 0 V = V(cm2)-V(vmin) < ({CB_STOP})
 Xb2 bs2 br2 cb_n b2 BQ76952_SR
-Bcb2 VC2 VC1 I = (V(b2)>0.5 && V(mwin)<0.5) ? V(VC2,VC1)/({RCB}) : 0
+Bgc2 gc2 0 V = V(b2)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)>0.5
+Cg2 g2 0 1n
+Bg2 0 g2 I = 1n*((V(gc2)-V(g2)) > 0 ? (V(gc2)-V(g2))/200u : (V(gc2)-V(g2))/20u)
+Bcb2 VC2 VC1 I = min(1, max(0, V(g2)))*V(VC2,VC1)/({RCB})
 Bbs3 bs3 0 V = V(cb_ok)>0.5 && ({CE3})>0.5 && V(cm3) > ({CB_MINV}) && V(cm3)-V(vmin) > ({CB_START})
 Bbr3 br3 0 V = V(cm3)-V(vmin) < ({CB_STOP})
 Xb3 bs3 br3 cb_n b3 BQ76952_SR
-Bcb3 VC3 VC2 I = (V(b3)>0.5 && V(mwin)<0.5) ? V(VC3,VC2)/({RCB}) : 0
+Bgc3 gc3 0 V = V(b3)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)<0.5
+Cg3 g3 0 1n
+Bg3 0 g3 I = 1n*((V(gc3)-V(g3)) > 0 ? (V(gc3)-V(g3))/200u : (V(gc3)-V(g3))/20u)
+Bcb3 VC3 VC2 I = min(1, max(0, V(g3)))*V(VC3,VC2)/({RCB})
 Bbs4 bs4 0 V = V(cb_ok)>0.5 && ({CE4})>0.5 && V(cm4) > ({CB_MINV}) && V(cm4)-V(vmin) > ({CB_START})
 Bbr4 br4 0 V = V(cm4)-V(vmin) < ({CB_STOP})
 Xb4 bs4 br4 cb_n b4 BQ76952_SR
-Bcb4 VC4 VC3 I = (V(b4)>0.5 && V(mwin)<0.5) ? V(VC4,VC3)/({RCB}) : 0
+Bgc4 gc4 0 V = V(b4)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)>0.5
+Cg4 g4 0 1n
+Bg4 0 g4 I = 1n*((V(gc4)-V(g4)) > 0 ? (V(gc4)-V(g4))/200u : (V(gc4)-V(g4))/20u)
+Bcb4 VC4 VC3 I = min(1, max(0, V(g4)))*V(VC4,VC3)/({RCB})
 Bbs5 bs5 0 V = V(cb_ok)>0.5 && ({CE5})>0.5 && V(cm5) > ({CB_MINV}) && V(cm5)-V(vmin) > ({CB_START})
 Bbr5 br5 0 V = V(cm5)-V(vmin) < ({CB_STOP})
 Xb5 bs5 br5 cb_n b5 BQ76952_SR
-Bcb5 VC5 VC4 I = (V(b5)>0.5 && V(mwin)<0.5) ? V(VC5,VC4)/({RCB}) : 0
+Bgc5 gc5 0 V = V(b5)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)<0.5
+Cg5 g5 0 1n
+Bg5 0 g5 I = 1n*((V(gc5)-V(g5)) > 0 ? (V(gc5)-V(g5))/200u : (V(gc5)-V(g5))/20u)
+Bcb5 VC5 VC4 I = min(1, max(0, V(g5)))*V(VC5,VC4)/({RCB})
 Bbs6 bs6 0 V = V(cb_ok)>0.5 && ({CE6})>0.5 && V(cm6) > ({CB_MINV}) && V(cm6)-V(vmin) > ({CB_START})
 Bbr6 br6 0 V = V(cm6)-V(vmin) < ({CB_STOP})
 Xb6 bs6 br6 cb_n b6 BQ76952_SR
-Bcb6 VC6 VC5 I = (V(b6)>0.5 && V(mwin)<0.5) ? V(VC6,VC5)/({RCB}) : 0
+Bgc6 gc6 0 V = V(b6)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)>0.5
+Cg6 g6 0 1n
+Bg6 0 g6 I = 1n*((V(gc6)-V(g6)) > 0 ? (V(gc6)-V(g6))/200u : (V(gc6)-V(g6))/20u)
+Bcb6 VC6 VC5 I = min(1, max(0, V(g6)))*V(VC6,VC5)/({RCB})
 Bbs7 bs7 0 V = V(cb_ok)>0.5 && ({CE7})>0.5 && V(cm7) > ({CB_MINV}) && V(cm7)-V(vmin) > ({CB_START})
 Bbr7 br7 0 V = V(cm7)-V(vmin) < ({CB_STOP})
 Xb7 bs7 br7 cb_n b7 BQ76952_SR
-Bcb7 VC7 VC6 I = (V(b7)>0.5 && V(mwin)<0.5) ? V(VC7,VC6)/({RCB}) : 0
+Bgc7 gc7 0 V = V(b7)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)<0.5
+Cg7 g7 0 1n
+Bg7 0 g7 I = 1n*((V(gc7)-V(g7)) > 0 ? (V(gc7)-V(g7))/200u : (V(gc7)-V(g7))/20u)
+Bcb7 VC7 VC6 I = min(1, max(0, V(g7)))*V(VC7,VC6)/({RCB})
 Bbs8 bs8 0 V = V(cb_ok)>0.5 && ({CE8})>0.5 && V(cm8) > ({CB_MINV}) && V(cm8)-V(vmin) > ({CB_START})
 Bbr8 br8 0 V = V(cm8)-V(vmin) < ({CB_STOP})
 Xb8 bs8 br8 cb_n b8 BQ76952_SR
-Bcb8 VC8 VC7 I = (V(b8)>0.5 && V(mwin)<0.5) ? V(VC8,VC7)/({RCB}) : 0
+Bgc8 gc8 0 V = V(b8)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)>0.5
+Cg8 g8 0 1n
+Bg8 0 g8 I = 1n*((V(gc8)-V(g8)) > 0 ? (V(gc8)-V(g8))/200u : (V(gc8)-V(g8))/20u)
+Bcb8 VC8 VC7 I = min(1, max(0, V(g8)))*V(VC8,VC7)/({RCB})
 Bbs9 bs9 0 V = V(cb_ok)>0.5 && ({CE9})>0.5 && V(cm9) > ({CB_MINV}) && V(cm9)-V(vmin) > ({CB_START})
 Bbr9 br9 0 V = V(cm9)-V(vmin) < ({CB_STOP})
 Xb9 bs9 br9 cb_n b9 BQ76952_SR
-Bcb9 VC9 VC8 I = (V(b9)>0.5 && V(mwin)<0.5) ? V(VC9,VC8)/({RCB}) : 0
+Bgc9 gc9 0 V = V(b9)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)<0.5
+Cg9 g9 0 1n
+Bg9 0 g9 I = 1n*((V(gc9)-V(g9)) > 0 ? (V(gc9)-V(g9))/200u : (V(gc9)-V(g9))/20u)
+Bcb9 VC9 VC8 I = min(1, max(0, V(g9)))*V(VC9,VC8)/({RCB})
 Bbs10 bs10 0 V = V(cb_ok)>0.5 && ({CE10})>0.5 && V(cm10) > ({CB_MINV}) && V(cm10)-V(vmin) > ({CB_START})
 Bbr10 br10 0 V = V(cm10)-V(vmin) < ({CB_STOP})
 Xb10 bs10 br10 cb_n b10 BQ76952_SR
-Bcb10 VC10 VC9 I = (V(b10)>0.5 && V(mwin)<0.5) ? V(VC10,VC9)/({RCB}) : 0
+Bgc10 gc10 0 V = V(b10)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)>0.5
+Cg10 g10 0 1n
+Bg10 0 g10 I = 1n*((V(gc10)-V(g10)) > 0 ? (V(gc10)-V(g10))/200u : (V(gc10)-V(g10))/20u)
+Bcb10 VC10 VC9 I = min(1, max(0, V(g10)))*V(VC10,VC9)/({RCB})
 Bbs11 bs11 0 V = V(cb_ok)>0.5 && ({CE11})>0.5 && V(cm11) > ({CB_MINV}) && V(cm11)-V(vmin) > ({CB_START})
 Bbr11 br11 0 V = V(cm11)-V(vmin) < ({CB_STOP})
 Xb11 bs11 br11 cb_n b11 BQ76952_SR
-Bcb11 VC11 VC10 I = (V(b11)>0.5 && V(mwin)<0.5) ? V(VC11,VC10)/({RCB}) : 0
+Bgc11 gc11 0 V = V(b11)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)<0.5
+Cg11 g11 0 1n
+Bg11 0 g11 I = 1n*((V(gc11)-V(g11)) > 0 ? (V(gc11)-V(g11))/200u : (V(gc11)-V(g11))/20u)
+Bcb11 VC11 VC10 I = min(1, max(0, V(g11)))*V(VC11,VC10)/({RCB})
 Bbs12 bs12 0 V = V(cb_ok)>0.5 && ({CE12})>0.5 && V(cm12) > ({CB_MINV}) && V(cm12)-V(vmin) > ({CB_START})
 Bbr12 br12 0 V = V(cm12)-V(vmin) < ({CB_STOP})
 Xb12 bs12 br12 cb_n b12 BQ76952_SR
-Bcb12 VC12 VC11 I = (V(b12)>0.5 && V(mwin)<0.5) ? V(VC12,VC11)/({RCB}) : 0
+Bgc12 gc12 0 V = V(b12)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)>0.5
+Cg12 g12 0 1n
+Bg12 0 g12 I = 1n*((V(gc12)-V(g12)) > 0 ? (V(gc12)-V(g12))/200u : (V(gc12)-V(g12))/20u)
+Bcb12 VC12 VC11 I = min(1, max(0, V(g12)))*V(VC12,VC11)/({RCB})
 Bbs13 bs13 0 V = V(cb_ok)>0.5 && ({CE13})>0.5 && V(cm13) > ({CB_MINV}) && V(cm13)-V(vmin) > ({CB_START})
 Bbr13 br13 0 V = V(cm13)-V(vmin) < ({CB_STOP})
 Xb13 bs13 br13 cb_n b13 BQ76952_SR
-Bcb13 VC13 VC12 I = (V(b13)>0.5 && V(mwin)<0.5) ? V(VC13,VC12)/({RCB}) : 0
+Bgc13 gc13 0 V = V(b13)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)<0.5
+Cg13 g13 0 1n
+Bg13 0 g13 I = 1n*((V(gc13)-V(g13)) > 0 ? (V(gc13)-V(g13))/200u : (V(gc13)-V(g13))/20u)
+Bcb13 VC13 VC12 I = min(1, max(0, V(g13)))*V(VC13,VC12)/({RCB})
 Bbs14 bs14 0 V = V(cb_ok)>0.5 && ({CE14})>0.5 && V(cm14) > ({CB_MINV}) && V(cm14)-V(vmin) > ({CB_START})
 Bbr14 br14 0 V = V(cm14)-V(vmin) < ({CB_STOP})
 Xb14 bs14 br14 cb_n b14 BQ76952_SR
-Bcb14 VC14 VC13 I = (V(b14)>0.5 && V(mwin)<0.5) ? V(VC14,VC13)/({RCB}) : 0
+Bgc14 gc14 0 V = V(b14)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)>0.5
+Cg14 g14 0 1n
+Bg14 0 g14 I = 1n*((V(gc14)-V(g14)) > 0 ? (V(gc14)-V(g14))/200u : (V(gc14)-V(g14))/20u)
+Bcb14 VC14 VC13 I = min(1, max(0, V(g14)))*V(VC14,VC13)/({RCB})
 Bbs15 bs15 0 V = V(cb_ok)>0.5 && ({CE15})>0.5 && V(cm15) > ({CB_MINV}) && V(cm15)-V(vmin) > ({CB_START})
 Bbr15 br15 0 V = V(cm15)-V(vmin) < ({CB_STOP})
 Xb15 bs15 br15 cb_n b15 BQ76952_SR
-Bcb15 VC15 VC14 I = (V(b15)>0.5 && V(mwin)<0.5) ? V(VC15,VC14)/({RCB}) : 0
+Bgc15 gc15 0 V = V(b15)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)<0.5
+Cg15 g15 0 1n
+Bg15 0 g15 I = 1n*((V(gc15)-V(g15)) > 0 ? (V(gc15)-V(g15))/200u : (V(gc15)-V(g15))/20u)
+Bcb15 VC15 VC14 I = min(1, max(0, V(g15)))*V(VC15,VC14)/({RCB})
 Bbs16 bs16 0 V = V(cb_ok)>0.5 && ({CE16})>0.5 && V(cm16) > ({CB_MINV}) && V(cm16)-V(vmin) > ({CB_START})
 Bbr16 br16 0 V = V(cm16)-V(vmin) < ({CB_STOP})
 Xb16 bs16 br16 cb_n b16 BQ76952_SR
-Bcb16 VC16 VC15 I = (V(b16)>0.5 && V(mwin)<0.5) ? V(VC16,VC15)/({RCB}) : 0
+Bgc16 gc16 0 V = V(b16)>0.5 && V(wb)>0.9 && V(mwin)<0.5 && V(cbph)>0.5
+Cg16 g16 0 1n
+Bg16 0 g16 I = 1n*((V(gc16)-V(g16)) > 0 ? (V(gc16)-V(g16))/200u : (V(gc16)-V(g16))/20u)
+Bcb16 VC16 VC15 I = min(1, max(0, V(g16)))*V(VC16,VC15)/({RCB})
 Bcbany cbany 0 V = V(b1)>0.5 || V(b2)>0.5 || V(b3)>0.5 || V(b4)>0.5 || V(b5)>0.5 || V(b6)>0.5 || V(b7)>0.5 || V(b8)>0.5 || V(b9)>0.5 || V(b10)>0.5 || V(b11)>0.5 || V(b12)>0.5 || V(b13)>0.5 || V(b14)>0.5 || V(b15)>0.5 || V(b16)>0.5
+* ---- dashboard probe nets (global; see header) ----
+* discharged / charged Ah as the IC measures them (both count up)
+Cccd ccd 0 1u
+Bccd 0 ccd I = time > 0 ? 1u*V(act)*max(0, -((({CC_GAIN}))*V(SRP,SRN) + (({CC_OFFSET}))))/(({RSENSE}))/3600 : -1u*V(ccd)
+Cccc ccc 0 1u
+Bccc 0 ccc I = time > 0 ? 1u*V(act)*max(0, ((({CC_GAIN}))*V(SRP,SRN) + (({CC_OFFSET}))))/(({RSENSE}))/3600 : -1u*V(ccc)
+Bd_ah  d_ah 0 V = 10*V(ccd)
+Rd_ah  d_ah BMS_AH_DIS_X10 1k
+Bd_ac  d_ac 0 V = 10*V(ccc)
+Rd_ac  d_ac BMS_AH_CHG_X10 1k
+Bd_vx  d_vx 0 V = 10*V(vmax)
+Rd_vx  d_vx CELL_MAX_X10 1k
+Bd_vn  d_vn 0 V = 10*V(vmin)
+Rd_vn  d_vn CELL_MIN_X10 1k
+Bd_sp  d_sp 0 V = 1000*(V(vmax) - V(vmin))
+Rd_sp  d_sp CELL_SPREAD_MV 1k
+Bd_ft  d_ft 0 V = max(max(max(10*(V(f_cov)>0.5), 20*(V(f_cuv)>0.5)), max(30*(V(f_occ)>0.5),
++ 40*(V(f_ocd1)>0.5 || V(f_ocd2)>0.5 || V(f_ocd3)>0.5))), max(max(50*(V(f_scd)>0.5),
++ 60*(V(f_otc)>0.5 || V(f_otd)>0.5 || V(f_utc)>0.5 || V(f_utd)>0.5)), 70*(V(f_pf)>0.5)))
+Rd_ft  d_ft BMS_FAULT 1k
+Bd_fe  d_fe 0 V = 10*(V(chg_s)>0.5) + 5*(V(dsg_s)>0.5)
+Rd_fe  d_fe BMS_FETS 1k
+* host-interlock signals (like the DDSG/DCHG pins, active high = OK)
+Bd_dk  d_dk 0 V = V(rdy)>0.5 && V(dsg_flt)<0.5
+Rd_dk  d_dk BMS_DSG_OK 1k
+Bd_ck  d_ck 0 V = V(rdy)>0.5 && V(chg_flt)<0.5
+Rd_ck  d_ck BMS_CHG_OK 1k
+Bd_cb  d_cb 0 V = (V(b1)>0.5) + (V(b2)>0.5) + (V(b3)>0.5) + (V(b4)>0.5) + (V(b5)>0.5) + (V(b6)>0.5) + (V(b7)>0.5) + (V(b8)>0.5) + (V(b9)>0.5) + (V(b10)>0.5) + (V(b11)>0.5) + (V(b12)>0.5) + (V(b13)>0.5) + (V(b14)>0.5) + (V(b15)>0.5) + (V(b16)>0.5)
+Rd_cb  d_cb BMS_BALANCING 1k
 
 .ends BQ76952

@@ -7,7 +7,7 @@
 *  SIM_PROBE     1-pin probe for a test-point symbol
 * ============================================================================
 
-.global LOAD_CTRL LOAD_I LOAD_P LOAD_WH
+.global LOAD_CTRL LOAD_I LOAD_P LOAD_WH PACK_V BMS_DSG_OK BMS_CHG_OK
 
 * ============================================================================
 *  LOAD_PROFILE P N  -  programmable electronic load / charger / regen source
@@ -35,17 +35,21 @@
 *
 *  Common:
 *    TON, TRISE  load enabled at TON, ramped over TRISE (s)
-*    VMIN        CC/CP sink folds back linearly below VMIN (V) so it cannot
-*                drag a disconnected bus negative when the BMS opens a FET
-*    VMAX        CC/CP source (charge/regen) folds back above VMAX (V)
+*    VMIN        CC/CP sink folds back below ~VMIN (V) like a resistor, so it
+*                cannot drag a disconnected bus negative when the BMS opens a FET
+*    VMAX        CC/CP source (charge/regen) fades out over the last volt to VMAX
 *    ILIM        current limit both ways (A)
 *    GCV         CV-mode regulation gain (A/V)
 *    CIN, RESR   load input capacitance and its series resistance
+*    INTERLOCK   1 = obey the BMS (BMS_DSG_OK / BMS_CHG_OK nets from the
+*                BQ76952 model): stop discharging/charging when the BMS
+*                faults, stay off until the set-point returns to zero
 *
 *  Probes (global nets - put a global label of that name on a SIM_PROBE):
 *    LOAD_I   load current, A (+ = taken from the pack)     1 V = 1 A
 *    LOAD_P   load power, W   (+ = taken from the pack)     1 V = 1 W
 *    LOAD_WH  energy taken since t = 0, Wh                  1 V = 1 Wh
+*    PACK_V   voltage at the load terminals (PACK+ to PACK-)  1 V = 1 V
 *
 *  Examples (KiCad: Simulation Model > Parameters):
 *    45 A DC from 0.4 s .............. MODE=0 PROF=0 VAL=45 TON=0.4
@@ -57,7 +61,7 @@
 * ============================================================================
 .subckt LOAD_PROFILE P N params: MODE=0 PROF=0 VAL=10 VAL2=0 TD=0 TR=1m TF=1m
 + PW=1 PER=2 FREQ=1 K=1 TON=0 TRISE=1m VMIN=20 VMAX=70 ILIM=300 GCV=50
-+ CIN=10u RESR=0.1
++ CIN=10u RESR=0.1 INTERLOCK=0
 
 * --- set-point waveform
 Vpul wp 0 PULSE({VAL} {VAL2} {TD} {TR} {TF} {PW} {PER})
@@ -75,9 +79,33 @@ Bdem dem 0 V = ({MODE}) < 0.5 ? V(sp) :
 + ({GCV})*(V(vv) - V(sp))
 
 * --- fold-back (CC/CP only), current limit, enable
+*     (smooth functions - no corners for the solver: the sink behaves like a
+*      resistor below ~VMIN, the source fades out over the last volt to VMAX)
+Bx   xv 0 V = min(1e3, max(-1e3, V(vv)/({VMIN})))
 Bfb  fb 0 V = ({MODE}) > 1.5 ? 1 : (V(dem) > 0 ?
-+ min(1, max(0, V(vv)/({VMIN}))) : min(1, max(0, ({VMAX}) - V(vv))))
-Bil  il 0 V = V(en)*V(fb)*min(({ILIM}), max(-({ILIM}), V(dem)))
++ V(xv)/pow(1 + pow(V(xv), 6), 1/6) :
++ 0.5*(1 + tanh(min(50, max(-50, (({VMAX}) - 0.5 - V(vv))/0.25)))))
+* --- host interlock (INTERLOCK=1): like a motor controller / charger wired to
+*     the BMS DDSG/DCHG signals. When the BMS blocks discharge (or charge)
+*     while the load is drawing (or charging), the load shuts that direction
+*     off and stays off until the set-point returns to zero / reverses.
+Rok1 BMS_DSG_OK 0 1G
+Rok2 BMS_CHG_OK 0 1G
+Bsd  sd 0 V = V(en)>0.5 && V(dem) > 0.1 && ({INTERLOCK})>0.5 && V(BMS_DSG_OK) < 0.5
+Brd  rd 0 V = V(dem) < 0.05
+Cid  idl 0 1n
+Bid  0 idl I = 1e-2*( min(1,max(0,V(sd)))*(1-min(2,max(-1,V(idl)))) - (1-min(1,max(0,V(sd))))*V(rd)*min(2,max(-1,V(idl))) )
++ + 1e-9*( 0.5*(1+tanh(20*(min(2,max(-1,V(idl)))-0.5))) - min(2,max(-1,V(idl))) )
+Bsc  sc 0 V = V(en)>0.5 && V(dem) < -0.1 && ({INTERLOCK})>0.5 && V(BMS_CHG_OK) < 0.5
+Brc  rc 0 V = V(dem) > -0.05
+Cic  icl 0 1n
+Bic  0 icl I = 1e-2*( min(1,max(0,V(sc)))*(1-min(2,max(-1,V(icl)))) - (1-min(1,max(0,V(sc))))*V(rc)*min(2,max(-1,V(icl))) )
++ + 1e-9*( 0.5*(1+tanh(20*(min(2,max(-1,V(icl)))-0.5))) - min(2,max(-1,V(icl))) )
+* enable factors, smoothed over ~10 ms
+Bekc ekc 0 V = V(dem) > 0 ? 1 - (V(idl) > 0.5) : 1 - (V(icl) > 0.5)
+Rek  ekc ek 10Meg
+Cek  ek 0 1n
+Bil  il 0 V = V(en)*V(fb)*min(1, max(0, V(ek)))*min(({ILIM}), max(-({ILIM}), V(dem)))
 Bld  P N I = V(il)
 
 * --- input capacitance
@@ -94,6 +122,8 @@ Cwh  wh 0 1u
 Bwh  0 wh I = time > 0 ? 1u*V(il)*V(vv)/3600 : -1u*V(wh)
 Bpw  pw 0 V = V(wh)
 Rpw  pw LOAD_WH 1k
+Bpv  pv 0 V = V(vv)
+Rpv  pv PACK_V 1k
 .ends LOAD_PROFILE
 
 * ============================================================================

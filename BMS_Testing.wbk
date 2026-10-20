@@ -5,19 +5,152 @@
     {
       "analysis": "TRAN",
       "commands": [
-        ".tran 10m 400",
-        ".kicad adjustpaths",
-        ".save all"
-      ]
+        ".tran 100m 1700",
+        ".kicad adjustpaths"
+      ],
+      "traces": [
+        {
+          "trace_type": 1,
+          "signal": "V(PACK_V)",
+          "color": "rgb(31, 119, 180)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(LOAD_I)",
+          "color": "rgb(255, 127, 14)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(PACK_SOC)",
+          "color": "rgb(44, 160, 44)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(BMS_SOC)",
+          "color": "rgb(152, 223, 138)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(AH_DIS_X10)",
+          "color": "rgb(148, 103, 189)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(BMS_AH_DIS_X10)",
+          "color": "rgb(197, 176, 213)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(AH_CHG_X10)",
+          "color": "rgb(23, 190, 207)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(BMS_AH_CHG_X10)",
+          "color": "rgb(158, 218, 229)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(CELL_MAX_X10)",
+          "color": "rgb(214, 39, 40)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(CELL_MIN_X10)",
+          "color": "rgb(255, 152, 150)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(CELL_SPREAD_MV)",
+          "color": "rgb(140, 86, 75)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(PACK_TEMP)",
+          "color": "rgb(227, 119, 194)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(BMS_FAULT)",
+          "color": "rgb(0, 0, 0)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(BMS_FETS)",
+          "color": "rgb(127, 127, 127)"
+        },
+        {
+          "trace_type": 1,
+          "signal": "V(BMS_BALANCING)",
+          "color": "rgb(188, 189, 34)"
+        }
+      ],
+      "measurements": [
+        {
+          "expr": "MAX V(AH_DIS_X10)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MAX V(BMS_AH_DIS_X10)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MAX V(AH_CHG_X10)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MAX V(BMS_AH_CHG_X10)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MIN V(PACK_SOC)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MAX V(PACK_SOC)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MAX V(BMS_SOC)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MAX V(CELL_SPREAD_MV)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MAX V(PACK_TEMP)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MAX V(CELL_MAX_X10)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MIN V(CELL_MIN_X10)",
+          "format": "4~V"
+        },
+        {
+          "expr": "MAX V(LOAD_WH)",
+          "format": "4~V"
+        }
+      ],
+      "dottedSecondary": false,
+      "showGrid": true,
+      "fixedY1scale": {
+        "min": -20.0,
+        "max": 120.0
+      },
+      "legend": {
+        "x": 80,
+        "y": 35
+      }
     },
     {
       "analysis": "OP",
       "commands": [
         ".op",
-        ".kicad adjustpaths",
-        ".save all",
-        ".probe alli",
-        ".probe allp"
+        ".kicad adjustpaths"
       ]
     }
   ],
