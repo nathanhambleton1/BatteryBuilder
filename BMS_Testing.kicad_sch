@@ -5573,10 +5573,7 @@
 			)
 		)
 	)
-	(text "LOAD PROFILE SOURCE I2 - drives load I1 (I1 has PROF=2)
-Default: the demo charge/discharge cycle as a PWL list (amps, + = discharge).
-Change it to any KiCad source type (PWL drive cycle, pulse, sine, random...).
-The value becomes I1's set-point: A (MODE=0), W (1), ohm (2) or V (3)."
+	(text "LOAD PROFILE SOURCE I2 - drives load I1 (I1 has PROF=2)\nDefault: the demo charge/discharge cycle as a PWL list (amps, + = discharge).\nChange it to any KiCad source type (PWL drive cycle, pulse, sine, random...).\nThe value becomes I1's set-point: A (MODE=0), W (1), ohm (2) or V (3)."
 		(exclude_from_sim no)
 		(at 287.02 259.08 0)
 		(effects
