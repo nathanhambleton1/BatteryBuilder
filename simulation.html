@@ -1,532 +1,246 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Submarine Survival – Fixed‑Size Assets</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#061a23">
+<title>ABYSSAL — Silent Passage</title>
 <style>
-    html,body{
-        margin:0; padding:0; height:100%; overflow:hidden;
-        background:#00101f;
-        font-family:Arial,Helvetica,sans-serif;
-        color:#fff;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-    }
-    canvas{
-        display:block;
-        background:#00101f;
-        width:100%;               /* fill container */
-        height:auto;              /* keep 2:3 aspect ratio */
-        max-height:100%;          /* never taller than viewport */
-        image-rendering:pixelated;/* optional – crisp scaling */
-    }
-    #ui-overlay{
-        position:absolute; inset:0;
-        display:none;
-        flex-direction:column;
-        align-items:center;
-        justify-content:center;
-        background:rgba(0,0,0,0.65);
-        backdrop-filter:blur(4px);
-        border-radius:12px;
-        color:#fff;
-        text-align:center;
-        padding:2rem;
-    }
-    #ui-overlay button{
-        margin-top:1rem;
-        padding:.8rem 1.6rem;
-        font-size:1rem;
-        background:#0a84ff;
-        color:#fff;
-        border:none;
-        border-radius:6px;
-        cursor:pointer;
-        box-shadow:0 2px 6px rgba(0,0,0,.4);
-        transition:background .2s;
-    }
-    #ui-overlay button:hover{background:#006edc;}
+:root{color-scheme:dark;--ink:#e8f4ee;--muted:#91b0b5;--mint:#a6ead5;--line:rgba(173,226,215,.2);--amber:#ecc69b}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05151d;font-family:Arial,Helvetica,sans-serif;color:var(--ink);user-select:none;-webkit-user-select:none}button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}button:focus-visible{outline:2px solid var(--mint);outline-offset:5px}button:disabled{cursor:default}canvas{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none}#grain{position:fixed;inset:0;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23n)' opacity='.7' d='M0 0h150v150H0z'/%3E%3C/svg%3E")}#vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 160px 25px #0008}button{border:1px solid var(--line);background:rgba(5,24,31,.6);border-radius:3px;transition:background .2s,border-color .2s}button:hover{background:#18343e;border-color:#8bb9b2}button svg{display:block;width:17px;height:17px}button.icon{width:42px;height:42px;display:grid;place-items:center}.topbar{position:fixed;top:max(24px,env(safe-area-inset-top));left:max(32px,env(safe-area-inset-left));right:max(32px,env(safe-area-inset-right));display:flex;justify-content:space-between;align-items:center;gap:20px;pointer-events:none;z-index:5}.brand{font-size:12px;letter-spacing:.25em;font-weight:700;display:flex;align-items:center;gap:12px}.brand svg{width:32px;height:32px}.brand small{display:block;color:var(--muted);font-size:8px;letter-spacing:.18em;margin-top:5px;font-weight:400}.tools{display:flex;gap:8px;pointer-events:auto}.view{position:fixed;inset:0;z-index:4;display:flex;align-items:center;padding:110px max(6.5vw,24px) 90px;background:linear-gradient(90deg,#04141de8 0%,#04141d8a 42%,transparent 78%)}.view[hidden], [hidden]{display:none!important}.intro{width:min(590px,100%)}.eyebrow{font:10px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--mint);letter-spacing:.24em;display:flex;align-items:center;gap:12px}.eyebrow:before{content:'';display:block;width:28px;height:1px;background:var(--mint)}h1{font-size:clamp(54px,8.4vw,116px);font-weight:300;line-height:.94;letter-spacing:.045em;margin:27px 0 10px}h1 .subhead{display:block;font-size:clamp(17px,2vw,26px);letter-spacing:.39em;color:#bfd2d2;line-height:1.8;margin-top:12px}p.lead{font-size:15px;line-height:1.8;max-width:390px;color:#a8bfc2;margin:22px 0 28px}.launch{background:var(--amber);color:#152329;border-color:var(--amber);padding:17px 23px;font-size:11px;letter-spacing:.16em;font-weight:bold;display:inline-flex;gap:45px;align-items:center}.launch:hover{background:#f6d7b4;border-color:#f6d7b4}.launch span{font-size:20px;line-height:10px}.launch-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.text-button{padding:15px 16px;font-size:11px;color:#b8cdcd;background:#0b212975;letter-spacing:.05em}.mode-row{display:flex;align-items:center;gap:10px;margin:23px 0 0;font-size:10px;color:var(--muted)}.mode-row button{font-size:10px;padding:7px 10px;background:transparent;color:var(--muted)}.mode-row button[aria-pressed=true]{color:var(--mint);border-color:#74ad9b;background:#91d9bd12}.legend{display:flex;gap:24px;margin-top:36px;padding-top:22px;border-top:1px solid var(--line);max-width:390px}.legend div{font-size:10px;line-height:1.8;color:var(--muted)}.legend b{display:block;color:#cde0df;font-size:10px;letter-spacing:.08em;font-weight:500}.key{display:inline-block;padding:1px 5px;border:1px solid #5b7b7d;border-radius:2px;font:9px ui-monospace,monospace;margin-right:4px}.foot{position:fixed;bottom:max(25px,env(safe-area-inset-bottom));left:32px;right:32px;display:flex;justify-content:space-between;gap:15px;color:#76979e;font:9px ui-monospace,monospace;letter-spacing:.15em;z-index:5;pointer-events:none}.foot strong{color:#c9dad4;font-weight:400}.hud{position:fixed;inset:0;pointer-events:none;z-index:3}.metrics{position:absolute;top:max(28px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:34px;white-space:nowrap}.metric label{display:block;font:8px ui-monospace,monospace;letter-spacing:.19em;color:#9cbabf;margin-bottom:7px}.metric strong{font-size:23px;font-weight:300;font-variant-numeric:tabular-nums;letter-spacing:.04em}.metric small{font:10px ui-monospace,monospace;color:#a4bfbd;margin-left:4px}.status{position:absolute;top:102px;left:32px;font:9px ui-monospace,monospace;letter-spacing:.14em;color:var(--mint);display:flex;align-items:center;gap:8px}.dot{width:5px;height:5px;border-radius:50%;background:var(--mint);box-shadow:0 0 9px var(--mint)}.lower{position:absolute;bottom:max(33px,env(safe-area-inset-bottom));left:32px;right:32px;display:flex;align-items:flex-end;justify-content:space-between}.sonar-block{display:flex;gap:14px;align-items:center;pointer-events:auto}.sonar-btn{position:relative;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;border-color:#a6ead56b;background:#0c2634b0}.sonar-btn svg{width:34px;height:34px}.sonar-copy{font:9px/1.8 ui-monospace,monospace;letter-spacing:.08em;color:#8cafb2}.sonar-copy strong{display:block;color:var(--mint);font-weight:400;font-size:10px}.charge{width:108px;height:2px;background:#94b9af25;margin-top:5px}.charge i{display:block;height:100%;background:var(--mint);width:100%}.thrust{pointer-events:auto;padding:16px 23px;background:#061e2bb8;display:flex;align-items:center;gap:13px;font-size:10px;letter-spacing:.15em;border-color:#b4ded444;touch-action:none}.thrust:active,.thrust.on{background:#a6ead525;border-color:var(--mint)}.thrust .arrow{font-size:23px}.toast{position:absolute;top:24%;left:50%;transform:translateX(-50%);text-align:center;max-width:80%;width:440px;opacity:0;transition:opacity .7s;pointer-events:none}.toast.show{opacity:1}.toast b{font-size:14px;letter-spacing:.28em;font-weight:400;display:block}.toast span{display:block;font-size:11px;color:#a2bec2;line-height:1.6;margin-top:10px}.hint{position:absolute;bottom:140px;left:50%;transform:translateX(-50%);text-align:center;font-size:11px;line-height:1.8;color:#bdd8d3;background:#061b26aa;padding:10px 18px;border:1px solid #b6e6d522;border-radius:4px;transition:opacity .5s;white-space:nowrap}.overlay{background:#03101899;backdrop-filter:blur(9px);justify-content:center;padding:80px 20px}.panel{max-height:calc(100dvh - 125px);overflow-y:auto;width:min(490px,100%);padding:36px;background:linear-gradient(140deg,#14313bec,#071920f5);border:1px solid #b5dfd62c;box-shadow:0 20px 100px #0005}.panel h2{font-size:36px;font-weight:300;letter-spacing:.04em;margin:15px 0}.panel p{color:#aac1c5;font-size:13px;line-height:1.75}.panel .launch{width:100%;justify-content:space-between;margin-top:14px}.panel .text-button{margin-top:10px;width:100%}.results{display:grid;grid-template-columns:1fr 1fr;gap:23px 20px;border-block:1px solid var(--line);padding:23px 0;margin:25px 0 10px}.results label{display:block;color:#91b0b5;font:9px ui-monospace,monospace;letter-spacing:.12em;margin-bottom:8px}.results strong{font-size:27px;font-weight:300}.instructions{margin:25px 0;border-top:1px solid var(--line)}.instructions div{padding:13px 0;border-bottom:1px solid var(--line);font-size:12px;line-height:1.65;color:#aac1c5}.instructions b{display:block;color:#e0eee7;font-size:11px;margin-bottom:3px}.switches{display:flex;gap:8px;margin-top:15px}.switches button{flex:1;font-size:10px;padding:10px 5px;color:#b4cecc}#flash{position:fixed;inset:0;pointer-events:none;background:#c8e7dc;opacity:0;z-index:2}#error{position:fixed;bottom:20px;left:20px;right:20px;z-index:20;background:#612a20;padding:20px;font-size:14px} @media(max-width:700px){.topbar{left:20px;right:20px;top:max(18px,env(safe-area-inset-top))}.brand{font-size:10px;gap:8px}.brand small{font-size:7px}.brand svg{width:26px;height:26px}.tools{gap:6px}button.icon{width:36px;height:36px}.view{padding:92px 25px 70px;background:linear-gradient(90deg,#04141de8,#04141d65)}h1{font-size:clamp(51px,12vw,80px);margin-top:20px}.intro .lead{font-size:13px;max-width:320px}.legend{gap:18px;margin-top:25px}.foot{left:20px;right:20px;font-size:8px;letter-spacing:.08em}.foot .desktop{display:none}.metrics{top:83px;gap:26px}.metric strong{font-size:20px}.metric label{font-size:7px}.status{top:145px;left:20px;font-size:8px}.lower{left:20px;right:20px;bottom:max(24px,env(safe-area-inset-bottom))}.sonar-btn{width:54px;height:54px}.sonar-copy{font-size:8px}.sonar-copy strong{font-size:9px}.charge{width:75px}.thrust{padding:15px 14px;font-size:9px;gap:8px}.toast{top:26%}.toast b{font-size:12px}.panel{padding:27px}.panel h2{font-size:30px}.hint{font-size:10px;bottom:113px;max-width:94%;white-space:normal;width:340px}}@media(max-height:560px){.view{padding:72px 34px 40px}.intro{max-width:550px}h1{font-size:52px;margin:10px 0}h1 .subhead{font-size:15px;margin-top:5px}.intro .lead{margin:9px 0 13px;font-size:12px}.legend{display:none}.mode-row{margin-top:12px}.foot{bottom:12px}.launch{padding:12px 20px}.topbar{top:13px}.status{top:74px}.metrics{top:19px}.metric strong{font-size:18px}.lower{bottom:18px}.toast{top:25%}.panel{padding:20px;max-height:85vh;overflow:auto}.panel h2{font-size:26px;margin:8px 0}.results{margin:13px 0;padding:14px 0;gap:12px}.hint{bottom:95px}.brand small{display:none}}@media(max-width:400px){.eyebrow{font-size:8px;letter-spacing:.18em}.launch-row{flex-wrap:nowrap;gap:8px}.launch-row .launch{padding:16px 14px;gap:14px;font-size:9px;flex:1;justify-content:space-between}.launch-row .text-button{font-size:10px;padding:15px 10px}.mode-row{gap:6px}.mode-row button{font-size:9px;padding:7px}.legend{gap:14px}}@media(max-width:700px) and (max-height:700px){.view{padding:85px 22px 55px}.intro h1{font-size:48px;margin:15px 0 8px}.intro h1 .subhead{font-size:15px;margin-top:8px}.intro .lead{font-size:12px;margin:16px 0 20px;line-height:1.65}.intro .legend{display:none}.intro .mode-row{margin-top:18px}.intro .eyebrow{max-width:260px}.foot{bottom:17px}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<canvas id="gameCanvas"></canvas>
-
-<div id="ui-overlay">
-    <h1>GAME OVER</h1>
-    <p id="final-score">Score: 0</p>
-    <button onclick="resetGame()">Restart</button>
-</div>
-
+<canvas id="world" aria-label="Side-scrolling submarine survival game. Hold Space, Arrow Up, or the rise button to ascend; release to descend."></canvas>
+<div id="grain"></div><div id="vignette"></div><div id="flash"></div>
+<header class="topbar"><div class="brand"><svg viewBox="0 0 36 36" fill="none" aria-hidden="true"><circle cx="18" cy="18" r="15" stroke="#b1d6ca" stroke-width=".7"/><path d="M5 18h26M18 3v30" stroke="#b1d6ca" stroke-width=".5"/><path d="m11 22 7-13 7 13-7-4z" stroke="#d8e9dd" fill="#d8e9dd11"/></svg><div>ABYSSAL<small>DEEP WATER OPERATIONS</small></div></div><nav class="tools" aria-label="Game settings"><button class="icon" id="sound" aria-label="Enable sound" title="Sound (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 9h4l5-4v14l-5-4H4z"/><path id="soundWaves" d="m17 9 5 6m0-6-5 6"/></svg></button><button class="icon" id="fullscreen" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button><button class="icon" id="pause" aria-label="Pause game" title="Pause (P / Esc)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14M16 5v14"/></svg></button></nav></header>
+<section class="view" id="menu"><div class="intro"><div class="eyebrow">EXPEDITION 07 / THE SILENT PASSAGE</div><h1>ABYSSAL<span class="subhead">SILENT PASSAGE</span></h1><p class="lead">Below the surface, nothing stays still.<br>Navigate the minefields. Follow the shifting depths.<br>When the light disappears, trust the echo.</p><div class="launch-row"><button class="launch" id="launch">BEGIN DESCENT <span>↗</span></button><button class="text-button" id="helpOpen">Dive briefing</button></div><div class="mode-row"><span>MISSION</span><button id="standard" aria-pressed="true">Survival</button><button id="practice" aria-pressed="false">Practice · no damage</button></div><div class="legend"><div><b><span class="key">SPACE</span> HOLD TO RISE</b>Release to descend</div><div><b><span class="key">E</span> SONAR PULSE</b>Listen. Locate. Navigate.</div></div></div></section>
+<footer class="foot" id="footer"><span>VESSEL <strong>NEREID / 07</strong><span class="desktop"> &nbsp; · &nbsp; ENDLESS EXPEDITION</span></span><span>PERSONAL BEST <strong id="best">0 m</strong></span></footer>
+<div class="hud" id="hud" hidden><div class="metrics"><div class="metric"><label>DISTANCE</label><strong id="distance">0000</strong><small>m</small></div><div class="metric"><label>DEPTH</label><strong id="depth">038</strong><small>m</small></div><div class="metric"><label>CLEARED</label><strong id="cleared">00</strong></div></div><div class="status"><i class="dot"></i><span id="sector">01 / CONTINENTAL SHELF</span></div><div class="toast" id="toast" role="status"><b id="toastTitle"></b><span id="toastBody"></span></div><div class="hint" id="hint">Hold <b>Space / ↑</b> or touch the water to rise.<br>Release to descend. Pass between the mines.</div><div class="lower"><div class="sonar-block"><button class="sonar-btn" id="ping" aria-label="Send sonar pulse (E)" title="Sonar (E)"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width=".8"><circle cx="20" cy="20" r="16"/><circle cx="20" cy="20" r="10"/><circle cx="20" cy="20" r="4"/><path d="M20 3v17l11-11M3 20h34M20 20v17"/><circle cx="28" cy="13" r="1.5" fill="currentColor"/></svg></button><div class="sonar-copy"><strong id="sonarState">SONAR READY</strong><span id="sonarHint">E / TAP TO PING</span><div class="charge"><i id="charge"></i></div></div></div><button class="thrust" id="thrust" aria-label="Hold to rise"><span class="arrow">↑</span><span>HOLD TO RISE</span></button></div></div>
+<section class="view overlay" id="paused" hidden><div class="panel"><div class="eyebrow">PROPULSION SUSPENDED</div><h2>Holding position.</h2><p>Take a breath. The ocean will wait.</p><button class="launch" id="resume">RESUME EXPEDITION <span>→</span></button><button class="text-button" id="restartPause">Restart dive</button><button class="text-button" id="quit">Return to surface</button><div class="switches"><button id="motion">Motion effects: on</button></div></div></section>
+<section class="view overlay" id="help" hidden><div class="panel"><div class="eyebrow">NEREID / FIELD MANUAL</div><h2>Know the depths.</h2><div class="instructions"><div><b>01 / CONTROL YOUR BUOYANCY</b>Hold Space, W, ↑, the rise button, or the water to ascend. Release to descend. ↓ / S dives faster. Smooth, short holds give the best control.</div><div><b>02 / FIND THE OPENING</b>Pass between paired mines. Mines, tether cables and rock are solid. Openings follow a connected route; speed rises and gaps narrow as you travel.</div><div><b>03 / LISTEN AFTER DARK</b>Sunset begins around 240 m. Automatic sonar comes online as the light fades. A wave strikes a mine, then its returning echo briefly reveals it. Press E or tap sonar for an extra pulse when ready.</div><div><b>04 / INTO THE UNKNOWN</b>The seabed rises and falls. Caverns and deep basins alternate with open water. P / Esc pauses, M toggles sound. Practice makes collisions harmless and does not save a record.</div></div><button class="launch" id="helpClose">READY TO DIVE <span>→</span></button></div></section>
+<section class="view overlay" id="over" hidden><div class="panel"><div class="eyebrow" id="overLabel">EXPEDITION ENDED</div><h2>Signal lost.</h2><p id="cause">Hull integrity compromised.</p><div class="results"><div><label>DISTANCE TRAVELLED</label><strong id="endDistance">0 m</strong></div><div><label>MINEFIELDS CLEARED</label><strong id="endGates">0</strong></div><div><label>DEEPEST POINT</label><strong id="endDepth">0 m</strong></div><div><label>PERSONAL BEST</label><strong id="endBest">0 m</strong></div></div><button class="launch" id="again">DIVE AGAIN <span>↗</span></button><button class="text-button" id="home">Return to surface</button></div></section>
+<div id="error" hidden></div>
 <script>
-/* -------------------------------------------------
-   Canvas & scaling – now *fixed* at base resolution
-   ------------------------------------------------- */
-const canvas = document.getElementById('gameCanvas');
-const ctx    = canvas.getContext('2d');
-const overlay = document.getElementById('ui-overlay');
-const scoreText = document.getElementById('final-score');
-
-const BASE_W = 400;   // original design width
-const BASE_H = 600;   // original design height
-
-function resizeCanvas() {
-    // Keep the drawing buffer at the original size.
-    canvas.width  = BASE_W;
-    canvas.height = BASE_H;
+'use strict';
+/* ABYSSAL — a self-contained Canvas 2D game. No network, fonts or assets required.
+   World coordinates and collision geometry never change on resize. The camera
+   reveals more world on wide screens; a bounded zoom preserves mobile lookahead.
+   Physics: 120 Hz fixed steps, all velocities in world units per second. */
+(() => {
+const $=id=>document.getElementById(id), canvas=$('world'), c=canvas.getContext('2d',{alpha:false});
+const TAU=Math.PI*2, clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), mix=(a,b,t)=>a+(b-a)*t;
+const smooth=(a,b,x)=>{let t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
+const hash=n=>{let s=Math.sin(n*127.1+311.7)*43758.5453;return s-Math.floor(s)};
+const rgb=(a,b,t)=>`rgb(${a.map((v,i)=>Math.round(mix(v,b[i],t))).join(',')})`;
+const STEP=1/120, R=24, HX=45, HY=17, SOUND_SPEED=1100, SONAR_RANGE=1180;
+let W=innerWidth,H=innerHeight,dpr=1,scale=1,vw=1,vh=1,camX=0,camY=-10;
+let state='menu', practice=false, held=false, down=false, inputKeys=new Set(),pointerLift=false;
+let t=0, ambient=0, distance=0, speed=145, difficulty=0, night=0, sub={x:0,y:400,v:0}, gates=[],nextGate=760,lastCenter=null;
+let pings=[],echoes=[],bubbles=[],debris=[],cleared=0,maxDepth=0,echoCount=0,lastPing=-10,autoAt=0,lastBubble=0,shake=0,flash=0,crashAt=0;
+let toastUntil=0,sunsetAnnounced=false,caveAnnounced=false,nightAnnounced=false,practiceHit=-9,deathCause='',best=0,runSeed=Math.random()*1000;
+let reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, soundOn=false,audio=null,engine=null,engineGain=null;
+let lastHud=-1, menuY=390;
+try{best=Number(localStorage.getItem('abyssal.best.v1'))||0}catch(_){}
+$('best').textContent=best+' m';$('motion').textContent='Motion effects: '+(reduced?'reduced':'on');
+function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);scale=Math.min(clamp(H/820,.3,1.22),W/650);vw=W/scale;vh=H/scale;}
+addEventListener('resize',resize);resize();
+/* Slowly varying terrain. Caves use C1-continuous envelopes; no vertical steps.
+   Mine centres follow this same corridor, with bounded lateral variation. */
+function terrain(x){
+ const q=Math.max(0,x), cycle=((q-2850)%7600+7600)%7600;
+ const cave=q<2850?0:smooth(0,1100,cycle)*(1-smooth(2900,4100,cycle));
+ const basin=q<2850?0:smooth(4200,5400,cycle)*(1-smooth(6400,7550,cycle));
+ const centre=423+52*Math.sin(q/860)+27*Math.sin(q/393)+cave*270+basin*250;
+ const half=257-50*cave+14*Math.sin(q/650);
+ const top=mix(68,centre-half,cave);
+ const bottom=centre+half+13*Math.sin(q/137)+6*Math.sin(q/57);
+ return {top,bottom,cave,centre:(top+bottom)/2,basin};
 }
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();   // initial sizing
-
-/* -------------------------------------------------
-   Game constants – expressed in *base* units
-   ------------------------------------------------- */
-const GRAVITY = 0.25;
-const BUOYANCY = -5;
-
-const INITIAL_MINE_SPEED = 2.0, MAX_MINE_SPEED = 5.5, SPEED_INCREMENT = 0.0005;
-let currentMineSpeed = INITIAL_MINE_SPEED;
-
-const INITIAL_SPAWN_RATE = 160, MIN_SPAWN_RATE = 70, SPAWN_REDUCTION_RATE = 0.06;
-let currentSpawnRate = INITIAL_SPAWN_RATE;
-
-const DIFFICULTY_SCALE_SPEED = 0.0003;
-let difficultyFactor = 0;
-
-/* Geometry (base units) */
-const SUB_W = 40, SUB_H = 25, MINE_R = 12;
-const CHAIN_W = 4;
-const SURFACE_Y = 40, FLOOR_Y = 560;
-const PLAYABLE_H = FLOOR_Y - SURFACE_Y;
-
-/* Chain / gap ranges (scaled with difficulty) – still base units */
-const CHAIN_LEN_MIN = [PLAYABLE_H*0.1, PLAYABLE_H*0.3];
-const CHAIN_LEN_MAX = [PLAYABLE_H*0.4, PLAYABLE_H*0.8];
-const GAP_MIN = [PLAYABLE_H*0.4, PLAYABLE_H*0.2];
-const GAP_MAX = [PLAYABLE_H*0.7, PLAYABLE_H*0.4];
-const DUAL_CHANCE = [0.2,0.5];
-
-/* Game objects */
-let submarine, mines, score, frameCount, gameActive, gameStarted;
-let clouds=[], rocks=[], seaweeds=[], bubbles=[], particles=[];
-
-/* -------------------------------------------------
-   Helper functions
-   ------------------------------------------------- */
-function lerp(a,b,t){return a+(b-a)*t;}
-
-/* -------------------------------------------------
-   Init / reset
-   ------------------------------------------------- */
-function init(){
-    submarine = {x:50, y:BASE_H/2, velocity:0, width:SUB_W, height:SUB_H, propAngle:0};
-    mines = []; particles = []; score = 0; frameCount = 0;
-    currentMineSpeed = INITIAL_MINE_SPEED;
-    currentSpawnRate = INITIAL_SPAWN_RATE;
-    difficultyFactor = 0;
-    gameActive = true; gameStarted = false;
-    overlay.style.display = 'none';
-
-    clouds = [];
-    for(let i=0;i<5;i++) clouds.push({
-        x:Math.random()*BASE_W,
-        y:Math.random()*(SURFACE_Y-20),
-        s:0.2+Math.random()*0.5,
-        w:30+Math.random()*20
-    });
-
-    rocks = [];
-    for(let i=0;i<8;i++) rocks.push({
-        x:Math.random()*BASE_W,
-        y:FLOOR_Y+Math.random()*20,
-        r:3+Math.random()*7
-    });
-
-    seaweeds = [];
-    for(let i=0;i<12;i++) seaweeds.push({
-        x:Math.random()*BASE_W,
-        h:10+Math.random()*20,
-        offset:Math.random()*Math.PI*2
-    });
-
-    bubbles = [];
-    for(let i=0;i<20;i++) spawnBubble(true);
+function route(x){const z=terrain(x);return z.centre+28*Math.sin(x/540+runSeed)+12*Math.sin(x/980);}
+function makeGate(x){
+ const d=clamp(x/24000,0,1), z=terrain(x), gap=mix(248,166,d);
+ const desired=route(x), reach=lastCenter===null?desired:clamp(desired,lastCenter-102,lastCenter+102);
+ const centre=clamp(reach,z.top+R+gap/2+36,z.bottom-R-gap/2-36);
+ const g={x,centre,gap,top:centre-gap/2-R,bottom:centre+gap/2+R,passed:false,echo:[-100,-100],near:false,id:gates.length};
+ lastCenter=centre;gates.push(g);return g;
 }
-
-/* -------------------------------------------------
-   Bubble spawning (limit to keep performance)
-   ------------------------------------------------- */
-const MAX_BUBBLES = 500;
-function spawnBubble(randomY=false, x=null, y=null){
-    if(bubbles.length>=MAX_BUBBLES) return;
-    bubbles.push({
-        x: x!==null ? x : Math.random()* (BASE_W+1000),
-        y: y!==null ? y : (randomY ? Math.random()*(FLOOR_Y-SURFACE_Y)+SURFACE_Y : FLOOR_Y),
-        size:.5+Math.random()*1.5,
-        speed:0.5+Math.random()*1.5,
-        drift:(Math.random()-0.5)*0.5
-    });
+function populate(){while(nextGate<sub.x+Math.max(vw,2600)+900){makeGate(nextGate);nextGate+=mix(570,480,clamp(nextGate/24000,0,1));}gates=gates.filter(g=>g.x>sub.x-700);}
+function reset(){t=0;distance=0;difficulty=0;speed=145;night=0;sub={x:0,y:route(0),v:0};gates=[];nextGate=760;lastCenter=null;pings=[];echoes=[];bubbles=[];debris=[];cleared=0;maxDepth=0;echoCount=0;lastPing=-10;autoAt=0;lastBubble=0;shake=0;flash=0;sunsetAnnounced=false;caveAnnounced=false;nightAnnounced=false;practiceHit=-9;lastHud=-1;toastUntil=0;runSeed=Math.random()*1000;sub.y=route(0);camY=Math.max(-130,terrain(0).centre-vh*.53);clearInput();populate();}
+function show(id,visible){$(id).hidden=!visible}
+function start(){initAudio();reset();state='playing';['menu','footer','paused','help','over'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING',practice?'Explore freely. Collisions are harmless.':'Maintain a steady depth. The first minefield is ahead.',3);}
+function home(){state='menu';clearInput();['paused','over','hud','pause','help'].forEach(id=>show(id,false));show('menu',true);show('footer',true);$('best').textContent=best+' m';reset();}
+function clearInput(){held=false;down=false;pointerLift=false;inputKeys.clear();$('thrust').classList.remove('on')}
+function pause(){if(state!=='playing')return;state='paused';clearInput();show('paused',true);$('resume').focus()}
+function resume(){if(state!=='paused')return;state='playing';show('paused',false);last=performance.now();acc=0;}
+function toast(title,body,seconds=4){$('toastTitle').textContent=title;$('toastBody').textContent=body;toastUntil=t+seconds;$('toast').classList.add('show');}
+function initAudio(){if(!soundOn)return;try{if(!audio){audio=new (window.AudioContext||window.webkitAudioContext)();engine=audio.createOscillator();engine.type='sine';engine.frequency.value=47;engineGain=audio.createGain();engineGain.gain.value=0;engine.connect(engineGain).connect(audio.destination);engine.start()}if(audio.state==='suspended')audio.resume().catch(()=>{});}catch(_){soundOn=false;updateSound()}}
+function tone(f,dur,vol=.08,end=f){if(!soundOn||!audio||audio.state!=='running')return;let o=audio.createOscillator(),g=audio.createGain(),at=audio.currentTime;o.type='sine';o.frequency.setValueAtTime(f,at);o.frequency.exponentialRampToValueAtTime(end,at+dur);g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(vol,at+.012);g.gain.exponentialRampToValueAtTime(.0001,at+dur);o.connect(g).connect(audio.destination);o.start(at);o.stop(at+dur+.02);o.onended=()=>{o.disconnect();g.disconnect()}}
+function updateSound(){$('sound').setAttribute('aria-label',soundOn?'Mute sound':'Enable sound');$('sound').setAttribute('aria-pressed',String(soundOn));$('soundWaves').setAttribute('d',soundOn?'M17 8q5 4 0 8M20 5q8 7 0 14':'m17 9 5 6m0-6-5 6');if(!soundOn&&engineGain)engineGain.gain.setTargetAtTime(0,audio.currentTime,.1)}
+function toggleSound(){soundOn=!soundOn;initAudio();updateSound();if(soundOn)tone(450,.12,.035,600)}
+function ping(manual=false){if(state!=='playing'||t-lastPing<(manual?1.15:2.15))return false;lastPing=t;pings.push({x:sub.x,y:sub.y,born:t,r:0,hit:new Set()});tone(740,.65,.075,440);return true;}
+function updateSonar(dt){
+ if(night>.06&&t-lastPing>=2.15)ping();
+ for(const p of pings){p.r=(t-p.born)*SOUND_SPEED;for(const g of gates)for(let k=0;k<2;k++){const key=g.x+':'+k, my=k?g.bottom:g.top,dist=Math.hypot(g.x-p.x,my-p.y);if(dist<=SONAR_RANGE&&dist<=p.r&&!p.hit.has(key)){p.hit.add(key);echoes.push({x:g.x,y:my,ox:g.x,oy:my,g,k,born:t});}}}
+ pings=pings.filter(p=>p.r<SONAR_RANGE);
+ for(let i=echoes.length-1;i>=0;i--){let e=echoes[i],dx=sub.x-e.x,dy=sub.y-e.y,dist=Math.hypot(dx,dy);if(dist<SOUND_SPEED*dt+8){e.g.echo[e.k]=t;echoCount++;if(e.g.x>sub.x-100&&e.g.x<sub.x+700)tone(1250,.16,.018,850);echoes.splice(i,1);}else {e.x+=dx/dist*SOUND_SPEED*dt;e.y+=dy/dist*SOUND_SPEED*dt;}}
 }
-
-/* -------------------------------------------------
-   Drawing helpers – **no scaling** any more
-   ------------------------------------------------- */
-function drawSubmarine(x,y,w,h){
-    submarine.propAngle += 0.3;
-
-    const sx = x, sy = y, sw = w, sh = h;
-
-    const bodyGrad = ctx.createRadialGradient(sx+sw/2, sy+sh/2, sw*0.1, sx+sw/2, sy+sh/2, sw/2);
-    bodyGrad.addColorStop(0, '#c0c0c0');
-    bodyGrad.addColorStop(1, '#555');
-    ctx.fillStyle = bodyGrad;
-    ctx.strokeStyle = '#222';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(sx+sw/2, sy+sh/2, sw/2, sh/2, 0, 0, Math.PI*2);
-    ctx.fill(); ctx.stroke();
-
-    /* Periscope */
-    ctx.fillStyle = '#333';
-    ctx.fillRect(sx+sw*0.33, sy-10, sw*0.33, 10);
-    ctx.strokeRect(sx+sw*0.33, sy-10, sw*0.33, 10);
-    ctx.beginPath();
-    ctx.moveTo(sx+sw/2+2, sy-10);
-    ctx.lineTo(sx+sw/2+2, sy-14);
-    ctx.lineTo(sx+sw/2+5, sy-14);
-    ctx.stroke();
-
-    /* Window */
-    ctx.fillStyle = 'rgba(173,216,230,0.6)';
-    ctx.beginPath();
-    ctx.arc(sx+sw/4, sy+sh/2, 4, 0, Math.PI*2);
-    ctx.fill(); ctx.stroke();
-
-    /* Tail fin */
-    ctx.fillStyle = '#888';
-    ctx.fillRect(sx-5, sy+sh/3, 5, sh/3);
-
-    /* Propeller */
-    ctx.save();
-    ctx.translate(sx-5, sy+sh/2);
-    ctx.rotate(submarine.propAngle);
-    ctx.fillStyle = '#444';
-    ctx.fillRect(-2,-6,4,12);
-    ctx.fillRect(-6,-2,12,4);
-    ctx.shadowColor = 'rgba(255,255,200,0.8)';
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = '#ff0';
-    ctx.fillRect(-2,-6,4,12);
-    ctx.restore();
-    ctx.shadowBlur = 0;
+function crash(reason){if(state!=='playing')return;if(practice){if(t-practiceHit>1.3){practiceHit=t;toast('CONTACT / PRACTICE MODE','Contact registered. Keep exploring.',1.5)}return;}state='dying';clearInput();deathCause=reason;crashAt=ambient;shake=reduced?0:10;flash=reduced?.1:.6;show('pause',false);tone(90,1,.22,22);for(let i=0;i<75;i++){let a=Math.random()*TAU,s=30+Math.random()*220;debris.push({x:sub.x,y:sub.y,vx:Math.cos(a)*s+speed*.25,vy:Math.sin(a)*s,life:1+Math.random()*1.4,max:2.4,r:1+Math.random()*4,hot:i<25})}}
+function finish(){state='over';let metres=Math.floor(distance);if(metres>best){best=metres;try{localStorage.setItem('abyssal.best.v1',String(best))}catch(_){}$('overLabel').textContent='NEW PERSONAL BEST'}else $('overLabel').textContent='EXPEDITION ENDED';$('cause').textContent=deathCause;$('endDistance').textContent=metres+' m';$('endGates').textContent=cleared;$('endDepth').textContent=Math.floor(maxDepth)+' m';$('endBest').textContent=best+' m';show('over',true);$('again').focus()}
+function physics(dt){
+ t+=dt;difficulty=clamp(sub.x/24000,0,1);speed=mix(145,230,difficulty)*(practice?.83:1);sub.x+=speed*dt;distance=sub.x*.1;night=smooth(2400,5100,sub.x);
+ held=pointerLift||inputKeys.has('Space')||inputKeys.has('ArrowUp')||inputKeys.has('KeyW');down=inputKeys.has('ArrowDown')||inputKeys.has('KeyS');
+ const accel=held?-430:(down?620:350);sub.v=clamp(sub.v+(accel-2.5*sub.v)*dt,-172,down?220:140);sub.y+=sub.v*dt;
+ const z=terrain(sub.x);maxDepth=Math.max(maxDepth,(sub.y-68)*.1);populate();
+ if(practice)sub.y=clamp(sub.y,z.top+HY+3,z.bottom-HY-3);
+ for(let xx=-HX;xx<=HX;xx+=15){let rock=terrain(sub.x+xx);let ry=HY*Math.sqrt(Math.max(0,1-(xx/HX)**2));if(sub.y-ry<rock.top||sub.y+ry>rock.bottom){crash(sub.y-ry<rock.top?(rock.cave>.2?'The sail struck the cavern ceiling.':'The vessel breached the safe surface limit.'):'The pressure hull struck the seabed.');break;}}
+ if(state!=='playing')return;
+ for(const g of gates){
+  if(Math.abs(g.x-sub.x)<HX+R){
+   const dx=Math.max(0,Math.abs(g.x-sub.x)-(HX-HY));
+   for(const my of [g.top,g.bottom]){if(Math.hypot(dx,my-sub.y)<R+HY){crash('A moored mine detonated beside the hull.');break;}}
+   if(Math.abs(g.x-sub.x)<HX&&((sub.y-HY<g.top)||(sub.y+HY>g.bottom)))crash('The vessel caught a mine tether. Give the cables room.');
+  }
+  if(!g.passed&&g.x+R+HX<sub.x){g.passed=true;cleared++;tone(360,.07,.018,480);}
+  if(state!=='playing')break;
+ }
+ updateSonar(dt);
+ if(!sunsetAnnounced&&sub.x>2400){sunsetAnnounced=true;toast('LIGHT IS FADING','Automatic sonar coming online. Watch for returning echoes.',5)}
+ if(!caveAnnounced&&z.cave>.5){caveAnnounced=true;toast('ENTERING THE CATHEDRAL','Rock above. Rock below. Follow the open water.',4)}
+ if(!nightAnnounced&&night>.97){nightAnnounced=true;toast('RUNNING SILENT','Echoes reveal the mines. The cables are just as dangerous.',4)}
+ if(t>toastUntil)$('toast').classList.remove('show');
+ if(t>8)$('hint').style.opacity='0';
+ if(t-lastBubble>.04){lastBubble=t;bubbles.push({x:sub.x-54,y:sub.y+(Math.random()-.5)*9,r:1+Math.random()*2.3,life:2+Math.random(),vx:-30-Math.random()*35,vy:-8-Math.random()*18});}
+ for(let i=bubbles.length-1;i>=0;i--){let b=bubbles[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;if(b.life<0)bubbles.splice(i,1)}
+ camY=mix(camY,Math.max(-130,z.centre-vh*.53),1-Math.exp(-dt*2));
+ if(t-lastHud>.1){lastHud=t;updateHUD(z)}
 }
-
-/* Boat (surface anchor) */
-function drawBoat(x,y){
-    const sx = x, sy = y;
-    ctx.save(); ctx.translate(sx,sy);
-    ctx.fillStyle = '#5a5a2f';
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(-30,0); ctx.lineTo(30,0);
-    ctx.lineTo(40,5); ctx.lineTo(30,12);
-    ctx.lineTo(-30,12); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-
-    ctx.fillStyle = '#6b8e23';
-    ctx.fillRect(-10,-15,20,15);
-    ctx.strokeRect(-10,-15,20,15);
-
-    ctx.fillStyle = '#333';
-    ctx.fillRect(-5,-22,5,7);
-    ctx.fillRect(5,-22,5,7);
-    ctx.restore();
+function updateHUD(z){$('distance').textContent=String(Math.floor(distance)).padStart(4,'0');$('depth').textContent=String(Math.max(0,Math.floor((sub.y-68)*.1))).padStart(3,'0');$('cleared').textContent=String(cleared).padStart(2,'0');$('sector').textContent=(practice?'PRACTICE / ':z.cave>.45?'02 / ':z.basin>.4?'03 / ':'01 / ')+(z.cave>.45?'THE CATHEDRAL':z.basin>.4?'HADAL BASIN':night>.9?'MIDNIGHT SHELF':'CONTINENTAL SHELF');let charge=clamp((t-lastPing)/1.15,0,1);$('charge').style.width=charge*100+'%';$('sonarState').textContent=charge<1?'LISTENING FOR ECHO':night>.06?'AUTO SONAR ACTIVE':'SONAR READY';$('sonarHint').textContent=charge<1?'PULSE IN TRANSIT':'E / TAP TO PING';$('thrust').classList.toggle('on',held)}
+/* Drawing helpers. Every asset is rendered in world space using shaded paths,
+   with a separate CSS-pixel UI. Raster resolution tracks device pixel ratio. */
+function path(points,fill,stroke,width=1){c.beginPath();points.forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.closePath();if(fill){c.fillStyle=fill;c.fill()}if(stroke){c.strokeStyle=stroke;c.lineWidth=width;c.stroke()}}
+function circle(x,y,r,fill,stroke=null,w=1){c.beginPath();c.arc(x,y,r,0,TAU);if(fill){c.fillStyle=fill;c.fill()}if(stroke){c.strokeStyle=stroke;c.lineWidth=w;c.stroke()}}
+function glow(x,y,r,color){let g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2)}
+function drawSky(){
+ const surf=(68-camY)*scale, horizon=Math.max(0,surf), twilight=Math.sin(night*Math.PI);
+ let g=c.createLinearGradient(0,0,0,Math.max(horizon,1));g.addColorStop(0,rgb([54,104,118],[5,14,30],night));g.addColorStop(1,rgb([176+twilight*45,188-twilight*35,171-twilight*38],[18,39,54],night));c.fillStyle=g;c.fillRect(0,0,W,Math.max(0,surf));
+ if(surf>0){
+  for(let i=0;i<75;i++){let x=hash(i*4)*W,y=hash(i*4+1)*Math.max(160,surf-15);c.globalAlpha=night*hash(i*4+2)*.8;circle(x,y,.5+hash(i+6)*.8,'#d3e6e9')}c.globalAlpha=1;
+  let sunx=W*.76,suny=surf-(1-night)*110*scale+night*35*scale;glow(sunx,suny,100*scale,`rgba(255,${Math.round(206-twilight*35)},147,${(1-night)*.23})`);circle(sunx,suny,19*scale,`rgba(255,224,179,${1-night})`);
+  if(night>.25){c.globalAlpha=night*.85;circle(W*.84,surf-165*scale,13*scale,'#d7e4e2');circle(W*.84-6*scale,surf-170*scale,12*scale,'#0d1d30');c.globalAlpha=1;}
+  c.fillStyle=`rgba(11,37,48,${.3+night*.3})`;c.beginPath();c.moveTo(0,surf);for(let x=0;x<=W+40;x+=40)c.lineTo(x,surf-(10+14*Math.sin(x/180)+7*Math.sin(x/43))*scale);c.lineTo(W,surf);c.fill();
+ }
 }
-
-/* Realistic mine */
-function drawRealisticMine(x,y){
-    const sx = x, sy = y, r = MINE_R;
-    const grad = ctx.createRadialGradient(sx-4, sy-4, 2, sx, sy, r);
-    grad.addColorStop(0, '#ff6666');
-    grad.addColorStop(0.6, '#cc0000');
-    grad.addColorStop(1, '#660000');
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(sx,sy,r,0,Math.PI*2); ctx.fill();
-
-    ctx.strokeStyle = '#555';
-    ctx.lineWidth = 2;
-    for(let i=0;i<8;i++){
-        const a = (i/8)*Math.PI*2;
-        const sx1 = sx+Math.cos(a)*(r-2);
-        const sy1 = sy+Math.sin(a)*(r-2);
-        const sx2 = sx+Math.cos(a)*(r+6);
-        const sy2 = sy+Math.sin(a)*(r+6);
-        ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
-
-        ctx.fillStyle = '#444';
-        ctx.beginPath(); ctx.arc(sx2,sy2,2,0,Math.PI*2); ctx.fill();
-    }
-
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.beginPath(); ctx.arc(sx-3,sy-3,3,0,Math.PI*2); ctx.fill();
+function drawWater(){
+ const sy=(68-camY)*scale, deep=terrain(sub.x).cave;let g=c.createLinearGradient(0,sy,0,H);
+ g.addColorStop(0,rgb([25,100,114],[5,22,37],night));g.addColorStop(.35,rgb([10,62,78],[3,18,30],night));g.addColorStop(1,rgb([3,24,39],[2,10,19],night));c.fillStyle=g;c.fillRect(0,Math.max(0,sy),W,H);
+ c.save();c.beginPath();c.rect(0,Math.max(0,sy),W,H);c.clip();
+ if(!reduced){c.globalCompositeOperation='screen';for(let i=0;i<7;i++){let x=((i*300-sub.x*.12)%(vw+500)+vw+500)%(vw+500)-250;let a=.025*(1-night)*(1-deep*.85);let gg=c.createLinearGradient(0,sy,0,H*.95);gg.addColorStop(0,`rgba(172,235,215,${a*3})`);gg.addColorStop(1,'#82ddcc00');path([[x*scale,sy],[(x+50)*scale,sy],[(x+360+Math.sin(ambient*.15+i)*50)*scale,H],[(x+160)*scale,H]],gg)}c.globalCompositeOperation='source-over';}
+ // Layered distant escarpments move at a different rate from collision terrain.
+ for(let layer=0;layer<3;layer++){c.beginPath();c.moveTo(0,H);for(let sx=-30;sx<=W+30;sx+=25){let wx=camX*(.18+layer*.12)+sx/scale;let y=terrain(wx+1900).bottom+120-layer*70+45*Math.sin(wx/(180-layer*30));c.lineTo(sx,(y-camY)*scale)}c.lineTo(W,H);c.closePath();c.fillStyle=rgb([[11,49,62],[9,42,55],[6,34,47]][layer],[[5,20,32],[4,18,29],[3,16,25]][layer],night);c.fill();}
+ // Suspended marine snow; deterministic particles avoid allocation in the loop.
+ for(let i=0;i<100;i++){let px=((hash(i+12)*vw*1.5-sub.x*.14*(.3+hash(i+2)))%vw+vw)%vw,py=((hash(i+45)*vh+ambient*(2+hash(i)*4))%vh);let a=(.07+hash(i+88)*.12)*(1-night*.6);circle(px*scale,py*scale,(.45+hash(i+5)*1.1)*scale,`rgba(167,224,220,${a})`)}
+ // Tiny, distant fish schools.
+ for(let j=0;j<3;j++){let fx=((j*490+330-sub.x*.25-ambient*12)%(vw+500)+vw+500)%(vw+500)-200,fy=210+j*128+Math.sin(ambient*.18+j)*20;for(let i=0;i<7;i++){let xx=(fx+hash(i+j*17)*90)*scale,yy=(fy+hash(i*3+j)*35-camY)*scale;c.globalAlpha=.2*(1-night*.7);c.fillStyle='#9ac6c5';c.beginPath();c.ellipse(xx,yy,4*scale,1.1*scale,0,0,TAU);c.fill();path([[xx+3*scale,yy],[xx+7*scale,yy-2*scale],[xx+7*scale,yy+2*scale]],'#9ac6c5')}}c.globalAlpha=1;c.restore();
 }
-
-/* Cloud */
-function drawCloud(c){
-    const sx = c.x, sy = c.y, sw = c.w;
-    const grad = ctx.createRadialGradient(sx, sy, sw*0.1, sx, sy, sw);
-    grad.addColorStop(0, 'rgba(255,255,255,0.7)');
-    grad.addColorStop(1, 'rgba(255,255,255,0.2)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(sx, sy, sw/3, 0, Math.PI*2);
-    ctx.arc(sx + sw/4, sy-5, sw/3, 0, Math.PI*2);
-    ctx.arc(sx + sw/2, sy, sw/3, 0, Math.PI*2);
-    ctx.fill();
+function worldTransform(){c.setTransform(dpr*scale,0,0,dpr*scale,-camX*dpr*scale,-camY*dpr*scale)}
+function drawSurface(){if(camY>100)return;c.strokeStyle=`rgba(174,220,214,${.23*(1-night*.7)})`;c.lineWidth=1.2;c.beginPath();for(let x=Math.floor(camX/12)*12;x<camX+vw+12;x+=12){let y=68+Math.sin(x*.032+ambient*1.1)*2+Math.sin(x*.076-ambient*.8);x===Math.floor(camX/12)*12?c.moveTo(x,y):c.lineTo(x,y)}c.stroke();for(let i=0;i<18;i++){let x=camX+hash(i+88)*vw;let y=72+hash(i)*18;c.strokeStyle=`rgba(188,217,205,${.1*(1-night)})`;c.beginPath();c.moveTo(x,y);c.lineTo(x+15+hash(i)*70,y);c.stroke()}}
+function rockShape(top=false){let start=Math.floor(camX/12)*12-24,end=camX+vw+30;c.beginPath();c.moveTo(start,top?camY-200:camY+vh+200);for(let x=start;x<=end;x+=12)c.lineTo(x,top?terrain(x).top:terrain(x).bottom);c.lineTo(end,top?camY-200:camY+vh+200);c.closePath();}
+function drawTerrain(){
+ for(const top of [false,true]){
+ if(top&&terrain(sub.x).cave<.01&&terrain(camX+vw).cave<.01&&terrain(camX).cave<.01)continue;
+ c.save();rockShape(top);c.clip();
+ let g=c.createLinearGradient(0,camY,0,camY+vh);g.addColorStop(0,top?'#0b202a':'#193b40');g.addColorStop(.55,top?'#122c33':'#112e35');g.addColorStop(1,'#05141d');c.fillStyle=g;c.fillRect(camX-40,camY-200,vw+80,vh+400);
+ // Sedimentary strata and fractured, shaded rock faces.
+ for(let layer=0;layer<7;layer++){c.beginPath();for(let x=Math.floor(camX/28)*28-28;x<=camX+vw+35;x+=28){let edge=top?terrain(x).top:terrain(x).bottom,y=edge+(top?-1:1)*(13+layer*23+8*Math.sin(x/110+layer));x===Math.floor(camX/28)*28-28?c.moveTo(x,y):c.lineTo(x,y)}c.lineWidth=layer===0?3:1;c.strokeStyle=`rgba(103,151,145,${(layer===0?.14:.08)*(1-night*.6)})`;c.stroke();}
+ for(let i=Math.floor(camX/75)-1;i<(camX+vw)/75+1;i++){let x=i*75,edge=top?terrain(x).top:terrain(x).bottom,dir=top?-1:1,y=edge+dir*(12+hash(i)*70),r=25+hash(i+7)*45;path([[x-r,y],[x-r*.3,y-dir*r*.35],[x+r*.7,y+dir*r*.1],[x+r,y+dir*r*.9],[x-r*.7,y+dir*r*.6]],`rgba(61,90,91,${.13+hash(i+2)*.1})`,'#04121a55',1);c.strokeStyle='#abc1a416';c.beginPath();c.moveTo(x-r,y);c.lineTo(x-r*.3,y-dir*r*.35);c.lineTo(x+r*.7,y+dir*r*.1);c.stroke();}
+ for(let i=Math.floor(camX/18);i<(camX+vw)/18+1;i++){let xx=i*18+hash(i+9)*17,edge=top?terrain(xx).top:terrain(xx).bottom;for(let k=0;k<5;k++){let yy=edge+(top?-1:1)*(5+hash(i*7+k)*170);c.fillStyle=k%2?'#a3c4a610':'#010b1366';c.fillRect(xx+hash(i+k)*12,yy,1+hash(i*2+k)*4,1+hash(i*3+k)*2)}}
+ if(night){c.fillStyle=`rgba(0,6,13,${night*.35})`;c.fillRect(camX-30,camY-200,vw+60,vh+400)}c.restore();
+ rockShape(top);c.lineWidth=2;c.strokeStyle=top?'#598f8a45':'#81b2a04f';c.stroke();
+ }
+ // Kelp and cold-water coral attached to the actual seabed.
+ for(let i=Math.floor(camX/43)-2;i<(camX+vw)/43+2;i++){let x=i*43+hash(i)*23,z=terrain(x),h=15+hash(i+1)*50;if(hash(i+5)>.38){c.strokeStyle=night>.7?'#163e42':'#28615b';c.lineWidth=2;let sway=Math.sin(ambient*.9+i)*h*.13;c.beginPath();c.moveTo(x,z.bottom+4);c.bezierCurveTo(x-5,z.bottom-h*.3,x+sway,z.bottom-h*.7,x+sway*.7,z.bottom-h);c.stroke();for(let k=1;k<4;k++){let yy=z.bottom-h*k/4,side=k%2?1:-1;path([[x,yy+7],[x+side*(9-k),yy-4],[x+sway*.4,yy-2]],night>.7?'#153c3d':'#26594f')}}
+ if(hash(i+12)>.75){for(let k=0;k<4;k++){let xx=x+k*4,yy=z.bottom-5-hash(i+k)*10;glow(xx,yy,9,`rgba(89,211,193,${.07+night*.08})`);circle(xx,yy,1.2,'#6cb9b183')}}}
 }
-
-/* Rock */
-function drawRock(r){
-    const sx = r.x, sy = r.y, sr = r.r;
-    ctx.fillStyle = '#2a2a2a';
-    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#111';
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
+function mine(x,y,alpha,echo){
+ c.save();c.globalAlpha=alpha;c.translate(x,y);c.rotate(Math.sin(ambient*.5+x)*.035);
+ c.strokeStyle='#152128';c.lineWidth=5;for(let i=0;i<8;i++){let a=i*TAU/8;c.beginPath();c.moveTo(Math.cos(a)*15,Math.sin(a)*15);c.lineTo(Math.cos(a)*23,Math.sin(a)*23);c.stroke();c.strokeStyle='#536164';c.lineWidth=2;c.beginPath();c.moveTo(Math.cos(a)*16-1,Math.sin(a)*16-1);c.lineTo(Math.cos(a)*22-1,Math.sin(a)*22-1);c.stroke();c.strokeStyle='#152128';c.lineWidth=5;circle(Math.cos(a)*23,Math.sin(a)*23,2.5,'#445157');}
+ let g=c.createRadialGradient(-7,-8,1,1,3,22);g.addColorStop(0,'#738183');g.addColorStop(.35,'#3d4e53');g.addColorStop(.72,'#1c2b32');g.addColorStop(1,'#09131b');circle(0,0,18,g,'#748a8844');c.strokeStyle='#929d8c55';c.lineWidth=.8;c.beginPath();c.ellipse(0,0,18,6,-.27,0,TAU);c.stroke();c.strokeStyle='#09171d';c.beginPath();c.ellipse(0,0,8,18,-.27,0,TAU);c.stroke();for(let i=0;i<5;i++){let a=i*1.3;circle(Math.cos(a)*13,Math.sin(a)*13,1,'#84908b88')}path([[-8,1],[-3,-7],[1,2]],'#a3915366');circle(6,-6,1.7,'#a55e38');c.restore();
+ if(echo>.01){c.save();c.globalAlpha=echo;circle(x,y,29,null,'#9ef0cf',.9);c.strokeStyle='#9ef0cf';c.lineWidth=.7;for(let a=0;a<4;a++){let angle=a*Math.PI/2;c.beginPath();c.moveTo(x+Math.cos(angle)*32,y+Math.sin(angle)*32);c.lineTo(x+Math.cos(angle)*38,y+Math.sin(angle)*38);c.stroke()}c.font='8px ui-monospace,monospace';c.fillStyle='#ace9d1';c.fillText('CONTACT',x+36,y-8);c.restore();}
 }
-
-/* Sea‑weed */
-function drawSeaweed(s){
-    const sx = s.x;
-    ctx.strokeStyle = '#2e8b57';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(sx, FLOOR_Y);
-    const wave = Math.sin(frameCount*0.05 + s.offset)*5;
-    ctx.quadraticCurveTo(sx+wave, FLOOR_Y - s.h/2, sx, FLOOR_Y - s.h);
-    ctx.stroke();
+function drawMines(){for(const g of gates){if(g.x<camX-80||g.x>camX+vw+80)continue;let z=terrain(g.x);for(let k=0;k<2;k++){let y=k?g.bottom:g.top,from=k?z.bottom:z.top,elapsed=t-g.echo[k],echo=elapsed>=0?clamp(1-elapsed/1.65,0,1):0,nearLight=clamp(1-Math.hypot(g.x-sub.x,y-sub.y)/180,0,1)*.4;let a=clamp(1-night*.972+echo*.95+nearLight*night,.028,1);c.save();c.globalAlpha=a;c.strokeStyle='#7b8b85';c.lineWidth=1.5;c.beginPath();c.moveTo(g.x,from);c.lineTo(g.x,y);c.stroke();c.strokeStyle='#adc1ac55';c.lineWidth=.65;for(let yy=Math.min(y,from)+5;yy<Math.max(y,from)-5;yy+=11){c.beginPath();c.ellipse(g.x,yy,1.5,3.5,0,0,TAU);c.stroke()}path([[g.x-12,from],[g.x-7,from+(k?7:-7)],[g.x+9,from+(k?7:-7)],[g.x+13,from]],'#52666a');c.restore();mine(g.x,y,a,echo*night);}}
 }
-
-/* Bubble */
-function drawBubble(b){
-    const sx = b.x, sy = b.y, sz = b.size;
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.beginPath(); ctx.arc(sx,sy,sz,0,Math.PI*2); ctx.fill();
+function drawSonar(){
+ c.save();c.globalCompositeOperation='screen';
+ for(const p of pings){let fade=Math.max(0,1-p.r/SONAR_RANGE);c.lineWidth=1.3;c.strokeStyle=`rgba(131,239,203,${fade*.36})`;circle(p.x,p.y,p.r,null,c.strokeStyle,1.3);if(p.r>8)circle(p.x,p.y,p.r-8,null,`rgba(107,217,200,${fade*.08})`,5)}
+ for(const e of echoes){const sx=e.x,sy=e.y;glow(sx,sy,12,'#b4ffe136');circle(sx,sy,2,'#c9ffe9');c.strokeStyle='#b2f7d84a';c.lineWidth=1;c.beginPath();c.moveTo(sx,sy);let dx=e.ox-sx,dy=e.oy-sy,d=Math.hypot(dx,dy);if(d>0)c.lineTo(sx+dx/d*Math.min(d,30),sy+dy/d*Math.min(d,30));c.stroke()}
+ c.restore();
 }
-
-/* -------------------------------------------------
-   Game loop – unchanged logic, only visual calls
-   ------------------------------------------------- */
-function update(){
-    if(frameCount%5===0) spawnBubble(false, submarine.x-10, submarine.y+SUB_H/2);
-    if(!gameActive){
-        particles.forEach((p,i)=>{ p.x+=p.vx; p.y+=p.vy; p.alpha-=0.02; if(p.alpha<=0) particles.splice(i,1); });
-        return;
-    }
-    if(!gameStarted){ updateBackgrounds(); frameCount++; return; }
-
-    if(currentMineSpeed<MAX_MINE_SPEED) currentMineSpeed+=SPEED_INCREMENT;
-    if(currentSpawnRate>MIN_SPAWN_RATE) currentSpawnRate-=SPAWN_REDUCTION_RATE;
-    if(difficultyFactor<1) difficultyFactor+=DIFFICULTY_SCALE_SPEED;
-
-    submarine.velocity+=GRAVITY;
-    submarine.y+=submarine.velocity;
-    if(submarine.y<=SURFACE_Y || submarine.y+submarine.height>=FLOOR_Y) endGame();
-
-    if(frameCount%Math.floor(currentSpawnRate)===0) spawnMine();
-
-    /* Move background elements */
-    clouds.forEach(c=>{ c.x-=c.s; if(c.x+c.w<0) c.x=BASE_W+20; });
-    rocks.forEach(r=>{ r.x-=currentMineSpeed; if(r.x+r.r<0) r.x=BASE_W+r.r; });
-    seaweeds.forEach(s=>{ s.x-=currentMineSpeed; if(s.x<0) s.x=BASE_W; });
-    bubbles.forEach((b,i)=>{ b.y-=b.speed; b.x-=currentMineSpeed+b.drift;
-        if(b.y<SURFACE_Y||b.x<-10) bubbles.splice(i,1);
-    });
-
-    /* Mines & collision */
-    for(let i=mines.length-1;i>=0;i--){
-        const m=mines[i];
-        m.x-=currentMineSpeed;
-
-        const cx=Math.max(submarine.x, Math.min(m.x, submarine.x+submarine.width));
-        const cy=Math.max(submarine.y, Math.min(m.y, submarine.y+submarine.height));
-        const dist=Math.hypot(m.x-cx, m.y-cy);
-        if(dist<MINE_R) endGame();
-
-        if(m.x-CHAIN_W/2<submarine.x+submarine.width && m.x+CHAIN_W/2>submarine.x){
-            if(m.anchoredTop && submarine.y<m.y) endGame();
-            if(!m.anchoredTop && submarine.y+submarine.height>m.y) endGame();
-        }
-
-        if(!m.passed && m.x<submarine.x){ score++; m.passed=true; }
-        if(m.x<-MINE_R-50) mines.splice(i,1);
-    }
-    frameCount++;
+function drawSub(){
+ const angle=clamp(sub.v/650,-.22,.22);c.save();c.translate(sub.x,sub.y);c.rotate(angle);if(state==='menu')c.scale(1.45,1.45);
+ // Soft illumination is deliberately too short-ranged to replace sonar.
+ c.save();c.globalCompositeOperation='screen';let lamp=c.createLinearGradient(42,0,270,0);lamp.addColorStop(0,`rgba(172,226,212,${.12+night*.09})`);lamp.addColorStop(1,'#a2dfc600');path([[42,-3],[270,-45],[270,48],[42,4]],lamp);c.restore();
+ c.save();c.scale(1,.35);glow(0,35,100,'#000a');c.restore();
+ // Propeller, rudder, aft control planes.
+ path([[-38,-9],[-53,-21],[-58,-20],[-54,-3],[-54,5],[-58,18],[-53,18],[-37,8]],'#324b54','#70929377',.8);
+ c.strokeStyle='#687e80';c.lineWidth=2;c.beginPath();c.moveTo(-48,0);c.lineTo(-61,0);c.stroke();let spin=Math.sin(ambient*38);c.fillStyle='#8b9a83';c.beginPath();c.ellipse(-60,0,2,Math.abs(spin)*13+2,.15,0,TAU);c.fill();
+ // Sail, fairing and sensor masts.
+ path([[-18,-12],[-17,-28],[-9,-33],[6,-32],[12,-13]],'#233c47','#819c9977',.8);path([[-15,-28],[-9,-31],[5,-30],[7,-26]],'#64817c');c.fillStyle='#293e49';c.fillRect(-9,-44,2.6,14);c.fillRect(1,-39,1.8,9);c.fillStyle='#9daf9f';c.fillRect(-9,-44,7,2.5);c.fillStyle='#13252e';c.fillRect(-3,-43,3,3);
+ let hull=c.createLinearGradient(0,-17,0,18);hull.addColorStop(0,'#91a6a0');hull.addColorStop(.14,'#637f80');hull.addColorStop(.37,'#375663');hull.addColorStop(.52,'#263e4d');hull.addColorStop(.78,'#152834');hull.addColorStop(1,'#071720');
+ c.beginPath();c.moveTo(-48,-8);c.bezierCurveTo(-23,-18,17,-18,36,-11);c.bezierCurveTo(59,-5,59,8,36,13);c.bezierCurveTo(13,19,-29,14,-48,8);c.quadraticCurveTo(-53,0,-48,-8);c.closePath();c.fillStyle=hull;c.fill();c.strokeStyle='#9ebcb34d';c.lineWidth=.8;c.stroke();
+ c.save();c.beginPath();c.ellipse(1,0,48,15,0,0,TAU);c.clip();for(let x=-31;x<=31;x+=13){c.strokeStyle='#081a2a77';c.lineWidth=.7;c.beginPath();c.ellipse(x,0,3,16,0,0,TAU);c.stroke();for(let y=-9;y<=9;y+=6)circle(x-2,y,.65,'#b0c0b04a')}c.restore();
+ c.strokeStyle='#b1c6b67a';c.lineWidth=.6;c.beginPath();c.moveTo(-35,-9);c.bezierCurveTo(-9,-14,27,-13,41,-7);c.stroke();
+ path([[11,3],[24,10],[22,13],[5,6]],'#526d74','#9db4a544',.6);
+ c.font='5px Arial';c.fillStyle='#b1c3baaa';c.fillText('NEREID',-26,3);c.font='7px Arial';c.fillText('07',28,2);
+ circle(45,0,2.3,'#e2f2d4');glow(47,0,12,'#b7f6df55');circle(7,-31,1.2,'#bf8b61');c.restore();
 }
-
-/* -------------------------------------------------
-   Rendering
-   ------------------------------------------------- */
+function drawParticles(dt){for(const b of bubbles){c.globalAlpha=clamp(b.life/2,0,1)*.3;circle(b.x,b.y,b.r,null,'#b2dacf',.7)}c.globalAlpha=1;for(const p of debris){c.globalAlpha=clamp(p.life,0,1);circle(p.x,p.y,p.r,p.hot?'#efc191':'#647e7e');if(p.hot)glow(p.x,p.y,p.r*4,'#ffb26828')}c.globalAlpha=1}
+function drawInstruments(){
+ // Restrained depth ruler on the right edge, in screen pixels.
+ c.save();c.globalAlpha=.42;c.strokeStyle='#b3d4cc';c.fillStyle='#c4dcd5';c.lineWidth=.5;c.font='8px ui-monospace,monospace';let step=100;for(let y=Math.ceil((camY+120/scale)/step)*step;y<camY+vh-120/scale;y+=step){let yy=(y-camY)*scale;c.beginPath();c.moveTo(W-22,yy);c.lineTo(W-34,yy);c.stroke();if(W>700)c.fillText(String(Math.max(0,Math.round((y-68)*.1))).padStart(3,'0'),W-57,yy+3)}c.restore();
+ if(state==='menu'){let x=(sub.x-camX)*scale,y=(sub.y-camY)*scale;c.strokeStyle='#afd6ce3a';c.lineWidth=.6;c.beginPath();c.moveTo(x+61*scale,y-19*scale);c.lineTo(x+130*scale,y-80*scale);c.lineTo(x+210*scale,y-80*scale);c.stroke();c.fillStyle='#9cbbbba0';c.font='9px ui-monospace,monospace';c.fillText('NEREID / 07',x+134*scale,y-89*scale);c.font='8px ui-monospace,monospace';c.fillStyle='#719496';c.fillText('DEEP SUBMERGENCE VEHICLE',x+134*scale,y-65*scale)}
+}
 function draw(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    /* Sky (surface) */
-    ctx.fillStyle = '#87CEEB';
-    ctx.fillRect(0,0,canvas.width,SURFACE_Y);
-
-    /* Sun glare */
-    const sunGrad = ctx.createRadialGradient(350,20,5,350,20,30);
-    sunGrad.addColorStop(0,'rgba(255,255,200,0.6)');
-    sunGrad.addColorStop(1,'rgba(255,255,200,0)');
-    ctx.fillStyle = sunGrad;
-    ctx.beginPath(); ctx.arc(350,20,30,0,Math.PI*2); ctx.fill();
-
-    /* Clouds */
-    clouds.forEach(drawCloud);
-
-    /* Water column */
-    const waterGrad = ctx.createLinearGradient(0,SURFACE_Y,0,FLOOR_Y);
-    waterGrad.addColorStop(0,'#004d99');
-    waterGrad.addColorStop(1,'#001a33');
-    ctx.fillStyle = waterGrad;
-    ctx.fillRect(0,SURFACE_Y,canvas.width,PLAYABLE_H);
-
-    /* Bubbles */
-    bubbles.forEach(drawBubble);
-
-    /* Sea‑floor (sand) */
-    const sandGrad = ctx.createLinearGradient(0,FLOOR_Y,0,canvas.height);
-    sandGrad.addColorStop(0,'#c2b280');
-    sandGrad.addColorStop(1,'#a58c5c');
-    ctx.fillStyle = sandGrad;
-    ctx.fillRect(0,FLOOR_Y,canvas.width,canvas.height-FLOOR_Y);
-
-    /* Sea‑weed */
-    seaweeds.forEach(drawSeaweed);
-
-    /* Rocks */
-    rocks.forEach(drawRock);
-
-    /* Surface line */
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0,SURFACE_Y); ctx.lineTo(canvas.width,SURFACE_Y); ctx.stroke();
-
-    /* Mines + chains */
-    mines.forEach(m=>{
-        /* Chain */
-        ctx.strokeStyle = '#555';
-        ctx.lineWidth = 2;
-        const startY = m.anchoredTop ? SURFACE_Y : FLOOR_Y;
-        const linkLen = 8, linkW = 4;
-        const numLinks = Math.floor(Math.abs(m.y-startY)/linkLen);
-        ctx.beginPath();
-        for(let i=0;i<numLinks;i++){
-            const curY = m.anchoredTop ? SURFACE_Y + i*linkLen : FLOOR_Y - i*linkLen;
-            ctx.ellipse(m.x, curY, linkW/2, linkLen/2, 0, 0, Math.PI*2);
-        }
-        ctx.stroke();
-
-        if(m.anchoredTop) drawBoat(m.x, SURFACE_Y);
-        drawRealisticMine(m.x, m.y);
-    });
-
-    /* Submarine (only while alive) */
-    if(gameActive) drawSubmarine(submarine.x, submarine.y, submarine.width, submarine.height);
-
-    /* Explosion particles */
-    particles.forEach(p=>{
-        ctx.save();
-        ctx.globalAlpha = p.alpha;
-        ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x,p.y,p.radius,0,Math.PI*2); ctx.fill();
-        ctx.restore();
-    });
-
-    /* Score – keep it proportional to the displayed size */
-    ctx.fillStyle = '#fff';
-    ctx.font = `${24 * (canvas.height / BASE_H)}px Arial`;
-    ctx.fillText(`Score: ${score}`,10,30);
+ c.setTransform(dpr,0,0,dpr,0,0);c.globalAlpha=1;c.globalCompositeOperation='source-over';
+ if(state==='menu'){sub.x=350+ambient*13;sub.y=390+Math.sin(ambient*.55)*9;sub.v=Math.cos(ambient*.55)*5;camX=sub.x-vw*.63;camY=Math.max(-130,400-vh*.52);night=.12;}else camX=sub.x-vw*.24;
+ drawSky();drawWater();worldTransform();
+ if(shake&&!reduced)c.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
+ drawSurface();drawTerrain();
+ if(state!=='menu')drawMines();drawSonar();drawParticles();
+ if(state!=='dying'&&state!=='over')drawSub();
+ c.setTransform(dpr,0,0,dpr,0,0);drawInstruments();
+ if(night>0){let gg=c.createRadialGradient(W*.38,H*.47,Math.min(W,H)*.1,W*.4,H*.5,Math.max(W,H)*.7);gg.addColorStop(0,'#00000000');gg.addColorStop(1,`rgba(0,4,12,${night*.32})`);c.fillStyle=gg;c.fillRect(0,0,W,H)}
+ $('flash').style.opacity=String(flash);
 }
-
-/* -------------------------------------------------
-   Input / game flow
-   ------------------------------------------------- */
-function startGame(){ gameStarted=true; submarine.velocity=BUOYANCY; }
-function gameLoop(){ update(); draw(); requestAnimationFrame(gameLoop); }
-function endGame(){
-    if(!gameActive) return;
-    gameActive=false;
-    createExplosion(submarine.x+SUB_W/2, submarine.y+SUB_H/2);
-    scoreText.innerText = `Score: ${score}`;
-    overlay.style.display='flex';
+let last=performance.now(),acc=0;
+function frame(now){let dt=Math.min((now-last)/1000,.08);last=now;
+ if(state!=='paused'&&state!=='help'&&state!=='over'){ambient+=dt;}
+ if(state==='playing'){acc+=dt;let steps=0;while(acc>=STEP&&steps<12&&state==='playing'){physics(STEP);acc-=STEP;steps++;}}else acc=0;
+ if(state==='dying'){for(const p of debris){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.exp(-dt*1.8);p.vy-=dt*10;p.life-=dt;}debris=debris.filter(p=>p.life>0);if(ambient-crashAt>1.25)finish()}
+ shake*=Math.exp(-dt*5);flash*=Math.exp(-dt*5);
+ if(engineGain){let gain=soundOn&&state==='playing'?.024+(held?.008:0):0;engineGain.gain.setTargetAtTime(gain,audio.currentTime,.15);engine.frequency.setTargetAtTime(held?53:45,audio.currentTime,.2)}
+ draw();requestAnimationFrame(frame);
 }
-function resetGame(){ init(); }
-function handleInput(e){
-    if(e.code==='Space' || e.type==='mousedown'){
-        if(!gameStarted && gameActive) startGame();
-        else if(gameActive) submarine.velocity=BUOYANCY;
-    }
-}
-function updateBackgrounds(){
-    clouds.forEach(c=>{ c.x-=c.s; if(c.x+c.w<0) c.x=BASE_W+20; });
-    rocks.forEach(r=>{ r.x-=currentMineSpeed; if(r.x+r.r<0) r.x=BASE_W+r.r; });
-    seaweeds.forEach(s=>{ s.x-=currentMineSpeed; if(s.x<0) s.x=BASE_W; });
-    bubbles.forEach((b,i)=>{ b.y-=b.speed; b.x-=currentMineSpeed; if(b.y<SURFACE_Y||b.x<-10) bubbles.splice(i,1); });
-}
-
-/* -------------------------------------------------
-   Mine spawning – unchanged logic, just visual style
-   ------------------------------------------------- */
-function spawnMine(){
-    const dualChance = lerp(DUAL_CHANCE[0], DUAL_CHANCE[1], difficultyFactor);
-    const spawnDual = Math.random()<dualChance;
-
-    const minGap = lerp(GAP_MIN[0], GAP_MIN[1], difficultyFactor);
-    const maxGap = lerp(GAP_MAX[0], GAP_MAX[1], difficultyFactor);
-    const minChain = lerp(CHAIN_LEN_MIN[0], CHAIN_LEN_MIN[1], difficultyFactor);
-    const maxChain = lerp(CHAIN_LEN_MAX[0], CHAIN_LEN_MAX[1], difficultyFactor);
-
-    if(spawnDual){
-        const gapSize = Math.random()*(maxGap-minGap)+minGap;
-        const remaining = PLAYABLE_H - gapSize;
-        const topLen = Math.random()*remaining;
-        const bottomLen = remaining - topLen;
-        mines.push({x:BASE_W+MINE_R, y:SURFACE_Y+topLen, passed:false, anchoredTop:true});
-        mines.push({x:BASE_W+MINE_R, y:FLOOR_Y-bottomLen, passed:false, anchoredTop:false});
-    }else{
-        const anchoredTop = Math.random()>0.5;
-        const chainLen = Math.random()*(maxChain-minChain)+minChain;
-        const y = anchoredTop ? SURFACE_Y+chainLen : FLOOR_Y-chainLen;
-        mines.push({x:BASE_W+MINE_R, y, passed:false, anchoredTop});
-    }
-}
-
-/* -------------------------------------------------
-   Explosion particles
-   ------------------------------------------------- */
-function createExplosion(x,y){
-    const colors = ['#FF4500','#FFD700','#FFA500','#FFFFFF'];
-    for(let i=0;i<40;i++){
-        particles.push({
-            x, y,
-            vx:(Math.random()-0.5)*10,
-            vy:(Math.random()-0.5)*10,
-            radius:Math.random()*4+2,
-            color:colors[Math.floor(Math.random()*colors.length)],
-            alpha:1
-        });
-    }
-}
-
-/* -------------------------------------------------
-   Event listeners & start
-   ------------------------------------------------- */
-window.addEventListener('keydown',handleInput);
-window.addEventListener('mousedown',handleInput);
-init();
-gameLoop();
+$('launch').onclick=start;$('again').onclick=start;$('restartPause').onclick=start;$('home').onclick=home;$('quit').onclick=home;$('pause').onclick=pause;$('resume').onclick=resume;$('sound').onclick=toggleSound;
+$('standard').onclick=()=>{practice=false;$('standard').setAttribute('aria-pressed','true');$('practice').setAttribute('aria-pressed','false')};
+$('practice').onclick=()=>{practice=true;$('standard').setAttribute('aria-pressed','false');$('practice').setAttribute('aria-pressed','true')};
+$('helpOpen').onclick=()=>{state='help';show('help',true)};$('helpClose').onclick=()=>{state='menu';show('help',false)};
+$('motion').onclick=()=>{reduced=!reduced;$('motion').textContent='Motion effects: '+(reduced?'reduced':'on')};
+$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else toast('FULLSCREEN UNAVAILABLE','Use your browser’s full-screen view.',3)}catch(_){} };
+$('ping').onclick=()=>{initAudio();ping(true)};
+function pointerStart(e){if(state!=='playing')return;e.preventDefault();initAudio();pointerLift=true;try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){} }
+for(const el of [canvas,$('thrust')]){el.addEventListener('pointerdown',pointerStart);el.addEventListener('pointerup',()=>pointerLift=false);el.addEventListener('pointercancel',()=>pointerLift=false);el.addEventListener('lostpointercapture',()=>pointerLift=false)}
+addEventListener('keydown',e=>{
+ const controls=['Space','ArrowUp','ArrowDown','KeyW','KeyS','KeyE','Escape','KeyP','KeyM','KeyR'];if(!controls.includes(e.code))return;
+ if(e.code==='KeyM'&&!e.repeat){toggleSound();return}
+ if((e.code==='KeyP'||e.code==='Escape')&&!e.repeat){e.preventDefault();if(state==='playing')pause();else if(state==='paused')resume();else if(state==='help')$('helpClose').click();return}
+ if(state==='playing'){e.preventDefault();if(e.code==='KeyE'&&!e.repeat)ping(true);inputKeys.add(e.code)}
+ else if(state==='over'&&e.code==='KeyR'&&!e.repeat){e.preventDefault();start()}
+});addEventListener('keyup',e=>inputKeys.delete(e.code));
+addEventListener('blur',()=>{clearInput();if(state==='playing')pause()});document.addEventListener('visibilitychange',()=>{if(document.hidden){clearInput();if(state==='playing')pause()}});
+addEventListener('error',e=>{$('error').textContent='The dive was interrupted. Reload the file to restart. '+(e.message||'');show('error',true)});
+$('fullscreen').hidden=!document.documentElement.requestFullscreen;
+reset();updateSound();requestAnimationFrame(frame);
+})();
 </script>
 </body>
 </html>
