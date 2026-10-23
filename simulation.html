@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Submarine Survival – Fixed‑Size Assets</title>
+<style>
+    html,body{
+        margin:0; padding:0; height:100%; overflow:hidden;
+        background:#00101f;
+        font-family:Arial,Helvetica,sans-serif;
+        color:#fff;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+    }
+    canvas{
+        display:block;
+        background:#00101f;
+        width:100%;               /* fill container */
+        height:auto;              /* keep 2:3 aspect ratio */
+        max-height:100%;          /* never taller than viewport */
+        image-rendering:pixelated;/* optional – crisp scaling */
+    }
+    #ui-overlay{
+        position:absolute; inset:0;
+        display:none;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        background:rgba(0,0,0,0.65);
+        backdrop-filter:blur(4px);
+        border-radius:12px;
+        color:#fff;
+        text-align:center;
+        padding:2rem;
+    }
+    #ui-overlay button{
+        margin-top:1rem;
+        padding:.8rem 1.6rem;
+        font-size:1rem;
+        background:#0a84ff;
+        color:#fff;
+        border:none;
+        border-radius:6px;
+        cursor:pointer;
+        box-shadow:0 2px 6px rgba(0,0,0,.4);
+        transition:background .2s;
+    }
+    #ui-overlay button:hover{background:#006edc;}
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+
+<div id="ui-overlay">
+    <h1>GAME OVER</h1>
+    <p id="final-score">Score: 0</p>
+    <button onclick="resetGame()">Restart</button>
+</div>
+
+<script>
+/* -------------------------------------------------
+   Canvas & scaling – now *fixed* at base resolution
+   ------------------------------------------------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+const overlay = document.getElementById('ui-overlay');
+const scoreText = document.getElementById('final-score');
+
+const BASE_W = 400;   // original design width
+const BASE_H = 600;   // original design height
+
+function resizeCanvas() {
+    // Keep the drawing buffer at the original size.
+    canvas.width  = BASE_W;
+    canvas.height = BASE_H;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();   // initial sizing
+
+/* -------------------------------------------------
+   Game constants – expressed in *base* units
+   ------------------------------------------------- */
+const GRAVITY = 0.25;
+const BUOYANCY = -5;
+
+const INITIAL_MINE_SPEED = 2.0, MAX_MINE_SPEED = 5.5, SPEED_INCREMENT = 0.0005;
+let currentMineSpeed = INITIAL_MINE_SPEED;
+
+const INITIAL_SPAWN_RATE = 160, MIN_SPAWN_RATE = 70, SPAWN_REDUCTION_RATE = 0.06;
+let currentSpawnRate = INITIAL_SPAWN_RATE;
+
+const DIFFICULTY_SCALE_SPEED = 0.0003;
+let difficultyFactor = 0;
+
+/* Geometry (base units) */
+const SUB_W = 40, SUB_H = 25, MINE_R = 12;
+const CHAIN_W = 4;
+const SURFACE_Y = 40, FLOOR_Y = 560;
+const PLAYABLE_H = FLOOR_Y - SURFACE_Y;
+
+/* Chain / gap ranges (scaled with difficulty) – still base units */
+const CHAIN_LEN_MIN = [PLAYABLE_H*0.1, PLAYABLE_H*0.3];
+const CHAIN_LEN_MAX = [PLAYABLE_H*0.4, PLAYABLE_H*0.8];
+const GAP_MIN = [PLAYABLE_H*0.4, PLAYABLE_H*0.2];
+const GAP_MAX = [PLAYABLE_H*0.7, PLAYABLE_H*0.4];
+const DUAL_CHANCE = [0.2,0.5];
+
+/* Game objects */
+let submarine, mines, score, frameCount, gameActive, gameStarted;
+let clouds=[], rocks=[], seaweeds=[], bubbles=[], particles=[];
+
+/* -------------------------------------------------
+   Helper functions
+   ------------------------------------------------- */
+function lerp(a,b,t){return a+(b-a)*t;}
+
+/* -------------------------------------------------
+   Init / reset
+   ------------------------------------------------- */
+function init(){
+    submarine = {x:50, y:BASE_H/2, velocity:0, width:SUB_W, height:SUB_H, propAngle:0};
+    mines = []; particles = []; score = 0; frameCount = 0;
+    currentMineSpeed = INITIAL_MINE_SPEED;
+    currentSpawnRate = INITIAL_SPAWN_RATE;
+    difficultyFactor = 0;
+    gameActive = true; gameStarted = false;
+    overlay.style.display = 'none';
+
+    clouds = [];
+    for(let i=0;i<5;i++) clouds.push({
+        x:Math.random()*BASE_W,
+        y:Math.random()*(SURFACE_Y-20),
+        s:0.2+Math.random()*0.5,
+        w:30+Math.random()*20
+    });
+
+    rocks = [];
+    for(let i=0;i<8;i++) rocks.push({
+        x:Math.random()*BASE_W,
+        y:FLOOR_Y+Math.random()*20,
+        r:3+Math.random()*7
+    });
+
+    seaweeds = [];
+    for(let i=0;i<12;i++) seaweeds.push({
+        x:Math.random()*BASE_W,
+        h:10+Math.random()*20,
+        offset:Math.random()*Math.PI*2
+    });
+
+    bubbles = [];
+    for(let i=0;i<20;i++) spawnBubble(true);
+}
+
+/* -------------------------------------------------
+   Bubble spawning (limit to keep performance)
+   ------------------------------------------------- */
+const MAX_BUBBLES = 500;
+function spawnBubble(randomY=false, x=null, y=null){
+    if(bubbles.length>=MAX_BUBBLES) return;
+    bubbles.push({
+        x: x!==null ? x : Math.random()* (BASE_W+1000),
+        y: y!==null ? y : (randomY ? Math.random()*(FLOOR_Y-SURFACE_Y)+SURFACE_Y : FLOOR_Y),
+        size:.5+Math.random()*1.5,
+        speed:0.5+Math.random()*1.5,
+        drift:(Math.random()-0.5)*0.5
+    });
+}
+
+/* -------------------------------------------------
+   Drawing helpers – **no scaling** any more
+   ------------------------------------------------- */
+function drawSubmarine(x,y,w,h){
+    submarine.propAngle += 0.3;
+
+    const sx = x, sy = y, sw = w, sh = h;
+
+    const bodyGrad = ctx.createRadialGradient(sx+sw/2, sy+sh/2, sw*0.1, sx+sw/2, sy+sh/2, sw/2);
+    bodyGrad.addColorStop(0, '#c0c0c0');
+    bodyGrad.addColorStop(1, '#555');
+    ctx.fillStyle = bodyGrad;
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(sx+sw/2, sy+sh/2, sw/2, sh/2, 0, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+
+    /* Periscope */
+    ctx.fillStyle = '#333';
+    ctx.fillRect(sx+sw*0.33, sy-10, sw*0.33, 10);
+    ctx.strokeRect(sx+sw*0.33, sy-10, sw*0.33, 10);
+    ctx.beginPath();
+    ctx.moveTo(sx+sw/2+2, sy-10);
+    ctx.lineTo(sx+sw/2+2, sy-14);
+    ctx.lineTo(sx+sw/2+5, sy-14);
+    ctx.stroke();
+
+    /* Window */
+    ctx.fillStyle = 'rgba(173,216,230,0.6)';
+    ctx.beginPath();
+    ctx.arc(sx+sw/4, sy+sh/2, 4, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+
+    /* Tail fin */
+    ctx.fillStyle = '#888';
+    ctx.fillRect(sx-5, sy+sh/3, 5, sh/3);
+
+    /* Propeller */
+    ctx.save();
+    ctx.translate(sx-5, sy+sh/2);
+    ctx.rotate(submarine.propAngle);
+    ctx.fillStyle = '#444';
+    ctx.fillRect(-2,-6,4,12);
+    ctx.fillRect(-6,-2,12,4);
+    ctx.shadowColor = 'rgba(255,255,200,0.8)';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#ff0';
+    ctx.fillRect(-2,-6,4,12);
+    ctx.restore();
+    ctx.shadowBlur = 0;
+}
+
+/* Boat (surface anchor) */
+function drawBoat(x,y){
+    const sx = x, sy = y;
+    ctx.save(); ctx.translate(sx,sy);
+    ctx.fillStyle = '#5a5a2f';
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-30,0); ctx.lineTo(30,0);
+    ctx.lineTo(40,5); ctx.lineTo(30,12);
+    ctx.lineTo(-30,12); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#6b8e23';
+    ctx.fillRect(-10,-15,20,15);
+    ctx.strokeRect(-10,-15,20,15);
+
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-5,-22,5,7);
+    ctx.fillRect(5,-22,5,7);
+    ctx.restore();
+}
+
+/* Realistic mine */
+function drawRealisticMine(x,y){
+    const sx = x, sy = y, r = MINE_R;
+    const grad = ctx.createRadialGradient(sx-4, sy-4, 2, sx, sy, r);
+    grad.addColorStop(0, '#ff6666');
+    grad.addColorStop(0.6, '#cc0000');
+    grad.addColorStop(1, '#660000');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(sx,sy,r,0,Math.PI*2); ctx.fill();
+
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 2;
+    for(let i=0;i<8;i++){
+        const a = (i/8)*Math.PI*2;
+        const sx1 = sx+Math.cos(a)*(r-2);
+        const sy1 = sy+Math.sin(a)*(r-2);
+        const sx2 = sx+Math.cos(a)*(r+6);
+        const sy2 = sy+Math.sin(a)*(r+6);
+        ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+
+        ctx.fillStyle = '#444';
+        ctx.beginPath(); ctx.arc(sx2,sy2,2,0,Math.PI*2); ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath(); ctx.arc(sx-3,sy-3,3,0,Math.PI*2); ctx.fill();
+}
+
+/* Cloud */
+function drawCloud(c){
+    const sx = c.x, sy = c.y, sw = c.w;
+    const grad = ctx.createRadialGradient(sx, sy, sw*0.1, sx, sy, sw);
+    grad.addColorStop(0, 'rgba(255,255,255,0.7)');
+    grad.addColorStop(1, 'rgba(255,255,255,0.2)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(sx, sy, sw/3, 0, Math.PI*2);
+    ctx.arc(sx + sw/4, sy-5, sw/3, 0, Math.PI*2);
+    ctx.arc(sx + sw/2, sy, sw/3, 0, Math.PI*2);
+    ctx.fill();
+}
+
+/* Rock */
+function drawRock(r){
+    const sx = r.x, sy = r.y, sr = r.r;
+    ctx.fillStyle = '#2a2a2a';
+    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+}
+
+/* Sea‑weed */
+function drawSeaweed(s){
+    const sx = s.x;
+    ctx.strokeStyle = '#2e8b57';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(sx, FLOOR_Y);
+    const wave = Math.sin(frameCount*0.05 + s.offset)*5;
+    ctx.quadraticCurveTo(sx+wave, FLOOR_Y - s.h/2, sx, FLOOR_Y - s.h);
+    ctx.stroke();
+}
+
+/* Bubble */
+function drawBubble(b){
+    const sx = b.x, sy = b.y, sz = b.size;
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath(); ctx.arc(sx,sy,sz,0,Math.PI*2); ctx.fill();
+}
+
+/* -------------------------------------------------
+   Game loop – unchanged logic, only visual calls
+   ------------------------------------------------- */
+function update(){
+    if(frameCount%5===0) spawnBubble(false, submarine.x-10, submarine.y+SUB_H/2);
+    if(!gameActive){
+        particles.forEach((p,i)=>{ p.x+=p.vx; p.y+=p.vy; p.alpha-=0.02; if(p.alpha<=0) particles.splice(i,1); });
+        return;
+    }
+    if(!gameStarted){ updateBackgrounds(); frameCount++; return; }
+
+    if(currentMineSpeed<MAX_MINE_SPEED) currentMineSpeed+=SPEED_INCREMENT;
+    if(currentSpawnRate>MIN_SPAWN_RATE) currentSpawnRate-=SPAWN_REDUCTION_RATE;
+    if(difficultyFactor<1) difficultyFactor+=DIFFICULTY_SCALE_SPEED;
+
+    submarine.velocity+=GRAVITY;
+    submarine.y+=submarine.velocity;
+    if(submarine.y<=SURFACE_Y || submarine.y+submarine.height>=FLOOR_Y) endGame();
+
+    if(frameCount%Math.floor(currentSpawnRate)===0) spawnMine();
+
+    /* Move background elements */
+    clouds.forEach(c=>{ c.x-=c.s; if(c.x+c.w<0) c.x=BASE_W+20; });
+    rocks.forEach(r=>{ r.x-=currentMineSpeed; if(r.x+r.r<0) r.x=BASE_W+r.r; });
+    seaweeds.forEach(s=>{ s.x-=currentMineSpeed; if(s.x<0) s.x=BASE_W; });
+    bubbles.forEach((b,i)=>{ b.y-=b.speed; b.x-=currentMineSpeed+b.drift;
+        if(b.y<SURFACE_Y||b.x<-10) bubbles.splice(i,1);
+    });
+
+    /* Mines & collision */
+    for(let i=mines.length-1;i>=0;i--){
+        const m=mines[i];
+        m.x-=currentMineSpeed;
+
+        const cx=Math.max(submarine.x, Math.min(m.x, submarine.x+submarine.width));
+        const cy=Math.max(submarine.y, Math.min(m.y, submarine.y+submarine.height));
+        const dist=Math.hypot(m.x-cx, m.y-cy);
+        if(dist<MINE_R) endGame();
+
+        if(m.x-CHAIN_W/2<submarine.x+submarine.width && m.x+CHAIN_W/2>submarine.x){
+            if(m.anchoredTop && submarine.y<m.y) endGame();
+            if(!m.anchoredTop && submarine.y+submarine.height>m.y) endGame();
+        }
+
+        if(!m.passed && m.x<submarine.x){ score++; m.passed=true; }
+        if(m.x<-MINE_R-50) mines.splice(i,1);
+    }
+    frameCount++;
+}
+
+/* -------------------------------------------------
+   Rendering
+   ------------------------------------------------- */
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    /* Sky (surface) */
+    ctx.fillStyle = '#87CEEB';
+    ctx.fillRect(0,0,canvas.width,SURFACE_Y);
+
+    /* Sun glare */
+    const sunGrad = ctx.createRadialGradient(350,20,5,350,20,30);
+    sunGrad.addColorStop(0,'rgba(255,255,200,0.6)');
+    sunGrad.addColorStop(1,'rgba(255,255,200,0)');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath(); ctx.arc(350,20,30,0,Math.PI*2); ctx.fill();
+
+    /* Clouds */
+    clouds.forEach(drawCloud);
+
+    /* Water column */
+    const waterGrad = ctx.createLinearGradient(0,SURFACE_Y,0,FLOOR_Y);
+    waterGrad.addColorStop(0,'#004d99');
+    waterGrad.addColorStop(1,'#001a33');
+    ctx.fillStyle = waterGrad;
+    ctx.fillRect(0,SURFACE_Y,canvas.width,PLAYABLE_H);
+
+    /* Bubbles */
+    bubbles.forEach(drawBubble);
+
+    /* Sea‑floor (sand) */
+    const sandGrad = ctx.createLinearGradient(0,FLOOR_Y,0,canvas.height);
+    sandGrad.addColorStop(0,'#c2b280');
+    sandGrad.addColorStop(1,'#a58c5c');
+    ctx.fillStyle = sandGrad;
+    ctx.fillRect(0,FLOOR_Y,canvas.width,canvas.height-FLOOR_Y);
+
+    /* Sea‑weed */
+    seaweeds.forEach(drawSeaweed);
+
+    /* Rocks */
+    rocks.forEach(drawRock);
+
+    /* Surface line */
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0,SURFACE_Y); ctx.lineTo(canvas.width,SURFACE_Y); ctx.stroke();
+
+    /* Mines + chains */
+    mines.forEach(m=>{
+        /* Chain */
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 2;
+        const startY = m.anchoredTop ? SURFACE_Y : FLOOR_Y;
+        const linkLen = 8, linkW = 4;
+        const numLinks = Math.floor(Math.abs(m.y-startY)/linkLen);
+        ctx.beginPath();
+        for(let i=0;i<numLinks;i++){
+            const curY = m.anchoredTop ? SURFACE_Y + i*linkLen : FLOOR_Y - i*linkLen;
+            ctx.ellipse(m.x, curY, linkW/2, linkLen/2, 0, 0, Math.PI*2);
+        }
+        ctx.stroke();
+
+        if(m.anchoredTop) drawBoat(m.x, SURFACE_Y);
+        drawRealisticMine(m.x, m.y);
+    });
+
+    /* Submarine (only while alive) */
+    if(gameActive) drawSubmarine(submarine.x, submarine.y, submarine.width, submarine.height);
+
+    /* Explosion particles */
+    particles.forEach(p=>{
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.radius,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+    });
+
+    /* Score – keep it proportional to the displayed size */
+    ctx.fillStyle = '#fff';
+    ctx.font = `${24 * (canvas.height / BASE_H)}px Arial`;
+    ctx.fillText(`Score: ${score}`,10,30);
+}
+
+/* -------------------------------------------------
+   Input / game flow
+   ------------------------------------------------- */
+function startGame(){ gameStarted=true; submarine.velocity=BUOYANCY; }
+function gameLoop(){ update(); draw(); requestAnimationFrame(gameLoop); }
+function endGame(){
+    if(!gameActive) return;
+    gameActive=false;
+    createExplosion(submarine.x+SUB_W/2, submarine.y+SUB_H/2);
+    scoreText.innerText = `Score: ${score}`;
+    overlay.style.display='flex';
+}
+function resetGame(){ init(); }
+function handleInput(e){
+    if(e.code==='Space' || e.type==='mousedown'){
+        if(!gameStarted && gameActive) startGame();
+        else if(gameActive) submarine.velocity=BUOYANCY;
+    }
+}
+function updateBackgrounds(){
+    clouds.forEach(c=>{ c.x-=c.s; if(c.x+c.w<0) c.x=BASE_W+20; });
+    rocks.forEach(r=>{ r.x-=currentMineSpeed; if(r.x+r.r<0) r.x=BASE_W+r.r; });
+    seaweeds.forEach(s=>{ s.x-=currentMineSpeed; if(s.x<0) s.x=BASE_W; });
+    bubbles.forEach((b,i)=>{ b.y-=b.speed; b.x-=currentMineSpeed; if(b.y<SURFACE_Y||b.x<-10) bubbles.splice(i,1); });
+}
+
+/* -------------------------------------------------
+   Mine spawning – unchanged logic, just visual style
+   ------------------------------------------------- */
+function spawnMine(){
+    const dualChance = lerp(DUAL_CHANCE[0], DUAL_CHANCE[1], difficultyFactor);
+    const spawnDual = Math.random()<dualChance;
+
+    const minGap = lerp(GAP_MIN[0], GAP_MIN[1], difficultyFactor);
+    const maxGap = lerp(GAP_MAX[0], GAP_MAX[1], difficultyFactor);
+    const minChain = lerp(CHAIN_LEN_MIN[0], CHAIN_LEN_MIN[1], difficultyFactor);
+    const maxChain = lerp(CHAIN_LEN_MAX[0], CHAIN_LEN_MAX[1], difficultyFactor);
+
+    if(spawnDual){
+        const gapSize = Math.random()*(maxGap-minGap)+minGap;
+        const remaining = PLAYABLE_H - gapSize;
+        const topLen = Math.random()*remaining;
+        const bottomLen = remaining - topLen;
+        mines.push({x:BASE_W+MINE_R, y:SURFACE_Y+topLen, passed:false, anchoredTop:true});
+        mines.push({x:BASE_W+MINE_R, y:FLOOR_Y-bottomLen, passed:false, anchoredTop:false});
+    }else{
+        const anchoredTop = Math.random()>0.5;
+        const chainLen = Math.random()*(maxChain-minChain)+minChain;
+        const y = anchoredTop ? SURFACE_Y+chainLen : FLOOR_Y-chainLen;
+        mines.push({x:BASE_W+MINE_R, y, passed:false, anchoredTop});
+    }
+}
+
+/* -------------------------------------------------
+   Explosion particles
+   ------------------------------------------------- */
+function createExplosion(x,y){
+    const colors = ['#FF4500','#FFD700','#FFA500','#FFFFFF'];
+    for(let i=0;i<40;i++){
+        particles.push({
+            x, y,
+            vx:(Math.random()-0.5)*10,
+            vy:(Math.random()-0.5)*10,
+            radius:Math.random()*4+2,
+            color:colors[Math.floor(Math.random()*colors.length)],
+            alpha:1
+        });
+    }
+}
+
+/* -------------------------------------------------
+   Event listeners & start
+   ------------------------------------------------- */
+window.addEventListener('keydown',handleInput);
+window.addEventListener('mousedown',handleInput);
+init();
+gameLoop();
+</script>
+</body>
+</html>
