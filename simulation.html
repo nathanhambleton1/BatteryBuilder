@@ -235,7 +235,7 @@ const BIOMES={
 let SEG=[],TP={};
 function newWorld(){
  TP={a1:rnd(35,70),w1:rnd(700,1100),p1:rnd(0,TAU),a2:rnd(15,40),w2:rnd(300,500),p2:rnd(0,TAU),p3:rnd(0,TAU),p4:rnd(0,TAU),
-  r1:rnd(30,60),rw1:rnd(380,700),rp1:rnd(0,TAU),r2:rnd(10,25),rw2:rnd(800,1300),rp2:rnd(0,TAU),night:rnd(2400,4200)};
+  r1:rnd(30,60),rw1:rnd(380,700),rp1:rnd(0,TAU),r2:rnd(10,25),rw2:rnd(800,1300),rp2:rnd(0,TAU),night:rnd(2400,4200),sd:rnd(0,999)};
  SEG=[{x0:0,len:rnd(2400,3300),r:1,kind:'open',v:{cave:0,basin:0,lift:0,tight:0,rough:1}}];
 }
 function extendWorld(q){
@@ -260,7 +260,7 @@ function terrain(x){
  const half=257-50*cave+f.tight*cave+14*Math.sin(q/650+TP.p3);
  const top=mix(68,centre-half,cave);
  const bottom=centre+half+f.rough*(13*Math.sin(q/137+TP.p4)+6*Math.sin(q/57));
- return {top,bottom,cave,centre:(top+bottom)/2,basin,lift:f.lift};
+ return {top,bottom,cave,centre:(top+bottom)/2,basin,lift:f.lift,rough:f.rough};
 }
 function caveNear(a,b){for(let x=a;x<=b+1;x+=Math.max(1,(b-a)/8))if(terrain(x).cave>=.01)return true;return false}
 function route(x){const z=terrain(x);return z.centre+TP.r1*Math.sin(x/TP.rw1+TP.rp1)+TP.r2*Math.sin(x/TP.rw2+TP.rp2);}
@@ -767,7 +767,8 @@ function widenView(){const saved=[camX,camY,vw,vh];camX=sub.x-Psx/(scale*cyw);vw
 function drawSurface(){if(camY>100)return;c.strokeStyle=`rgba(174,220,214,${.23*(1-night*.7)})`;c.lineWidth=1.2;c.beginPath();for(let x=Math.floor(camX/12)*12;x<camX+vw+12;x+=12){let y=68+Math.sin(x*.032+ambient*1.1)*2+Math.sin(x*.076-ambient*.8);x===Math.floor(camX/12)*12?c.moveTo(x,y):c.lineTo(x,y)}c.stroke();for(let i=0;i<18;i++){let x=camX+hash(i+88)*vw;let y=72+hash(i)*18;c.strokeStyle=`rgba(188,217,205,${.1*(1-night)})`;c.beginPath();c.moveTo(x,y);c.lineTo(x+15+hash(i)*70,y);c.stroke()}}
 /* A cavern's ceiling is the underside of an island: the rock rises out of the sea
    into the sky, so the surface and sky stay visible above the cave mouth. */
-function islandTop(x){const k=terrain(x).cave;return SURFACE-k*(95+40*Math.sin(x/310)+18*Math.sin(x/83))}
+const islandH=(x,k)=>k*(95+40*Math.sin(x/310)+18*Math.sin(x/83));
+function islandTop(x){return SURFACE-islandH(x,terrain(x).cave)}
 function rockShape(top=false,start=Math.floor(camX/12)*12-24,end=camX+vw+30){c.beginPath();
  if(top){c.moveTo(start,islandTop(start));for(let x=start;x<=end;x+=12)c.lineTo(x,islandTop(x));for(let x=end;x>=start-12;x-=12)c.lineTo(x,terrain(x).top)}
  else{c.moveTo(start,camY+vh+200);for(let x=start;x<=end;x+=12)c.lineTo(x,terrain(x).bottom);c.lineTo(end,camY+vh+200)}
@@ -777,17 +778,106 @@ function strokeEdge(fy,color,width){let start=Math.floor(camX/12)*12-24,end=camX
    plane units, and the seabed floor, island tops and cliff walls show between. */
 const SLAB=260;
 function slabBand(edge,start,end,ox,oy,fill,only){let run=[];const flush=()=>{if(run.length>1){c.beginPath();run.forEach((x,i)=>i?c.lineTo(x,edge(x)):c.moveTo(x,edge(x)));for(let i=run.length-1;i>=0;i--)c.lineTo(run[i]+ox,edge(run[i])+oy);c.closePath();c.fillStyle=fill;c.fill()}run=[]};for(let x=start;x<=end;x+=12){if(!only||only(x))run.push(x);else flush()}flush()}
+/* ---- 3D seabed ---------------------------------------------------------------
+   Behind the play plane the seabed is a lit heightfield, so the orbit camera looks
+   across real ground: ridges, rock spires, boulders and kelp, rising into hills or
+   canyon walls by biome and fading into the water with distance. Row 0 is exactly
+   the collision profile. Rows sit at fixed depths on a world-aligned grid, so the
+   landscape stays put as the boat moves. Each depth band is shaded by slope against
+   the sun, quantised to TONES colours and batched into one fill per tone, then drawn
+   far to near so nearer ground hides what lies behind it. Islands get the same. */
+const FDX=16,FROWS=22,FZMAX=950,TONES=12,FZ=Array.from({length:FROWS+1},(_,i)=>FZMAX*(i/FROWS)**1.4);
+const IROWS=9,IZ=Array.from({length:IROWS+1},(_,i)=>SLAB*i/IROWS);
+const mixc=(a,b,t)=>[mix(a[0],b[0],t),mix(a[1],b[1],t),mix(a[2],b[2],t)],css=a=>`rgb(${a[0]|0},${a[1]|0},${a[2]|0})`;
+const lat=(i,j,s)=>hash(i*57.13+j*311.71+s);
+// Smooth value noise in -1..1.
+function vnoise(x,z,s){const i=Math.floor(x),j=Math.floor(z),u=x-i,v=z-j,a=u*u*(3-2*u),b=v*v*(3-2*v);
+ return mix(mix(lat(i,j,s),lat(i+1,j,s),a),mix(lat(i,j+1,s),lat(i+1,j+1,s),a),b)*2-1}
+// Sparse rock pinnacles, at most one per 300 x 300 cell, kept away from the play plane.
+function spire(x,z){const C=300,i=Math.floor(x/C),j=Math.floor(z/C);if(j<1)return 0;const s=TP.sd+i*13.7+j*91.3;if(hash(s)>.3)return 0;
+ const d=Math.hypot(x-(i+.3+.4*hash(s+1))*C,((j+.3+.4*hash(s+2))*C-z)*1.2)/(40+45*hash(s+3));return d<1?(90+150*hash(s+4))*(1-d)**1.25:0}
+// Seabed height (y down) at x, depth z; T is terrain(x). Caverns close into a back wall.
+function floorY(x,z,T){
+ if(z<=0)return T.bottom;
+ const w=smooth(0,200,z),s=TP.sd,ridge=1-Math.abs(vnoise(x/290,z/260,s));
+ const up=(ridge*ridge*75+vnoise(x/105,z/90,s+7)*22+vnoise(x/38,z/34,s+13)*7)*(.55+.45*T.rough)+z*(.045+.09*T.basin+.04*Math.sin(x/1700+TP.p3))+spire(x,z)*(1-T.cave);
+ let y=T.bottom-w*up;
+ if(T.cave>0)y=mix(y,T.bottom-w*up*.35-(T.bottom-T.top-12)*smooth(SLAB*.45,SLAB*1.05,z),T.cave);
+ return Math.max(y,mix(SURFACE+22,T.top+4,T.cave));
+}
+// Island top: matches islandTop() at the front and slopes to a far shore at z=SLAB.
+function islandY(x,z,T){
+ if(T.cave<=0)return SURFACE;const u=z/SLAB,s=TP.sd,arch=Math.sin(Math.PI*u);
+ return Math.min(SURFACE,SURFACE-islandH(x,T.cave)*(1+.55*arch*(.6+.4*vnoise(x/220,3.7,s+21)))*(1-u**2.4)-T.cave*arch*(vnoise(x/70,z/60,s+29)*14+vnoise(x/30,z/26,s+31)*5));
+}
+let fH=new Float32Array(4096),fTone=new Uint8Array(512);const fT=[];
+/* Draws one heightfield in plane units: row depths Z, height yAt(x,z,T), band
+   palettes pal(i), light scale dim(k,y), column filter only(k), and extras(i,k0,n,a0,a1)
+   for things standing in band i. Depth z shifts a point by (z*kx, z*ky). */
+function drawField(Z,yAt,pal,dim,kx,ky,only,extras){
+ const rows=Z.length,span=Z[rows-1]*kx,k0=Math.floor((camX-Math.max(0,span))/FDX)-2,n=Math.ceil((camX+vw-Math.min(0,span))/FDX)+3-k0;
+ if(fH.length<n*rows)fH=new Float32Array(n*rows*2);if(fTone.length<n)fTone=new Uint8Array(n*2);
+ for(let k=0;k<n;k++)fT[k]=terrain((k0+k)*FDX);
+ for(let i=0;i<rows;i++)for(let k=0;k<n;k++)fH[i*n+k]=yAt((k0+k)*FDX,Z[i],fT[k]);
+ for(let i=rows-2;i>=0;i--){
+  const z0=Z[i],z1=Z[i+1],dz=z1-z0,P=pal(i),r0=i*n,r1=r0+n;
+  const a0=Math.max(0,Math.floor((camX-Math.max(z0*kx,z1*kx))/FDX)-k0-1),a1=Math.min(n-2,Math.ceil((camX+vw-Math.min(z0*kx,z1*kx))/FDX)-k0+1);
+  for(let k=a0;k<=a1;k++){
+   if(only&&!only(k)){fTone[k]=255;continue}
+   // Sun from above, right and in front: s = (.366, -.870, -.331), y down.
+   const a=fH[r0+k],hx=(fH[r0+k+1]-a)/FDX,hz=(fH[r1+k]-a)/dz,L=Math.sqrt(hx*hx+1+hz*hz);
+   fTone[k]=clamp(Math.round((((.366*hx+.87-.331*hz)/L-.5)/.45+.18*smooth(.93,.99,1/L))*dim(k,a)*(TONES-1)),0,TONES-1);
+  }
+  // Quads overlap their right and far neighbours slightly so no seams show.
+  for(let tone=0;tone<TONES;tone++){let any=false;c.beginPath();
+   for(let k=a0;k<=a1;k++){if(fTone[k]!==tone)continue;any=true;const X0=(k0+k)*FDX+z0*kx,X1=X0+dz*kx;
+    c.moveTo(X0,fH[r0+k]+z0*ky);c.lineTo(X0+FDX+.8,fH[r0+k+1]+z0*ky);c.lineTo(X1+FDX+.8,fH[r1+k+1]+z1*ky-.8);c.lineTo(X1,fH[r1+k]+z1*ky-.8);c.closePath()}
+   if(any){c.fillStyle=P[tone];c.fill()}}
+  if(extras)extras(i,k0,n,a0,a1);
+ }
+}
+function drawSeabed(kx,ky){
+ const fogC=mixc(mixc([10,56,70],[3,17,29],night),[3,14,22],terrain(sub.x).cave*.6),lo=mixc([9,28,34],[3,11,17],night),hi=mixc([104,138,118],[38,62,66],night),kelp=mixc([40,97,91],[22,62,66],night);
+ const fogAt=i=>.9*((FZ[i]+FZ[i+1])/2/FZMAX)**.55,pals=[];
+ for(let i=0;i<FROWS;i++){const f=fogAt(i),P=[];for(let j=0;j<TONES;j++)P.push(css(mixc(mixc(lo,hi,j/(TONES-1)),fogC,f)));pals.push(P)}
+ // Never draw ground above the waterline: the sky backdrop owns that part of the screen.
+ c.save();c.beginPath();c.rect(camX-4000,SURFACE,vw+8000,8000);c.clip();
+ drawField(FZ,floorY,i=>pals[i],(k,y)=>clamp(1.45-(y-SURFACE)/800,.35,1.1)*(1-.78*fT[k].cave),kx,ky,null,(i,k0,n,a0,a1)=>{
+  if(i<1)return;
+  const z0=FZ[i],z1=FZ[i+1],f=fogAt(i),P=pals[i],rocks=[],lights=[];c.beginPath();let weed=false;
+  for(let k=a0;k<=a1;k++){const gx=k0+k,h=hash(gx*7.31+i*53.7+TP.sd);if(h>.1)continue;
+   const T=fT[k],u=hash(gx*3.17+i*9.71),v=hash(gx*1.93+i*4.37),z=mix(z0,z1,v),r0=i*n+k,r1=r0+n;
+   const y=mix(mix(fH[r0],fH[r0+1],u),mix(fH[r1],fH[r1+1],u),v),X=(gx+u)*FDX+z*kx,Y=y+z*ky,rockP=.045+.03*(T.rough-1);
+   if(h<rockP)rocks.push(X,Y,(4+12*hash(gx+i*.37))*(.7+.3*T.rough));
+   else if(h<rockP+.04){if(y<600&&T.cave<.3){const ht=22+50*hash(gx*.71+i),sw=Math.sin(ambient*.8+gx*.37+i)*ht*.15;weed=true;
+    c.moveTo(X,Y);c.quadraticCurveTo(X-4,Y-ht*.55,X+sw,Y-ht);c.moveTo(X+3,Y);c.quadraticCurveTo(X+6,Y-ht*.4,X+3+sw*.8,Y-ht*.7)}}
+   else if(h>.093&&night>.25)lights.push(X,Y-2);
+  }
+  if(weed){c.strokeStyle=css(mixc(kelp,fogC,f));c.lineWidth=1.5;c.stroke()}
+  if(rocks.length)for(const lit of [0,1]){c.beginPath();
+   for(let j=0;j<rocks.length;j+=3){const x=rocks[j],y=rocks[j+1],r=rocks[j+2],id=x*.13+y*.71,top=y-r*(.75+.5*hash(id));
+    if(lit){c.moveTo(x-r*.35,top+r*.2);c.lineTo(x+r*(.1+.2*hash(id+1)),top);c.lineTo(x+r*.8,y-r*.45);c.lineTo(x+r*.2,y-r*.3)}
+    else{c.moveTo(x-r,y);c.lineTo(x-r*(.7+.2*hash(id+2)),y-r*.5);c.lineTo(x-r*.35,top+r*.2);c.lineTo(x+r*(.1+.2*hash(id+1)),top);c.lineTo(x+r*.8,y-r*.45);c.lineTo(x+r,y)}
+    c.closePath()}
+   c.fillStyle=P[lit?9:2];c.fill()}
+  for(let j=0;j<lights.length;j+=2){glow(lights[j],lights[j+1],8,`rgba(89,211,193,${(night-.25)*.3*(1-f)})`);circle(lights[j],lights[j+1],1.1,`rgba(140,236,214,${(night-.25)*.9*(1-f)})`)}
+ });
+ c.restore();
+}
+function drawIsland(kx,ky){
+ const lo=mixc([30,40,40],[8,13,19],night),hi=mixc([150,156,118],[40,52,52],night),haze=mixc([170,184,166],[18,39,54],night),pals=[];
+ for(let i=0;i<IROWS;i++){const f=.3*(IZ[i]+IZ[i+1])/2/SLAB,P=[];for(let j=0;j<TONES;j++)P.push(css(mixc(mixc(lo,hi,j/(TONES-1)),haze,f)));pals.push(P)}
+ drawField(IZ,islandY,i=>pals[i],()=>1,kx,ky,k=>fT[k].cave>.002||fT[k+1].cave>.002);
+}
 function drawTerrainDepth(){
  if(flat())return;
- const ox=SLAB*syw/cyw,oy=-SLAB*cyw*spt/cpt,start=Math.floor((camX-Math.max(0,ox))/12)*12-24,end=camX+vw-Math.min(0,ox)+30,bottom=x=>terrain(x).bottom,far=rgb([8,29,36],[3,12,18],night);
- c.save();c.translate(ox,oy);rockShape(false,start,end);c.fillStyle=far;c.fill();c.restore();
- slabBand(bottom,start,end,ox,oy,rgb([19,49,52],[7,22,28],night));
- c.strokeStyle=`rgba(129,178,160,${.12*(1-night*.6)})`;c.lineWidth=1;for(const f of [.3,.62]){c.beginPath();for(let x=start;x<=end;x+=12){const y=bottom(x)+oy*f;x===start?c.moveTo(x+ox*f,y):c.lineTo(x+ox*f,y)}c.stroke()}
+ const kx=syw/cyw,ky=-cyw*spt/cpt;drawSeabed(kx,ky);
+ const ox=SLAB*kx,oy=SLAB*ky,start=Math.floor((camX-Math.max(0,ox))/12)*12-24,end=camX+vw-Math.min(0,ox)+30;
  if(!caveNear(start,end))return;
- const cave=x=>terrain(x).cave>.002;
- c.save();c.translate(ox,oy);rockShape(true,start,end);c.fillStyle=far;c.fill();c.restore();
- slabBand(x=>terrain(x).top,start,end,ox,oy,rgb([12,33,41],[4,14,20],night),cave);
- slabBand(islandTop,start,end,ox,oy,rgb([104,118,96],[28,38,38],night),cave);
+ // The cavern ceiling's far face runs from the island's far shore down to the roof.
+ c.beginPath();c.moveTo(start+ox,SURFACE+oy);for(let x=start;x<=end;x+=12)c.lineTo(x+ox,SURFACE+oy);for(let x=end;x>=start;x-=12)c.lineTo(x+ox,terrain(x).top+oy);c.closePath();c.fillStyle=rgb([8,29,36],[3,12,18],night);c.fill();
+ slabBand(x=>terrain(x).top,start,end,ox,oy,rgb([12,33,41],[4,14,20],night),x=>terrain(x).cave>.002);
+ drawIsland(kx,ky);
 }
 function drawTerrain(){
  for(const top of [false,true]){
@@ -802,7 +892,7 @@ function drawTerrain(){
  for(let i=Math.floor(camX/18);i<(camX+vw)/18+1;i++){let xx=i*18+hash(i+9)*17,edge=top?terrain(xx).top:terrain(xx).bottom;for(let k=0;k<5;k++){let yy=edge+(top?-1:1)*(5+hash(i*7+k)*170);c.fillStyle=k%2?'#a3c4a610':'#010b1366';c.fillRect(xx+hash(i+k)*12,yy,1+hash(i*2+k)*4,1+hash(i*3+k)*2)}}
  if(night){c.fillStyle=`rgba(0,6,13,${night*.35})`;c.fillRect(camX-30,camY-200,vw+60,vh+400)}c.restore();
  if(top){strokeEdge(x=>terrain(x).top,'#598f8a45',2);if(camY<SURFACE){strokeEdge(islandTop,rgb([96,128,88],[30,44,40],night),3);strokeEdge(x=>SURFACE+1.5+Math.sin(x*.05+ambient*2)*1.2,`rgba(225,244,238,${.35*(1-night*.6)})`,1.4)}}
- else{rockShape(false);c.lineWidth=2;c.strokeStyle='#81b2a04f';c.stroke()}
+ else{rockShape(false);c.lineWidth=2;c.strokeStyle='#9fd0bc85';c.stroke()}
  }
  // Kelp and cold-water coral attached to the actual seabed.
  for(let i=Math.floor(camX/43)-2;i<(camX+vw)/43+2;i++){let x=i*43+hash(i)*23,z=terrain(x),h=15+hash(i+1)*50;if(hash(i+5)>.38){c.strokeStyle=night>.7?'#163e42':'#28615b';c.lineWidth=2;let sway=Math.sin(ambient*.9+i)*h*.13;c.beginPath();c.moveTo(x,z.bottom+4);c.bezierCurveTo(x-5,z.bottom-h*.3,x+sway,z.bottom-h*.7,x+sway*.7,z.bottom-h);c.stroke();for(let k=1;k<4;k++){let yy=z.bottom-h*k/4,side=k%2?1:-1;path([[x,yy+7],[x+side*(9-k),yy-4],[x+sway*.4,yy-2]],night>.7?'#153c3d':'#26594f')}}
@@ -1085,7 +1175,7 @@ function draw(){
  drawSky();drawWater();
  const unwiden=widenView();worldTransform();
  shakeX=shakeY=0;if(shake&&!reduced){shakeX=(Math.random()-.5)*shake;shakeY=(Math.random()-.5)*shake;c.translate(shakeX,shakeY)}
- drawSurface();if(state!=='menu')drawShips();drawTerrainDepth();drawTerrain();
+ drawSurface();drawTerrainDepth();if(state!=='menu')drawShips();drawTerrain();
  if(state!=='menu'){drawPickups();drawMines();drawMissiles()}
  drawSonar();drawParticles();
  if(state!=='dying'&&state!=='over'){drawSub();drawAbilityFx()}else if(wreck)drawSub3D(wreck.angle,wreck);
