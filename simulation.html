@@ -21,14 +21,22 @@
 .hud{position:fixed;inset:0;pointer-events:none;z-index:3}.metrics{position:absolute;top:max(28px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:30px;white-space:nowrap}.metric label{display:block;font:8px ui-monospace,monospace;letter-spacing:.19em;color:#9cbabf;margin-bottom:7px}.metric strong{font-size:23px;font-weight:300;font-variant-numeric:tabular-nums;letter-spacing:.04em}.metric small{font:10px ui-monospace,monospace;color:#a4bfbd;margin-left:4px}.metric.score strong{color:var(--amber)}
 .status{position:absolute;top:102px;left:32px;font:9px ui-monospace,monospace;letter-spacing:.14em;color:var(--mint);display:flex;align-items:center;gap:8px}.dot{width:5px;height:5px;border-radius:50%;background:var(--mint);box-shadow:0 0 9px var(--mint)}
 .vitals{position:absolute;top:126px;left:32px;display:grid;gap:9px;font:9px ui-monospace,monospace;letter-spacing:.14em;color:#9cbabf}.vital{display:flex;align-items:center;gap:8px}.vital .ic{width:14px;height:14px;color:var(--mint)}.vital.air .ic{color:var(--air)}.vlabel{width:30px}.pips{display:flex;gap:4px}.pips i{width:16px;height:7px;border:1px solid #a6ead5aa;background:#a6ead5b0;border-radius:1px;transition:background .3s,border-color .3s}.pips i.lost{background:transparent;border-color:#e3785f88}.o2{width:124px;height:7px;border:1px solid #9fd8eb66;border-radius:1px;overflow:hidden}.o2 i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#6fc4e0,#c4f3ff)}.vital.air.low{color:#f0a08c;animation:blink 1s steps(2) infinite}.vital.air.low .o2 i{background:var(--red)}.vval{min-width:34px}.effects{display:flex;flex-direction:column;gap:5px;margin-top:2px}.effects span{color:#ffc0ae;border:1px solid #e3785f66;background:#4a1e1a80;padding:4px 7px;border-radius:2px;width:max-content;display:flex;gap:6px;align-items:center}.effects .ic{width:11px;height:11px}.effects span.good{color:var(--air);border-color:#9fdcf066;background:#0d3a4a80}@keyframes blink{50%{opacity:.45}}
-.lower{position:absolute;bottom:max(33px,env(safe-area-inset-bottom));left:32px;right:32px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}.weapons{display:flex;gap:26px;align-items:center;pointer-events:auto}.sonar-block{display:flex;gap:14px;align-items:center}.sonar-btn{position:relative;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;border-color:#a6ead56b;background:#0c2634b0}.sonar-btn svg{width:34px;height:34px}.sonar-btn .ic{width:28px;height:28px;stroke-width:1.3}.sonar-btn.ready{border-color:var(--mint)}#fire{color:#f3dcc0}#fire.ready{border-color:var(--amber);box-shadow:0 0 18px #ecc69b33}.sonar-btn.off{border-color:#e3785f88;color:#e3a08f}.sonar-copy{font:9px/1.8 ui-monospace,monospace;letter-spacing:.08em;color:#8cafb2;min-width:118px}.sonar-copy strong{display:block;color:var(--mint);font-weight:400;font-size:10px}.fire-copy strong{color:var(--amber)}.sonar-copy.off strong{color:var(--red)}
+.lower{position:absolute;bottom:max(33px,env(safe-area-inset-bottom));left:32px;right:32px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}.weapons{display:flex;gap:26px;align-items:center;pointer-events:auto}.sonar-block{display:flex;gap:14px;align-items:center}.sonar-btn{position:relative;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;border-color:#a6ead56b;background:#0c2634b0}.sonar-btn svg{width:34px;height:34px}.sonar-btn .ic{width:28px;height:28px;stroke-width:1.3}.sonar-btn.ready{border-color:var(--mint)}#fire{color:#f3dcc0}#fire.ready{border-color:var(--amber);box-shadow:0 0 18px #ecc69b33}.sonar-btn.off{border-color:#e3785f88;color:#e3a08f}.sonar-btn.active{border-color:#9fd8ff;color:#cfeaff;box-shadow:0 0 18px #9fd8ff44}.sonar-copy.active strong{color:#9fd8ff}.sonar-copy{font:9px/1.8 ui-monospace,monospace;letter-spacing:.08em;color:#8cafb2;min-width:118px}.sonar-copy strong{display:block;color:var(--mint);font-weight:400;font-size:10px}.fire-copy strong{color:var(--amber)}.sonar-copy.off strong{color:var(--red)}
 .thrust{pointer-events:auto;padding:16px 23px;background:#061e2bb8;display:flex;align-items:center;gap:13px;font-size:10px;letter-spacing:.15em;border-color:#b4ded444;touch-action:none}.thrust:active,.thrust.on{background:#a6ead525;border-color:var(--mint)}.thrust .ic{width:20px;height:20px}
 .toast{position:absolute;top:24%;left:50%;transform:translateX(-50%);text-align:center;max-width:80%;width:460px;opacity:0;transition:opacity .7s;pointer-events:none}.toast.show{opacity:1}.toast b{font-size:14px;letter-spacing:.28em;font-weight:400;display:block}.toast span{display:block;font-size:11px;color:#a2bec2;line-height:1.6;margin-top:10px}.toast.bad b{color:#ffb19c}.hint{position:absolute;bottom:140px;left:50%;transform:translateX(-50%);text-align:center;font-size:11px;line-height:1.8;color:#bdd8d3;background:#061b26aa;padding:10px 18px;border:1px solid #b6e6d522;border-radius:4px;transition:opacity .5s;white-space:nowrap}
 .overlay{background:#03101899;backdrop-filter:blur(9px);justify-content:center;padding:80px 20px}.panel{max-height:calc(100dvh - 125px);overflow-y:auto;width:min(500px,100%);padding:34px;background:linear-gradient(140deg,#14313bec,#071920f5);border:1px solid #b5dfd62c;box-shadow:0 20px 100px #0005}.panel.wide{width:min(880px,100%)}.panel h2{font-size:34px;font-weight:300;letter-spacing:.04em;margin:14px 0}.panel p{color:#aac1c5;font-size:13px;line-height:1.75}.panel .launch{width:100%;justify-content:space-between;margin-top:14px}.panel .text-button{margin-top:10px;width:100%}
 .final{margin:18px 0 0;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}.final label{width:100%;color:#91b0b5;font:9px ui-monospace,monospace;letter-spacing:.12em}.final strong{font-size:46px;font-weight:300;color:var(--amber);font-variant-numeric:tabular-nums}.final span{font:9px ui-monospace,monospace;letter-spacing:.12em;color:var(--muted)}.results{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 18px;border-block:1px solid var(--line);padding:20px 0;margin:16px 0 10px}.results label{display:block;color:#91b0b5;font:9px ui-monospace,monospace;letter-spacing:.12em;margin-bottom:8px}.results strong{font-size:23px;font-weight:300}.save-note{font-size:12px;line-height:1.6;color:#aac1c5;margin:10px 0 0;display:flex;gap:8px;align-items:flex-start}.save-note .ic{margin-top:2px;color:var(--mint)}
 .instructions{margin:22px 0;border-top:1px solid var(--line)}.instructions div{padding:12px 0;border-bottom:1px solid var(--line);font-size:12px;line-height:1.65;color:#aac1c5}.instructions b{display:block;color:#e0eee7;font-size:11px;margin-bottom:3px}.switches{display:flex;gap:8px;margin-top:15px}.switches button{flex:1;font-size:10px;padding:10px 5px;color:#b4cecc}
-.subs{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:10px;margin:16px 0 4px}.sub-card{text-align:left;padding:12px;display:flex;flex-direction:column;gap:6px;background:#06202a99}.sub-card[aria-pressed=true]{border-color:var(--amber);background:#ecc69b12}.sub-card canvas{width:100%;height:64px}.sub-card b{font-size:13px;letter-spacing:.12em;display:flex;justify-content:space-between;align-items:center}.sub-card b .ic{color:var(--amber);width:14px;height:14px;visibility:hidden}.sub-card[aria-pressed=true] b .ic{visibility:visible}.sub-card small{font:9px ui-monospace,monospace;color:var(--muted);letter-spacing:.1em}.panel .sub-card p{margin:2px 0 4px;font-size:11px;line-height:1.5}.stat{display:grid;grid-template-columns:70px 1fr;align-items:center;gap:8px;font:8px ui-monospace,monospace;letter-spacing:.12em;color:#8fb0b3}.stat span{height:4px;background:#94b9af25;position:relative}.stat span i{position:absolute;inset:0 auto 0 0;background:var(--mint)}
+.subs{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:10px;margin:16px 0 4px}.sub-card{text-align:left;padding:12px;display:flex;flex-direction:column;gap:6px;background:#06202a99}.sub-card[aria-pressed=true]{border-color:var(--amber);background:#ecc69b12}.sub-card canvas{width:100%;height:64px}.sub-card b{font-size:13px;letter-spacing:.12em;display:flex;justify-content:space-between;align-items:center}.sub-card b .ic{color:var(--amber);width:14px;height:14px;visibility:hidden}.sub-card[aria-pressed=true] b .ic{visibility:visible}.sub-card small{font:9px ui-monospace,monospace;color:var(--muted);letter-spacing:.1em}.panel .sub-card p{margin:2px 0 4px;font-size:11px;line-height:1.5}.sub-card .ab{font:9px/1.55 ui-monospace,monospace;color:#8fb0b3;border-top:1px solid #94b9af25;padding-top:7px;margin-top:2px}.sub-card .ab b{display:block;font-size:9px;color:var(--mint);letter-spacing:.12em;margin-bottom:2px}.stat{display:grid;grid-template-columns:70px 1fr;align-items:center;gap:8px;font:8px ui-monospace,monospace;letter-spacing:.12em;color:#8fb0b3}.stat span{height:4px;background:#94b9af25;position:relative}.stat span i{position:absolute;inset:0 auto 0 0;background:var(--mint)}
 .seg{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;align-items:center}.seg .row-label{min-width:62px}.seg button{font-size:10px;padding:7px 10px;color:var(--muted);background:transparent}.lb-status{font-size:12px;line-height:1.6;color:#aac1c5;margin:12px 0}.table-wrap{max-height:40vh;overflow:auto;border-block:1px solid var(--line)}table.lb{width:100%;border-collapse:collapse;font-size:12px}.lb th{font:8px ui-monospace,monospace;letter-spacing:.14em;color:#91b0b5;text-align:left;padding:9px 8px;position:sticky;top:0;background:#0f2a33}.lb td{padding:9px 8px;border-top:1px solid #b5dfd614;color:#d5e6e2;font-variant-numeric:tabular-nums;white-space:nowrap}.lb td.name{white-space:normal;word-break:break-word}.lb tr.me td{color:var(--amber)}.lb .num{text-align:right}.lb td.empty{color:var(--muted);text-align:center;padding:26px;white-space:normal}.lb-actions{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}.lb-actions button{font-size:11px;padding:10px 12px;color:#b8cdcd;display:inline-flex;gap:7px;align-items:center}.path{font:10px/1.6 ui-monospace,monospace;color:#91b0b5;word-break:break-all;margin:10px 0 0}.path code{color:#cfe2dc}
+.ach-sum{display:flex;align-items:center;gap:14px;margin:6px 0 4px;font:10px ui-monospace,monospace;letter-spacing:.12em;color:var(--muted)}.ach-sum strong{font:300 26px system-ui,sans-serif;color:var(--amber);letter-spacing:.02em}.ach-sum .bar{flex:1;height:4px;background:#94b9af25;position:relative}.ach-sum .bar i{position:absolute;inset:0 auto 0 0;background:var(--amber)}
+.ach-path{margin:14px 0 4px;border-left:1px solid var(--line);padding-left:18px}.ach-tier{font:9px ui-monospace,monospace;letter-spacing:.2em;color:var(--mint);margin:18px 0 8px;position:relative}.ach-tier:before{content:'';position:absolute;left:-23px;top:2px;width:9px;height:9px;border-radius:50%;background:#071920;border:1px solid var(--mint)}.ach-tier small{color:var(--muted);margin-left:8px;letter-spacing:.12em}
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}.ach{display:grid;grid-template-columns:28px 1fr;gap:4px 10px;padding:10px 12px;border:1px solid #b5dfd61c;background:#06202a99;align-items:start}.ach .ic{width:22px;height:22px;color:#5d7b80;grid-row:span 3}.ach b{font-size:11px;letter-spacing:.1em;color:#c3d6d3;font-weight:400}.ach span{font-size:11px;line-height:1.5;color:#8fa9ad}.ach em{font:8px ui-monospace,monospace;font-style:normal;letter-spacing:.12em;color:var(--muted);display:flex;align-items:center;gap:8px}.ach em u{flex:1;height:3px;background:#94b9af25;position:relative;text-decoration:none}.ach em u i{position:absolute;inset:0 auto 0 0;background:var(--mint)}.ach.got{border-color:#ecc69b55;background:#ecc69b10}.ach.got .ic{color:var(--amber)}.ach.got b{color:#f3dcc0}
+.fleet td.name{cursor:pointer}.fleet tr.sel td{background:#a6ead512}.fleet .meter{display:inline-block;width:80px;height:4px;background:#94b9af25;position:relative;vertical-align:middle;margin-right:8px}.fleet .meter i{position:absolute;inset:0 auto 0 0;background:var(--amber)}
+.ach-pop{position:absolute;top:150px;right:32px;display:flex;gap:12px;align-items:center;padding:12px 16px;background:#0b2129e6;border:1px solid #ecc69b66;box-shadow:0 0 24px #ecc69b22;opacity:0;transform:translateX(20px);transition:opacity .5s,transform .5s;max-width:300px}.ach-pop.show{opacity:1;transform:none}.ach-pop .ic{width:26px;height:26px;color:var(--amber);flex:none}.ach-pop small{display:block;font:8px ui-monospace,monospace;letter-spacing:.18em;color:var(--amber);margin-bottom:3px}.ach-pop b{font-size:12px;letter-spacing:.12em;font-weight:400}
+.ach-earned{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.ach-earned span{font:9px ui-monospace,monospace;letter-spacing:.1em;color:var(--amber);border:1px solid #ecc69b55;padding:5px 8px;display:inline-flex;gap:6px;align-items:center}.ach-earned .ic{width:12px;height:12px}
+.place{margin-top:14px;min-width:280px;font-size:12px;border-top:1px solid #b5dfd62a;padding-top:10px}.place label{display:block;font:8px ui-monospace,monospace;letter-spacing:.16em;color:var(--muted);margin-bottom:6px}.place .pr{display:grid;grid-template-columns:44px 1fr auto auto;gap:12px;padding:5px 0;color:#b9cfcb;font-variant-numeric:tabular-nums;text-align:left}.place .pr span:nth-child(n+3){text-align:right}.place .pr.me{color:var(--amber)}.place .pr .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:700px){.ach-pop{top:auto;bottom:110px;right:20px;left:20px;max-width:none}.place{min-width:0;width:100%}}
 /* Game over: soft gradients and stats slide in from the edges over the wreck. */
 .wreck-ui{position:fixed;inset:0;z-index:4;pointer-events:none;display:flex;justify-content:space-between;align-items:center;gap:24px;padding:110px max(4.5vw,24px) 80px}.wreck-ui>div{pointer-events:auto;max-height:100%;overflow-y:auto;scrollbar-width:none}
 .wreck-ui:before,.wreck-ui:after{content:'';position:absolute;top:0;bottom:0;width:min(620px,58vw);pointer-events:none;z-index:-1;animation:edgeL 1.2s cubic-bezier(.2,.7,.2,1) both}.wreck-ui:before{left:0;background:linear-gradient(90deg,#020c14ee 0%,#020c14a6 48%,#020c1400)}.wreck-ui:after{right:0;width:min(460px,45vw);background:linear-gradient(270deg,#020c14d8 0%,#020c1466 50%,#020c1400);animation-name:edgeR;animation-delay:.2s}
@@ -60,7 +68,7 @@
 <symbol id="i-air" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><circle cx="17.5" cy="6.5" r="3"/><path d="M7.5 12.5a3 3 0 0 1 2.5-2.5"/></symbol>
 <symbol id="i-hull" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z"/></symbol>
 <symbol id="i-sonar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12 18 6"/><circle cx="12" cy="12" r="1"/></symbol>
-<symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19zM12 10v4.5M12 17.5v.01"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></symbol><symbol id="i-medal" viewBox="0 0 24 24"><path d="M8 3l2 6M16 3l-2 6"/><circle cx="12" cy="15" r="6"/><path d="M12 12l1 2h2l-1.6 1.3.6 2.2-2-1.3-2 1.3.6-2.2L9 14h2z"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19zM12 10v4.5M12 17.5v.01"/></symbol>
 <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5c3-1.5 5.5-1.5 8 0v14c-2.5-1.5-5-1.5-8 0zM12 5c2.5-1.5 5-1.5 8 0v14c-3-1.5-5.5-1.5-8 0z"/></symbol>
 <symbol id="i-ship" viewBox="0 0 24 24"><path d="M3 15h18l-2.5 4h-13zM6 15v-3h9v3M9 12V8h4v4M11 8V5"/></symbol>
 <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6v18h12V7zM14 3v4h4M9 13h6M9 17h6"/></symbol>
@@ -74,23 +82,28 @@
 </defs></svg>
 <canvas id="world" aria-label="Side-scrolling submarine combat game. Hold Space, Up arrow, or the rise button to ascend; release to descend. F or right-click fires a missile."></canvas>
 <div id="grain"></div><div id="vignette"></div><div id="flash"></div>
-<header class="topbar"><div class="brand"><svg viewBox="0 0 36 36" fill="none" aria-hidden="true"><circle cx="18" cy="18" r="15" stroke="#b1d6ca" stroke-width=".7"/><path d="M5 18h26M18 3v30" stroke="#b1d6ca" stroke-width=".5"/><path d="m11 22 7-13 7 13-7-4z" stroke="#d8e9dd" fill="#d8e9dd11"/></svg><div>UNDERTOW<small>FLEET SUBMARINE COMMAND</small></div></div><nav class="tools" aria-label="Game settings"><button class="icon" id="sound" aria-label="Enable sound" title="Sound (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 9h4l5-4v14l-5-4H4z"/><path id="soundWaves" d="m17 9 5 6m0-6-5 6"/></svg></button><button class="icon" id="fullscreen" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button><button class="icon" id="pause" aria-label="Pause game" title="Pause (P / Esc)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14M16 5v14"/></svg></button></nav></header>
+<header class="topbar"><div class="brand"><svg viewBox="0 0 36 36" fill="none" aria-hidden="true"><circle cx="18" cy="18" r="15" stroke="#b1d6ca" stroke-width=".7"/><path d="M5 18h26M18 3v30" stroke="#b1d6ca" stroke-width=".5"/><path d="m11 22 7-13 7 13-7-4z" stroke="#d8e9dd" fill="#d8e9dd11"/></svg><div>UNDERTOW<small>FLEET SUBMARINE COMMAND</small></div></div><nav class="tools" aria-label="Game settings"><button class="icon" id="music" aria-label="Play music" title="Music (N)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/><path id="musicSlash" d="M3 3l18 18"/></svg></button><button class="icon" id="sound" aria-label="Enable sound" title="Sound (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 9h4l5-4v14l-5-4H4z"/><path id="soundWaves" d="m17 9 5 6m0-6-5 6"/></svg></button><button class="icon" id="fullscreen" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button><button class="icon" id="pause" aria-label="Pause game" title="Pause (P / Esc)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14M16 5v14"/></svg></button></nav></header>
 <section class="view" id="menu"><div class="intro"><div class="eyebrow">FLEET COMMAND / OPERATION DEEP STRIKE</div><h1>UNDERTOW<span class="subhead">DEEP STRIKE</span></h1><p class="lead">Thread the minefields. Outrun the warships hunting from above.<br>Guard your air, guard your hull, and never stop moving.</p>
 <div class="callsign"><label class="row-label" for="callsign">CALLSIGN</label><input id="callsign" maxlength="16" placeholder="Your name for the leaderboard" autocomplete="off" spellcheck="false"></div>
 <div class="mode-row" id="diffRow"><span class="row-label">LEVEL</span><button data-diff="cadet">Cadet</button><button data-diff="officer">Officer</button><button data-diff="captain">Captain</button><button data-diff="admiral">Admiral</button></div>
 <div class="mode-row"><span class="row-label">MISSION</span><button id="standard" aria-pressed="true">Survival</button><button id="practice" aria-pressed="false">Practice / no damage</button></div>
 <div class="vessel-row"><canvas class="mini" id="thumb" width="224" height="76"></canvas><div><b id="vesselName">VIRGINIA CLASS</b><small id="vesselOrigin">UNITED STATES / 2004</small></div><button id="hangarOpen"><svg class="ic"><use href="#i-sub"/></svg>Change</button></div>
-<div class="launch-row"><button class="launch" id="launch">BEGIN DESCENT <svg class="ic"><use href="#i-go"/></svg></button><button class="text-button" id="helpOpen"><svg class="ic"><use href="#i-book"/></svg>Briefing</button><button class="text-button" id="boardOpen"><svg class="ic"><use href="#i-trophy"/></svg>Leaderboard</button></div>
+<div class="launch-row"><button class="launch" id="launch">BEGIN DESCENT <svg class="ic"><use href="#i-go"/></svg></button><button class="text-button" id="helpOpen"><svg class="ic"><use href="#i-book"/></svg>Briefing</button><button class="text-button" id="boardOpen"><svg class="ic"><use href="#i-trophy"/></svg>Leaderboard</button><button class="text-button" id="achOpen"><svg class="ic"><use href="#i-medal"/></svg><span id="achCount">Achievements</span></button></div>
 <button class="lb-chip" id="lbChip"><i></i><span>SHARED LEADERBOARD NOT CONNECTED</span></button>
-<div class="legend"><div><b><span class="key">SPACE</span> HOLD TO RISE</b>Release to descend</div><div><b><span class="key">E</span> SONAR PULSE</b>Reveal mines in the dark</div><div><b><span class="key">F</span> / RIGHT-CLICK</b>Launch a missile</div><div><b><span class="key">A</span><span class="key">D</span> ORBIT</b>C toggles 3D camera</div></div></div></section>
+<div class="legend"><div><b><span class="key">SPACE</span> HOLD TO RISE</b>Release to descend</div><div><b><span class="key">E</span> SPECIAL ABILITY</b>Unique to each boat</div><div><b><span class="key">F</span> / RIGHT-CLICK</b>Launch a missile</div><div><b><span class="key">A</span><span class="key">D</span> ORBIT</b>C toggles 3D camera</div></div></div></section>
 <footer class="foot" id="footer"><span>VESSEL <strong id="footVessel">VIRGINIA / SSN-774</strong><span class="desktop"> &nbsp; / &nbsp; ENDLESS PATROL</span></span><span>BEST SCORE <strong id="best">0</strong></span></footer>
 <div class="hud" id="hud" hidden><div class="metrics"><div class="metric score"><label>SCORE</label><strong id="score">0</strong></div><div class="metric"><label>DISTANCE</label><strong id="distance">0000</strong><small>m</small></div><div class="metric"><label>DEPTH</label><strong id="depth">038</strong><small>m</small></div><div class="metric"><label>SUNK</label><strong id="sunk">0</strong></div></div><div class="status"><i class="dot"></i><span id="sector">01 / CONTINENTAL SHELF</span></div>
 <div class="vitals"><div class="vital"><svg class="ic"><use href="#i-hull"/></svg><span class="vlabel">HULL</span><div class="pips" id="pips"></div></div><div class="vital air" id="airRow"><svg class="ic"><use href="#i-air"/></svg><span class="vlabel">O2</span><div class="o2"><i id="o2bar"></i></div><span class="vval" id="o2val">100%</span></div><div class="effects" id="effects"></div></div>
-<div class="toast" id="toast" role="status"><b id="toastTitle"></b><span id="toastBody"></span></div><div class="hint" id="hint">Hold <b>Space / Up</b> or touch the water to rise. Release to descend.<br><b>F</b> or <b>right-click</b> launches a missile. Collect glowing air pockets. <b>A / D</b> orbits the camera.</div>
-<div class="lower"><div class="weapons"><div class="sonar-block"><button class="sonar-btn" id="ping" aria-label="Send sonar pulse (E)" title="Sonar (E)"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width=".8"><circle cx="20" cy="20" r="16"/><circle cx="20" cy="20" r="10"/><circle cx="20" cy="20" r="4"/><path d="M20 3v17l11-11M3 20h34M20 20v17"/><circle cx="28" cy="13" r="1.5" fill="currentColor"/></svg></button><div class="sonar-copy" id="sonarCopy"><strong id="sonarState">SONAR READY</strong><span id="sonarHint">E / TAP TO PING</span></div></div><div class="sonar-block"><button class="sonar-btn" id="fire" aria-label="Launch missile (F or right-click)" title="Missile (F / right-click)"><svg class="ic"><use href="#i-missile"/></svg></button><div class="sonar-copy fire-copy"><strong id="fireState">MISSILE READY</strong><span id="fireHint">F / RIGHT-CLICK</span></div></div></div><button class="thrust" id="thrust" aria-label="Hold to rise"><svg class="ic"><use href="#i-up"/></svg><span>HOLD TO RISE</span></button></div></div>
+<div class="ach-pop" id="achPop" role="status"><svg class="ic"><use href="#i-medal"/></svg><div><small>ACHIEVEMENT UNLOCKED</small><b id="achPopName"></b></div></div><div class="toast" id="toast" role="status"><b id="toastTitle"></b><span id="toastBody"></span></div><div class="hint" id="hint">Hold <b>Space / Up</b> or touch the water to rise. Release to descend.<br><b>F</b> or <b>right-click</b> launches a missile. <b>E</b> triggers your boat’s special ability. Collect glowing air pockets. <b>A / D</b> orbits the camera.</div>
+<div class="lower"><div class="weapons"><div class="sonar-block"><button class="sonar-btn" id="ability" aria-label="Special ability (E)" title="Ability (E)"><svg class="ic"><use href="#i-bolt"/></svg></button><div class="sonar-copy" id="abilityCopy"><strong id="abilityState">ABILITY READY</strong><span id="abilityHint">E / TAP</span></div></div><div class="sonar-block"><button class="sonar-btn" id="fire" aria-label="Launch missile (F or right-click)" title="Missile (F / right-click)"><svg class="ic"><use href="#i-missile"/></svg></button><div class="sonar-copy fire-copy"><strong id="fireState">MISSILE READY</strong><span id="fireHint">F / RIGHT-CLICK</span></div></div></div><button class="thrust" id="thrust" aria-label="Hold to rise"><svg class="ic"><use href="#i-up"/></svg><span>HOLD TO RISE</span></button></div></div>
 <section class="view overlay" id="paused" hidden><div class="panel"><div class="eyebrow">PROPULSION SUSPENDED</div><h2>Holding position.</h2><p>Take a breath. The ocean will wait.</p><button class="launch" id="resume">RESUME PATROL <svg class="ic"><use href="#i-next"/></svg></button><button class="text-button" id="restartPause"><svg class="ic"><use href="#i-refresh"/></svg>Restart dive</button><button class="text-button" id="quit"><svg class="ic"><use href="#i-home"/></svg>Return to surface</button><div class="switches"><button id="motion">Motion effects: on</button><button id="camBtn">Camera: 3D orbit</button></div></div></section>
-<section class="view overlay" id="help" hidden><div class="panel"><div class="eyebrow">UNDERTOW / FIELD MANUAL</div><h2>Know the depths.</h2><div class="instructions"><div><b>01 / CONTROL YOUR BUOYANCY</b>Hold Space, W, Up arrow, the rise button, or touch the water to ascend. Release to descend. Down arrow or S dives faster. Heavier boats answer the helm more slowly. In open water you can rise all the way to the surface and ride it with the snorkel open to refill air, but mine cables reach the surface too.</div><div><b>02 / THREAD THE MINEFIELDS</b>Pass between paired mines. A mine strike costs two hull sections, a tether costs one. Rock is fatal, including the island cliffs above each cavern mouth. On higher levels some mines drift with the current.</div><div><b>03 / WATCH YOUR AIR</b>Oxygen drains the whole dive. Steer through glowing air pockets to refill it. If it runs out, the hull implodes.</div><div><b>04 / HUNTERS ABOVE</b>Once you are deep into the patrol, warships appear on the surface and drop homing missiles. Their seekers start crude and grow sharper the farther you go. Ramming a ship from the surface costs two hull sections. Every hit costs a hull section and knocks out a system: sonar goes dark, a breach leaks air, or the ballast jams. Lose every section and the boat is gone.</div><div><b>05 / RETURN FIRE</b>F, X or right-click launches a missile. It locks onto an incoming missile first, then a warship, then the nearest mine ahead. Reload time depends on your boat, so pick your moment.</div><div><b>06 / LISTEN AFTER DARK</b>When the light fades, automatic sonar reveals mines with returning echoes. Press E or tap sonar for an extra pulse.</div><div><b>07 / LEVELS AND SCORING</b>Cadet, Officer, Captain and Admiral raise speed, enemy fire and air drain. Score is distance plus mines cleared, ships sunk and missiles intercepted, multiplied by level (0.75x to 1.8x). P / Esc pauses, M toggles sound.</div><div><b>08 / ORBIT CAMERA</b>The camera swings around your boat in 3D. Hold A / D or the left and right arrows to orbit; it eases back when you let go. C switches to the classic flat side view.</div></div><button class="launch" id="helpClose">READY TO DIVE <svg class="ic"><use href="#i-next"/></svg></button></div></section>
+<section class="view overlay" id="help" hidden><div class="panel"><div class="eyebrow">UNDERTOW / FIELD MANUAL</div><h2>Know the depths.</h2><div class="instructions"><div><b>01 / CONTROL YOUR BUOYANCY</b>Hold Space, W, Up arrow, the rise button, or touch the water to ascend. Release to descend. Down arrow or S dives faster. Heavier boats answer the helm more slowly. In open water you can rise all the way to the surface and ride it with the snorkel open to refill air, but mine cables reach the surface too.</div><div><b>02 / THREAD THE MINEFIELDS</b>Pass between paired mines. A mine strike costs two hull sections, a tether costs one. Rock is fatal, including the island cliffs above each cavern mouth. On higher levels some mines drift with the current.</div><div><b>03 / WATCH YOUR AIR</b>Oxygen drains the whole dive. Steer through glowing air pockets to refill it. If it runs out, the hull implodes.</div><div><b>04 / HUNTERS ABOVE</b>Once you are deep into the patrol, warships appear on the surface and drop homing missiles. Their seekers start crude and grow sharper the farther you go. Ramming a ship from the surface costs two hull sections. Every hit costs a hull section and knocks out a system: sonar goes dark, a breach leaks air, or the ballast jams. Lose every section and the boat is gone.</div><div><b>05 / RETURN FIRE</b>F, X or right-click launches a missile. It locks onto an incoming missile first, then a warship, then the nearest mine ahead. Reload time depends on your boat, so pick your moment.</div><div><b>06 / SPECIAL ABILITY</b>Every class carries one unique ability: a torpedo salvo, flank speed, silent running, repairs and more. Press E or tap the ability button to trigger it, then wait for it to recharge. When the light fades, sonar pings on its own and reveals mines with returning echoes.</div><div><b>07 / LEVELS AND SCORING</b>Cadet, Officer, Captain and Admiral raise speed, enemy fire and air drain. Score is distance plus mines cleared, ships sunk and missiles intercepted, multiplied by level (0.75x to 1.8x). P / Esc pauses, M toggles sound, N toggles music.</div><div><b>08 / ORBIT CAMERA</b>The camera swings around your boat in 3D. Hold A / D or the left and right arrows to orbit; it eases back when you let go. C switches to the classic flat side view.</div></div><button class="launch" id="helpClose">READY TO DIVE <svg class="ic"><use href="#i-next"/></svg></button></div></section>
 <section class="view overlay" id="hangar" hidden><div class="panel wide"><div class="eyebrow">DRY DOCK / SELECT VESSEL</div><h2>Choose your boat.</h2><p>Each hull is modelled on a real submarine class. Bigger boats carry more armour, air and launch tubes but need a wider gap and turn slowly.</p><div class="subs" id="subList"></div><button class="launch" id="hangarClose">CONFIRM VESSEL <svg class="ic"><use href="#i-check"/></svg></button></div></section>
+<section class="view overlay" id="ach" hidden><div class="panel wide"><div class="eyebrow">SERVICE RECORD</div><h2>Achievements</h2><p>Start at the top and work down. The early ones teach the boat; the last ones take real time at the helm. Unlocks are saved on this computer and posted with your callsign to the shared leaderboard file.</p>
+<div class="seg" id="achSeg"><span class="row-label">VIEW</span><button data-v="path">Career path</button><button data-v="fleet">Fleet rankings</button></div>
+<div id="achPathView"><div class="ach-sum"><strong id="achNum">0 / 0</strong><span id="achWho">YOUR RECORD</span><span class="bar"><i id="achBar"></i></span></div><div class="ach-path" id="achPath"></div></div>
+<div id="achFleetView" hidden><div class="lb-status" id="achFleetNote"></div><div class="table-wrap"><table class="lb fleet"><thead><tr><th>#</th><th>CALLSIGN</th><th>ACHIEVEMENTS</th><th class="hide-sm">LATEST</th></tr></thead><tbody id="achFleet"></tbody></table></div></div>
+<button class="launch" id="achClose">BACK <svg class="ic"><use href="#i-next"/></svg></button></div></section>
 <section class="view overlay" id="board" hidden><div class="panel wide"><div class="eyebrow">FLEET RECORDS</div><h2>Leaderboard</h2>
 <div class="seg" id="srcSeg"><span class="row-label">SOURCE</span><button data-src="shared">Shared drive</button><button data-src="local">This computer</button></div>
 <div class="seg" id="filterSeg"><span class="row-label">LEVEL</span><button data-filter="all">All</button><button data-filter="cadet">Cadet</button><button data-filter="officer">Officer</button><button data-filter="captain">Captain</button><button data-filter="admiral">Admiral</button></div>
@@ -99,8 +112,8 @@
 <div class="lb-actions"><button id="lbConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button><button id="lbRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button><button id="lbForget"><svg class="ic"><use href="#i-unlink"/></svg>Disconnect</button></div>
 <p class="path">Leaderboard file: <code id="lbPath"></code></p>
 <button class="launch" id="boardClose">BACK <svg class="ic"><use href="#i-next"/></svg></button></div></section>
-<section class="wreck-ui" id="over" hidden><div class="wr-left"><div class="eyebrow" id="overLabel">PATROL ENDED</div><h2>Signal lost.</h2><p id="cause">Hull integrity compromised.</p><div class="final"><label>FINAL SCORE</label><strong id="endScore">0</strong><span id="endMeta"></span></div><div class="results"><div><label>DISTANCE</label><strong id="endDistance">0 m</strong></div><div><label>SHIPS SUNK</label><strong id="endShips">0</strong></div><div><label>MINEFIELDS</label><strong id="endGates">0</strong></div><div><label>DEEPEST POINT</label><strong id="endDepth">0 m</strong></div><div><label>AIR POCKETS</label><strong id="endAir">0</strong></div><div><label>BEST SCORE</label><strong id="endBest">0</strong></div></div><div class="save-note"><svg class="ic"><use href="#i-trophy"/></svg><span id="saveNote"></span></div><button class="text-button" id="saveShared" hidden><svg class="ic"><use href="#i-file"/></svg>Post to shared leaderboard</button></div>
-<div class="wr-right"><button class="again" id="again"><span class="again-ring"><svg class="ic"><use href="#i-refresh"/></svg></span>DIVE AGAIN</button><span class="again-hint">CLICK ANYWHERE / SPACE / W</span><div class="wr-links"><button class="text-button" id="overBoard"><svg class="ic"><use href="#i-trophy"/></svg>Leaderboard</button><button class="text-button" id="home"><svg class="ic"><use href="#i-home"/></svg>Surface</button></div></div></section>
+<section class="wreck-ui" id="over" hidden><div class="wr-left"><div class="eyebrow" id="overLabel">PATROL ENDED</div><h2>Signal lost.</h2><p id="cause">Hull integrity compromised.</p><div class="final"><label>FINAL SCORE</label><strong id="endScore">0</strong><span id="endMeta"></span></div><div class="results"><div><label>DISTANCE</label><strong id="endDistance">0 m</strong></div><div><label>SHIPS SUNK</label><strong id="endShips">0</strong></div><div><label>MINEFIELDS</label><strong id="endGates">0</strong></div><div><label>DEEPEST POINT</label><strong id="endDepth">0 m</strong></div><div><label>AIR POCKETS</label><strong id="endAir">0</strong></div><div><label>BEST SCORE</label><strong id="endBest">0</strong></div></div><div class="save-note"><svg class="ic"><use href="#i-trophy"/></svg><span id="saveNote"></span></div><div class="ach-earned" id="achEarned"></div><button class="text-button" id="saveShared" hidden><svg class="ic"><use href="#i-file"/></svg>Post to shared leaderboard</button></div>
+<div class="wr-right"><button class="again" id="again"><span class="again-ring"><svg class="ic"><use href="#i-refresh"/></svg></span>DIVE AGAIN</button><span class="again-hint">CLICK ANYWHERE / SPACE / W</span><div class="wr-links"><button class="text-button" id="overBoard"><svg class="ic"><use href="#i-trophy"/></svg>Leaderboard</button><button class="text-button" id="overAch"><svg class="ic"><use href="#i-medal"/></svg>Achievements</button><button class="text-button" id="home"><svg class="ic"><use href="#i-home"/></svg>Surface</button></div><div class="place" id="place" hidden><label id="placeLabel">YOUR PLACE</label><div id="placeRows"></div></div></div></section>
 <div id="error" hidden></div>
 <script>
 'use strict';
@@ -135,18 +148,60 @@ const DIFFS={
 // Hull gradient stops (light to dark), then fin colour.
 const PALS={us:['#91a6a0','#637f80','#375663','#263e4d','#152834','#071720','#324b54'],uk:['#8fa3ad','#5e7887','#33505f','#22394a','#132534','#06141e','#2f4655'],ru:['#7d8c87','#4e605e','#2b3b3f','#1d2a30','#111c22','#050d12','#26343a'],de:['#a9b6b2','#7e9191','#526972','#3c515c','#24353f','#0d1b23','#46606a'],gato:['#9ba8a5','#6f8685','#48616b','#344b56','#1e303b','#0b1921','#3c5560']};
 /* Vessels are modelled on real classes. hx/hy are collision half-extents; speed and
-   agility multiply the level's values; o2 is air in seconds; reload in seconds. */
+   agility multiply the level's values; o2 is air in seconds; reload in seconds.
+   ability is the class special (E): cd is its recharge and dur how long it lasts. */
 const SUBS=[
- {id:'virginia',name:'Virginia',origin:'United States / 2004',mark:'SSN-774',desc:'Balanced multi-mission attack boat with a sharp sonar suite.',speed:1.04,agility:1.06,hull:3,o2:85,reload:4.5,sonar:.85,hx:45,hy:16,look:{pal:'us',sail:'std',prop:'pump'}},
- {id:'seawolf',name:'Seawolf',origin:'United States / 1997',mark:'SSN-21',desc:'Built for speed. The fastest hull in the fleet, with eight torpedo tubes.',speed:1.12,agility:1,hull:3,o2:75,reload:3.6,sonar:.95,hx:47,hy:17,look:{pal:'us',sail:'fillet',prop:'pump'}},
- {id:'astute',name:'Astute',origin:'United Kingdom / 2010',mark:'S119',desc:'Exceptionally quiet. The fastest sonar recharge and nimble dive planes.',speed:1.02,agility:1.1,hull:3,o2:90,reload:5,sonar:.62,hx:46,hy:16,look:{pal:'uk',sail:'slope',prop:'pump'}},
- {id:'type212',name:'Type 212A',origin:'Germany / 2005',mark:'U 31',desc:'Compact air-independent boat. Tiny profile and long endurance, but a thin skin.',speed:.95,agility:1.22,hull:2,o2:115,reload:6,sonar:1.05,hx:36,hy:13,look:{pal:'de',sail:'small',stern:'x',prop:'screw'}},
- {id:'gato',name:'Gato',origin:'United States / 1941',mark:'SS-212',desc:'Second World War fleet boat. Quick reloads, but the air runs out fast.',speed:1,agility:1.12,hull:3,o2:62,reload:3.9,sonar:1.15,hx:46,hy:15,look:{pal:'gato',sail:'tower',prop:'twin',bow:'ship'}},
- {id:'akula',name:'Akula',origin:'Soviet Union / 1986',mark:'K-157',desc:'Double hull and heavy plating. Survives a hit that would sink others.',speed:1.03,agility:.95,hull:4,o2:85,reload:5,sonar:1,hx:48,hy:18,look:{pal:'ru',sail:'long',prop:'screw',pod:true}},
- {id:'ohio',name:'Ohio',origin:'United States / 1981',mark:'SSBN-726',desc:'Ballistic missile carrier. Rapid launches, slow to answer the helm.',speed:.98,agility:.86,hull:5,o2:100,reload:2.6,sonar:1,hx:56,hy:18,look:{pal:'us',sail:'planes',prop:'screw',deck:'hump'}},
- {id:'typhoon',name:'Typhoon',origin:'Soviet Union / 1981',mark:'TK-208',desc:'The largest submarine ever built. Enormous, armoured and ponderous.',speed:.95,agility:.78,hull:6,o2:125,reload:3,sonar:1.1,hx:60,hy:22,look:{pal:'ru',sail:'aft',prop:'twin',deck:'fore'}},
+ {id:'virginia',name:'Virginia',origin:'United States / 2004',mark:'SSN-774',desc:'Balanced multi-mission attack boat with a sharp sonar suite.',speed:1.04,agility:1.06,hull:3,o2:85,reload:4.5,sonar:.85,hx:45,hy:16,ability:{id:'salvo',name:'TORPEDO SALVO',desc:'Fires three missiles at once, each locked on a different target.',cd:10},look:{pal:'us',sail:'std',prop:'pump'}},
+ {id:'seawolf',name:'Seawolf',origin:'United States / 1997',mark:'SSN-21',desc:'Built for speed. The fastest hull in the fleet, with eight torpedo tubes.',speed:1.12,agility:1,hull:3,o2:75,reload:3.6,sonar:.95,hx:47,hy:17,ability:{id:'flank',name:'FLANK SPEED',desc:'Reactor wide open: 50% faster for 4 seconds, leaving seekers in the wake.',cd:10,dur:4},look:{pal:'us',sail:'fillet',prop:'pump'}},
+ {id:'astute',name:'Astute',origin:'United Kingdom / 2010',mark:'S119',desc:'Exceptionally quiet. The fastest sonar recharge and nimble dive planes.',speed:1.02,agility:1.1,hull:3,o2:90,reload:5,sonar:.62,hx:46,hy:16,ability:{id:'silent',name:'SILENT RUNNING',desc:'Goes acoustically dark for 6 seconds. Seekers lose lock and warships hold fire.',cd:13,dur:6},look:{pal:'uk',sail:'slope',prop:'pump'}},
+ {id:'type212',name:'Type 212A',origin:'Germany / 2005',mark:'U 31',desc:'Compact air-independent boat. Tiny profile and long endurance, but a thin skin.',speed:.95,agility:1.22,hull:2,o2:115,reload:6,sonar:1.05,hx:36,hy:13,ability:{id:'air',name:'AIP RESERVE',desc:'The air-independent plant restores half your air and seals any leak.',cd:16},look:{pal:'de',sail:'small',stern:'x',prop:'screw'}},
+ {id:'gato',name:'Gato',origin:'United States / 1941',mark:'SS-212',desc:'Second World War fleet boat. Quick reloads, but the air runs out fast.',speed:1,agility:1.12,hull:3,o2:62,reload:3.9,sonar:1.15,hx:46,hy:15,ability:{id:'rapid',name:'RAPID RELOAD',desc:'The torpedo room works double-time: half-second reloads for 6 seconds.',cd:12,dur:6},look:{pal:'gato',sail:'tower',prop:'twin',bow:'ship'}},
+ {id:'akula',name:'Akula',origin:'Soviet Union / 1986',mark:'K-157',desc:'Double hull and heavy plating. Survives a hit that would sink others.',speed:1.03,agility:.95,hull:4,o2:85,reload:5,sonar:1,hx:48,hy:18,ability:{id:'repair',name:'DAMAGE CONTROL',desc:'Repairs one hull section and clears every system fault.',cd:18},look:{pal:'ru',sail:'long',prop:'screw',pod:true}},
+ {id:'ohio',name:'Ohio',origin:'United States / 1981',mark:'SSBN-726',desc:'Ballistic missile carrier. Rapid launches, slow to answer the helm.',speed:.98,agility:.86,hull:5,o2:100,reload:2.6,sonar:1,hx:56,hy:18,ability:{id:'strike',name:'TRIDENT STRIKE',desc:'Vertical launch: one missile for every warship hit and incoming seeker in range.',cd:18},look:{pal:'us',sail:'planes',prop:'screw',deck:'hump'}},
+ {id:'typhoon',name:'Typhoon',origin:'Soviet Union / 1981',mark:'TK-208',desc:'The largest submarine ever built. Enormous, armoured and ponderous.',speed:.95,agility:.78,hull:6,o2:125,reload:3,sonar:1.1,hx:60,hy:22,ability:{id:'shield',name:'ICE-BREAKER HULL',desc:'Reinforced plating shrugs off all damage for 5 seconds. Rock is still fatal.',cd:15,dur:5},look:{pal:'ru',sail:'aft',prop:'twin',deck:'fore'}},
 ];
 const SUB_BY_ID=Object.fromEntries(SUBS.map(s=>[s.id,s]));
+/* Achievements run from easy lessons to long-haul goals. Each has a value and a goal:
+   run goals read the current dive (R), career goals read lifetime totals (L). */
+const DIFF_RANK={cadet:0,officer:1,captain:2,admiral:3};
+const TIERS=[['RECRUIT','Learn the boat'],['SEAMAN','First patrols'],['OFFICER','Command the depths'],['VETERAN','Long service'],['LEGEND','The deep remembers']];
+const ACHS=[
+ ['maiden',0,'Maiden Voyage','Complete your first dive.',1,(R,L)=>L.runs],
+ ['breath',0,'Deep Breath','Steer through an air pocket.',1,R=>R.air],
+ ['needle',0,'Thread the Needle','Clear 5 minefields in one dive.',5,R=>R.gates],
+ ['fish',0,'Fish in the Water','Launch a missile.',1,(R,L)=>L.fired],
+ ['orders',0,'Special Orders','Use your boat\'s special ability (E).',1,(R,L)=>L.ability],
+ ['snorkel',0,'Snorkel Depth','Ride the surface to refill your air.',1,R=>R.surface],
+ ['shakedown',0,'Shakedown Cruise','Travel 500 m in one dive.',500,R=>R.dist],
+ ['firstsink',1,'Surface Kill','Sink a warship.',1,R=>R.ships],
+ ['hardkill',1,'Hard Kill','Shoot down an incoming missile.',1,R=>R.ints],
+ ['sweeper',1,'Minesweeper','Destroy 15 mines with missiles across your career.',15,(R,L)=>L.mines],
+ ['dark',1,'Into the Dark','Dive until night falls on the shelf.',1,R=>R.night],
+ ['cathedral',1,'The Cathedral','Navigate an undersea cavern.',1,R=>R.cave],
+ ['patrol',1,'Patrol Complete','Travel 1,500 m in one dive.',1500,R=>R.dist],
+ ['tour',1,'Shipyard Tour','Dive in 3 different classes.',3,(R,L)=>L.subs],
+ ['commission',2,'Commissioned','Score 3,000 in one dive on Officer or above.',3000,R=>R.diff>=1?R.score:0],
+ ['wolfpack',2,'Wolfpack','Sink 3 warships in one dive.',3,R=>R.ships],
+ ['lungs',2,'Iron Lungs','Collect 10 air pockets in one dive.',10,R=>R.air],
+ ['crush',2,'Crush Depth','Reach a depth of 90 m.',90,R=>R.depth],
+ ['threader',2,'Needle Threader','Clear 60 minefields in one dive.',60,R=>R.gates],
+ ['clean',2,'Clean Hull','Travel 1,500 m without taking a hit.',1500,R=>R.hits?0:R.dist],
+ ['drydock',2,'Full Dry Dock','Dive in every class of boat.',SUBS.length,(R,L)=>L.subs],
+ ['longpatrol',3,'Long Patrol','Travel 4,000 m in one dive.',4000,R=>R.dist],
+ ['arsenal',3,'Master of Arms','Use the special ability of every class.',SUBS.length,(R,L)=>L.abil],
+ ['ace',3,'Ace of the Deep','Sink 10 warships in one dive.',10,R=>R.ships],
+ ['captlog',3,'Captain\'s Log','Score 8,000 in one dive on Captain or above.',8000,R=>R.diff>=2?R.score:0],
+ ['scourge',3,'Scourge of the Surface','Sink 100 warships across your career.',100,(R,L)=>L.ships],
+ ['oldsalt',3,'Old Salt','Complete 50 dives.',50,(R,L)=>L.runs],
+ ['leagues',3,'Twenty Thousand Leagues','Travel 50,000 m across your career.',50000,(R,L)=>L.dist],
+ ['ghost',4,'Ghost','Travel 3,000 m in one dive without launching a missile.',3000,R=>R.fired?0:R.dist],
+ ['irondome',4,'Iron Dome','Shoot down 12 incoming missiles in one dive.',12,R=>R.ints],
+ ['admiral',4,'Fleet Admiral','Travel 5,000 m in one dive on Admiral.',5000,R=>R.diff>=3?R.dist:0],
+ ['flawless',4,'Flawless','Travel 4,000 m on Captain or above without taking a hit.',4000,R=>R.diff>=2&&!R.hits?R.dist:0],
+ ['legend',4,'Legend of the Deep','Score 25,000 in one dive.',25000,R=>R.score],
+].map(([id,tier,name,desc,goal,v])=>({id,tier,name,desc,goal,v}));
+ACHS.push({id:'undertow',tier:4,name:'Undertow',desc:'Unlock every other achievement.',goal:ACHS.length,v:(R,L)=>L.count});
+const ACH_BY_ID=Object.fromEntries(ACHS.map(a=>[a.id,a]));
 const store={get(k,f){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(_){return f}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(_){}}};
 let W=innerWidth,H=innerHeight,dpr=1,scale=1,vw=1,vh=1,camX=0,camY=-10;
 let state='menu', panel=null, practice=false, held=false, down=false, inputKeys=new Set(),pointerLift=false;
@@ -157,10 +212,10 @@ let t=0, ambient=0, distance=0, speed=0, difficulty=0, night=0, sub={x:0,y:400,v
 let pings=[],echoes=[],bubbles=[],debris=[],ships=[],enemyMissiles=[],missiles=[],booms=[],pickups=[],spray=[],ripples=[];
 let surfaced=false,surfacedAt=-9,tilt=0,lastDrip=0;
 let cleared=0,maxDepth=0,lastPing=-10,lastBubble=0,shake=0,flash=0,crashAt=0;
-let hull=3,o2=80,invulnUntil=0,lastHitAt=-9,sonarDownUntil=0,leakUntil=0,ballastUntil=0,lastFire=-99,nextShipAt=0,shipsSunk=0,minesDestroyed=0,intercepts=0,airCollected=0,bonus=0,lastAlarm=0,lowO2Warned=false;
+let hull=3,o2=80,invulnUntil=0,lastHitAt=-9,sonarDownUntil=0,leakUntil=0,ballastUntil=0,lastFire=-99,nextShipAt=0,shipsSunk=0,minesDestroyed=0,intercepts=0,airCollected=0,bonus=0,lastAlarm=0,lowO2Warned=false,abilityAt=-99,abilityUntil=0;
 let firstShip=0,wreck=null,camLead=.24,overAt=0,toastUntil=0,announced={},practiceHit=-9,deathCause='',runSeed=Math.random()*1000,lastEntry=null;
 let best=Number(store.get('undertow.best.v2',0))||0;
-let reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, soundOn=false,audio=null,engine=null,engineGain=null;
+let reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, soundOn=!!store.get('undertow.sound',false),musicOn=!!store.get('undertow.music',true),audio=null,engine=null,engineGain=null;
 let lastHud=-1;
 $('motion').textContent='Motion effects: '+(reduced?'reduced':'on');
 $('callsign').value=String(store.get('undertow.callsign','')).slice(0,16);
@@ -229,52 +284,260 @@ let burst=0;
 function populate(){while(nextGate<sub.x+Math.max(vw,2600)+900){let space=mix(D.space[0],D.space[1],clamp(nextGate/D.ramp,0,1));
  if(burst>0){burst--;space*=rnd(.5,.65)}else if(nextGate>2000&&Math.random()<.12){burst=1+Math.floor(Math.random()*3);space*=rnd(.5,.65)}else if(Math.random()<.1)space*=rnd(1.6,2.2);else space*=rnd(.75,1.35);
  if(nextGate<2000||Math.random()>.06)makeGate(nextGate,space);nextGate+=space;}gates=gates.filter(g=>g.x>sub.x-700);pickups=pickups.filter(p=>p.x>sub.x-700&&!p.taken);}
+const ach=(()=>{const a=store.get('undertow.ach.v1',{})||{};const st=a.st||{};return {un:a.un||{},best:a.best||{},st:{runs:+st.runs||0,ships:+st.ships||0,dist:+st.dist||0,mines:+st.mines||0,fired:+st.fired||0,ability:+st.ability||0,subs:st.subs||{},abil:st.abil||{}}}})();
+let run={hits:0,fired:0,ability:0,committed:false,earned:[]};
+const achSave=()=>store.set('undertow.ach.v1',{un:ach.un,best:ach.best,st:ach.st});
+function achLife(){const st=ach.st,live=state==='playing'&&!run.committed&&!practice;
+ return {runs:st.runs,fired:st.fired,ability:st.ability,ships:st.ships+(live?shipsSunk:0),dist:st.dist+(live?Math.floor(distance):0),mines:st.mines+(live?minesDestroyed:0),subs:Object.keys(st.subs).length,abil:Object.keys(st.abil).length,count:ACHS.filter(a=>a.id!=='undertow'&&ach.un[a.id]).length}}
+function achRun(){return {dist:Math.floor(distance),ships:shipsSunk,gates:cleared,air:airCollected,ints:intercepts,depth:Math.floor(maxDepth),score:score(),diff:DIFF_RANK[diffId],hits:run.hits,fired:run.fired,surface:announced.surface?1:0,night:announced.night?1:0,cave:announced.cave?1:0}}
+// Checked a few times a second during a dive and once more when it ends. Practice never counts.
+function achCheck(){
+ if(practice)return;const R=achRun(),L=achLife(),today=new Date().toISOString().slice(0,10);let dirty=false;
+ for(const a of ACHS){const v=Math.max(0,Math.floor(a.v(R,L)||0));if(v>(ach.best[a.id]||0)){ach.best[a.id]=v;dirty=true}
+  if(!ach.un[a.id]&&v>=a.goal){ach.un[a.id]=today;run.earned.push(a.id);dirty=true;achPop(a);if(a.id!=='undertow')return achCheck()}}
+ if(dirty)achSave();
+}
+let achPopUntil=0,achQueue=[];
+function achPop(a){achQueue.push(a);if(achQueue.length===1)achShow()}
+function achShow(){const a=achQueue[0];if(!a)return;$('achPopName').textContent=a.name.toUpperCase();$('achPop').classList.add('show');tone(660,.2,.05,990);setTimeout(()=>tone(990,.3,.05,1320),140);
+ setTimeout(()=>{$('achPop').classList.remove('show');setTimeout(()=>{achQueue.shift();achShow()},500)},3200)}
+function achCommit(){
+ if(practice||run.committed)return;const st=ach.st;st.runs++;st.ships+=shipsSunk;st.dist+=Math.floor(distance);st.mines+=minesDestroyed;run.committed=true;achCheck();achSave();
+}
+function achCountText(){const n=ACHS.filter(a=>ach.un[a.id]).length;return 'Achievements '+n+'/'+ACHS.length}
 function reset(){
  D=DIFFS[diffId];S=SUB_BY_ID[subId];
  t=0;distance=0;difficulty=0;speed=D.speed[0];night=0;runSeed=Math.random()*1000;newWorld();burst=0;firstShip=D.ships*rnd(.7,1.3);sub={x:0,y:route(0),v:0};gates=[];nextGate=900;lastCenter=null;
  pings=[];echoes=[];bubbles=[];debris=[];ships=[];enemyMissiles=[];missiles=[];booms=[];pickups=[];spray=[];ripples=[];surfaced=false;surfacedAt=-9;tilt=0;lastDrip=0;
  cleared=0;maxDepth=0;lastPing=-10;lastBubble=0;shake=0;flash=0;airFx=hullFx=crackFx=0;wreck=null;camLead=.24;
- hull=S.hull;o2=S.o2;invulnUntil=0;lastHitAt=-9;sonarDownUntil=0;leakUntil=0;ballastUntil=0;lastFire=-99;nextShipAt=0;shipsSunk=0;minesDestroyed=0;intercepts=0;airCollected=0;bonus=0;lastAlarm=0;lowO2Warned=false;
- announced={};practiceHit=-9;lastHud=-1;toastUntil=0;camY=Math.max(-130,terrain(0).centre-vh*.53);clearInput();populate();buildPips();
+ hull=S.hull;o2=S.o2;invulnUntil=0;lastHitAt=-9;sonarDownUntil=0;leakUntil=0;ballastUntil=0;lastFire=-99;nextShipAt=0;shipsSunk=0;minesDestroyed=0;intercepts=0;airCollected=0;bonus=0;lastAlarm=0;lowO2Warned=false;abilityAt=-99;abilityUntil=0;
+ announced={};run={hits:0,fired:0,ability:0,committed:false,earned:[]};practiceHit=-9;lastHud=-1;toastUntil=0;camY=Math.max(-130,terrain(0).centre-vh*.53);clearInput();populate();buildPips();
 }
 function score(){return Math.floor((distance+cleared*10+bonus)*D.score)}
 function show(id,visible){$(id).hidden=!visible}
 function callsign(){return $('callsign').value.replace(/[\u0000-\u001f]/g,'').trim().slice(0,16)||'Anonymous'}
-function start(){initAudio();try{getSelection().removeAllRanges()}catch(_){}store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));reset();state='playing';panel=null;setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
-function home(){state='menu';panel=null;clearInput();$('hud').classList.remove('ended');['paused','over','hud','pause','help','board','hangar'].forEach(id=>show(id,false));show('menu',true);show('footer',true);reset();updateMenu();}
+function start(){initAudio();nextSong();if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));reset();state='playing';panel=null;setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
+function home(){state='menu';panel=null;clearInput();$('hud').classList.remove('ended');['paused','over','hud','pause','help','board','hangar','ach'].forEach(id=>show(id,false));show('menu',true);show('footer',true);reset();updateMenu();}
 function clearInput(){held=false;down=false;pointerLift=false;inputKeys.clear();$('thrust').classList.remove('on')}
 function pause(){if(state!=='playing')return;state='paused';clearInput();show('paused',true);$('resume').focus()}
 function resume(){if(state!=='paused')return;state='playing';show('paused',false);last=performance.now();acc=0;}
 function toast(title,body,seconds=4,bad=false){$('toastTitle').textContent=title;$('toastBody').textContent=body;toastUntil=t+seconds;$('toast').classList.add('show');$('toast').classList.toggle('bad',bad);}
-function openPanel(id){if(panel)show(panel,false);panel=id;if(state==='over')show('over',false);show(id,true);if(id==='board'){renderBoard();lbSync(false)}if(id==='hangar')renderHangar();const f=$(id).querySelector('.launch');if(f)f.focus({preventScroll:true})}
+function openPanel(id){if(panel)show(panel,false);panel=id;if(state==='over')show('over',false);show(id,true);if(id==='board'){renderBoard();lbSync(false)}if(id==='hangar')renderHangar();if(id==='ach'){lb.achWho='';renderAch();lbSync(false)}const f=$(id).querySelector('.launch');if(f)f.focus({preventScroll:true})}
 function closePanel(){if(!panel)return;show(panel,false);panel=null;if(state==='over'){show('over',true);$('again').focus()}}
-function initAudio(){if(!soundOn)return;try{if(!audio){audio=new (window.AudioContext||window.webkitAudioContext)();engine=audio.createOscillator();engine.type='sine';engine.frequency.value=47;engineGain=audio.createGain();engineGain.gain.value=0;engine.connect(engineGain).connect(audio.destination);engine.start()}if(audio.state==='suspended')audio.resume().catch(()=>{});}catch(_){soundOn=false;updateSound()}}
-function tone(f,dur,vol=.08,end=f){if(!soundOn||!audio||audio.state!=='running')return;let o=audio.createOscillator(),g=audio.createGain(),at=audio.currentTime;o.type='sine';o.frequency.setValueAtTime(f,at);o.frequency.exponentialRampToValueAtTime(end,at+dur);g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(vol,at+.012);g.gain.exponentialRampToValueAtTime(.0001,at+dur);o.connect(g).connect(audio.destination);o.start(at);o.stop(at+dur+.02);o.onended=()=>{o.disconnect();g.disconnect()}}
-function updateSound(){$('sound').setAttribute('aria-label',soundOn?'Mute sound':'Enable sound');$('sound').setAttribute('aria-pressed',String(soundOn));$('soundWaves').setAttribute('d',soundOn?'M17 8q5 4 0 8M20 5q8 7 0 14':'m17 9 5 6m0-6-5 6');if(!soundOn&&engineGain)engineGain.gain.setTargetAtTime(0,audio.currentTime,.1)}
-function toggleSound(){soundOn=!soundOn;initAudio();updateSound();if(soundOn)tone(450,.12,.035,600)}
-function ping(manual=false){if(state!=='playing'||t<sonarDownUntil||t-lastPing<(manual?1.15:2.15)*S.sonar)return false;lastPing=t;pings.push({x:sub.x,y:sub.y,born:t,r:0,hit:new Set()});tone(740,.65,.075,440);return true;}
+/* ---- Audio: everything is synthesized at runtime, so the file stays self-contained ----
+   Buses: sfx and music feed a master gain and a compressor; a generated dark reverb is shared. */
+let master=null,sfxBus=null,musicBus=null,musicTone=null,verbSend=null,noiseBuf=null;
+const mus={next:0,step:0,int:0,bpm:100,key:0,echo:0,song:Math.random()*4|0,pending:null,phrase:0,sec:'main'};
+function initAudio(){if(!soundOn)return;try{if(!audio){audio=new (window.AudioContext||window.webkitAudioContext)();
+  const comp=audio.createDynamicsCompressor();comp.threshold.value=-14;comp.knee.value=12;comp.ratio.value=4;comp.attack.value=.004;comp.release.value=.25;comp.connect(audio.destination);
+  master=audio.createGain();master.gain.value=.9;master.connect(comp);sfxBus=audio.createGain();sfxBus.connect(master);
+  musicTone=audio.createBiquadFilter();musicTone.type='lowpass';musicTone.frequency.value=18000;musicBus=audio.createGain();musicBus.gain.value=0;musicBus.connect(musicTone).connect(master);
+  const len=audio.sampleRate*2.8|0,ir=audio.createBuffer(2,len,audio.sampleRate);
+  for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);let lp=0;for(let i=0;i<len;i++){lp+=(Math.random()*2-1-lp)*.35;d[i]=lp*Math.pow(1-i/len,2.6)}}
+  const verb=audio.createConvolver();verb.buffer=ir;verbSend=audio.createGain();verbSend.gain.value=.55;verbSend.connect(verb).connect(master);
+  noiseBuf=audio.createBuffer(1,audio.sampleRate*2,audio.sampleRate);const nd=noiseBuf.getChannelData(0);for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
+  // Engine: a filtered sawtooth hum plus low noise for prop wash.
+  engine=audio.createOscillator();engine.type='sawtooth';engine.frequency.value=47;const ef=audio.createBiquadFilter();ef.type='lowpass';ef.frequency.value=170;
+  engineGain=audio.createGain();engineGain.gain.value=0;engine.connect(ef).connect(engineGain);
+  const wash=audio.createBufferSource();wash.buffer=noiseBuf;wash.loop=true;const wf=audio.createBiquadFilter();wf.type='lowpass';wf.frequency.value=300;const wg=audio.createGain();wg.gain.value=.7;wash.connect(wf).connect(wg).connect(engineGain);
+  engineGain.connect(sfxBus);engine.start();wash.start();setInterval(musicTick,25);
+ }if(audio.state==='suspended')audio.resume().catch(()=>{});}catch(_){soundOn=false;updateSound()}}
+const audible=()=>soundOn&&audio&&audio.state==='running';
+function env(g,at,a,peak,dur,rel=0){peak=Math.max(peak,.0002);g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(peak,at+a);if(rel)g.gain.setValueAtTime(peak,at+Math.max(a,dur-rel));g.gain.exponentialRampToValueAtTime(.0001,at+dur)}
+function send(g,amt){if(!amt)return;const s=audio.createGain();s.gain.value=amt;g.connect(s).connect(verbSend)}
+function osc(type,f,end,at,dur,vol,out=sfxBus,{a=.012,verb=0,cut=0,cutEnd=cut,detune=0,rel=0}={}){
+ const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.detune.value=detune;o.frequency.setValueAtTime(f,at);if(end!==f)o.frequency.exponentialRampToValueAtTime(end,at+dur);
+ let n=o;if(cut){const fl=audio.createBiquadFilter();fl.type='lowpass';fl.frequency.setValueAtTime(cut,at);if(cutEnd!==cut)fl.frequency.exponentialRampToValueAtTime(cutEnd,at+dur);n=n.connect(fl)}
+ env(g,at,a,vol,dur,rel);n.connect(g).connect(out);send(g,verb);o.start(at);o.stop(at+dur+.05);o.onended=()=>{o.disconnect();g.disconnect()}}
+function noise(at,dur,vol,out=sfxBus,{type='lowpass',f=1200,end=f,q=.7,a=.005,verb=0}={}){
+ const s=audio.createBufferSource(),fl=audio.createBiquadFilter(),g=audio.createGain();s.buffer=noiseBuf;s.loop=true;fl.type=type;fl.Q.value=q;fl.frequency.setValueAtTime(f,at);if(end!==f)fl.frequency.exponentialRampToValueAtTime(end,at+dur);
+ env(g,at,a,vol,dur);s.connect(fl).connect(g).connect(out);send(g,verb);s.start(at,Math.random()*1.8);s.stop(at+dur+.05);s.onended=()=>{s.disconnect();g.disconnect()}}
+function tone(f,dur,vol=.08,end=f,type='sine'){if(!audible())return;osc(type,f,end,audio.currentTime,dur,vol)}
+const sfx={
+ boom(size){if(!audible())return;const at=audio.currentTime,k=clamp(size/40,.3,1.6);osc('sine',110,28,at,.5+k*.4,Math.min(.32,.1*k+.06));noise(at,.4+k*.6,Math.min(.4,.13*k+.05),sfxBus,{f:2400,end:90,verb:.5});noise(at,.07,.1*k,sfxBus,{type:'highpass',f:2500})},
+ launch(){if(!audible())return;const at=audio.currentTime;osc('sine',230,55,at,.35,.2);noise(at,.5,.16,sfxBus,{type:'bandpass',f:300,end:2600,q:1.4,a:.03,verb:.3});noise(at+.05,.7,.06,sfxBus,{type:'bandpass',f:700,end:1800,q:3})},
+ enemyLaunch(){if(!audible())return;const at=audio.currentTime;noise(at,.8,.05,sfxBus,{type:'highpass',f:3200,end:1100,a:.04,verb:.4});osc('sawtooth',330,560,at,.3,.018,sfxBus,{cut:1600})},
+ splash(){if(!audible())return;noise(audio.currentTime,.45,.09,sfxBus,{type:'bandpass',f:1700,end:300,q:.8,verb:.3})},
+ impact(){if(!audible())return;const at=audio.currentTime;[173,271,389,557,812].forEach((f,i)=>osc('triangle',f,f*.97,at,1.3-i*.16,.055,sfxBus,{a:.003,verb:.6}));noise(at,.35,.28,sfxBus,{f:1400,end:80});osc('sine',120,38,at,.5,.2)},
+ shield(){if(!audible())return;const at=audio.currentTime;[1320,1980,2640].forEach((f,i)=>osc('sine',f,f*1.02,at+i*.02,.55,.028,sfxBus,{a:.003,verb:.7}))},
+ // With music on, sonar sounds land on the beat grid and take their pitch from the current chord.
+ // Only the sound is delayed (at most an eighth note); pings and echoes still happen on time in the game.
+ ping(){if(!audible())return;const g=musicGrid(2),at=g?g.at:audio.currentTime,f=g?mtof(g.ch[0]+36):1180;osc('sine',f,f*.97,at,1.5,.085,sfxBus,{a:.004,verb:1});osc('sine',f*2,f*1.95,at,.25,.012,sfxBus,{a:.004})},
+ echo(){if(!audible())return;const g=musicGrid(1),at=g?g.at:audio.currentTime,f=g?mtof(g.ch[mus.echo++%3]+36+(mus.echo%6>2?12:0)):1180;osc('sine',f,f*.94,at,.35,g?.024:.018,sfxBus,{a:.006,verb:.8})},
+ pickup(){if(!audible())return;const at=audio.currentTime;[523,659,784,1047].forEach((f,i)=>osc('sine',f,f*1.04,at+i*.05,.22,.035,sfxBus,{verb:.4}));noise(at,.35,.04,sfxBus,{type:'bandpass',f:900,end:2600,q:4})},
+ ability(){if(!audible())return;const at=audio.currentTime;osc('sawtooth',110,440,at,.6,.05,sfxBus,{a:.05,cut:400,cutEnd:3000,verb:.5});osc('sine',520,980,at+.1,.4,.05,sfxBus,{verb:.4})},
+ alarm(){if(!audible())return;const at=audio.currentTime;osc('square',880,880,at,.13,.022,sfxBus,{cut:2400});osc('square',660,660,at+.15,.13,.022,sfxBus,{cut:2400})},
+ sunk(){if(!audible())return;const at=audio.currentTime;osc('sawtooth',70,24,at,2.4,.1,sfxBus,{cut:320,a:.2,verb:.6});noise(at+.3,2.2,.08,sfxBus,{f:600,end:70,a:.4})},
+ crash(){if(!audible())return;const at=audio.currentTime;this.boom(70);this.impact();osc('sawtooth',92,22,at+.15,2.8,.12,sfxBus,{cut:420,a:.25,verb:.6});noise(at+.2,3,.18,sfxBus,{f:520,end:60,a:.3,verb:.4})},
+ settle(){if(!audible())return;const at=audio.currentTime;osc('sine',62,28,at,.9,.22);noise(at,1.3,.15,sfxBus,{f:420,end:60,verb:.4})},
+ surface(k){if(!audible())return;noise(audio.currentTime,.7,.06+.08*k,sfxBus,{type:'bandpass',f:1100,end:380,q:.7,verb:.3})},
+ // Heartbeat: a deep chest thump plus a muffled thud; the second ("dub") beat is softer and lower.
+ heart(k,dub){if(!audible())return;const at=audio.currentTime,f=dub?52:64;osc('sine',f,f*.6,at,.22,(dub?.16:.24)*k,sfxBus,{a:.004});osc('triangle',f*2,f,at,.06,(dub?.03:.05)*k,sfxBus,{a:.002});noise(at,.12,(dub?.05:.08)*k,sfxBus,{f:260,end:80,a:.003})},
+ dive(){if(!audible())return;noise(audio.currentTime,.55,.06,sfxBus,{f:1400,end:180,a:.02})}
+};
+/* Battle score: a step sequencer playing one of several original EDM tracks, picked fresh each dive.
+   Each track is 8 bars of chords (scale degrees in natural minor) plus a lead line written as one
+   16-step string per bar: 0-9/a-e are scale degrees above the lead's tonic, '-' holds, '.' rests.
+   Progress builds intensity and tempo slowly; the last hull section (critical) takes both all-out: layers stack up
+   (pad, arp, kick, bass, hats, plucked lead, full supersaw lead, stabs, harmony), and the key lifts a
+   step at each new phrase once you are deep enough. Combat (ships, incoming missiles, low hull) adds
+   on top. Synths sit on a sidechained bus that pumps against every kick. Once the music is running hot,
+   every fourth phrase is a breakdown: four bars without drums, then a snare-roll build into the drop. */
+const SCALE=[0,2,3,5,7,8,10];
+const SONGS=[
+ {name:'Pressure Drop',tonic:50,bpm:[128,150],prog:[0,0,5,5,2,2,6,6],bass:'offbeat',drums:'four',voice:'saw',arp:'0121012101210121',stab:[2,6,10,14],
+  lead:['7..7..8.9-.8.7..','7..7..8.b---9-8-','c..c..b.9-.b.c..','c..c..e.d---b-9-','9..9..b.d-.b.9..','9..9..b.d---e-d-','a..a..8.6-.8.a..','d..d..b.a-8-6-4-']},
+ {name:'Deep Current',tonic:52,bpm:[136,160],prog:[0,3,5,6,0,3,5,6],bass:'roll',drums:'four',voice:'chip',arp:'0120201201202012',stab:[0,3,6,10,12],
+  lead:['b.9.7.9.b..e.d.b','a.9.7.5.7..a.9.7','9.7.5.7.9..c.b.9','8.6.4.6.8.a.b.d.','b.9.7.9.b..e.d.e','e.d.c.a.c..e.d.c','c.b.9.7.9.b.c.9.','d---b---8---6.4.']},
+ {name:'Ballast',tonic:48,bpm:[140,150],prog:[0,0,5,5,3,3,6,6],bass:'wobble',drums:'half',voice:'saw',arp:'0.1.2.1.0.1.2.1.',stab:[0,6,10],
+  lead:['7-----4---6-7---','9-------8---7---','7-----5---4-5---','4-----------....','5-----7---8-9---','a-------9---7---','8-----6---8-9---','8-----------6-8-']},
+ {name:'Hadal Light',tonic:45,bpm:[130,155],prog:[0,5,2,6,0,5,2,6],bass:'bounce',drums:'four',voice:'pluck',arp:'0122101202212010',stab:[2,6,10,14],
+  lead:['9.9.b.9..7.9.b..','c.c.b.9..7.9.7..','b.b.9.b..d.b.9..','a.a.8.a..b-a-8--','9.9.b.9..7.9.e..','e.c.b.9..c.b.9..','b.d.e.d..b.9.b..','a---8---a---b---']}];
+// Pre-parse each lead into per-step notes {d: scale degree, len: steps held}.
+SONGS.forEach(so=>so.notes=so.lead.map(b=>[...b].map((c,i)=>{if(c==='.'||c==='-')return null;let len=1;while(b[i+len]==='-')len++;return {d:parseInt(c,36),len}})));
+const mtof=n=>440*Math.pow(2,(n-69)/12);
+const sdeg=d=>SCALE[d%7]+12*Math.floor(d/7);
+// The bar's triad as MIDI notes; roots above the fifth are voiced an octave down to keep it near the tonic.
+function chordAt(so,bar,key){const r=so.prog[bar];let c=[r,r+2,r+4].map(sdeg);if(c[0]>7)c=c.map(x=>x-12);return c.map(x=>x+so.tonic+key)}
+function nextSong(){let i=Math.floor(Math.random()*(SONGS.length-1));if(i>=mus.song)i++;mus.pending=i;
+ $('music').title='Music (N) / '+SONGS[i].name}
+let musicDrive=null,synthBus=null,synthLP=null;
+function musicProgress(){return state==='menu'?0:clamp(sub.x/(D.ramp*2.5),0,1)}
+const critical=()=>state==='playing'&&!practice&&hull<=1;
+function musicTarget(){if(state==='menu')return .14;if(state==='dying'||state==='over')return .04;
+ const p=musicProgress();let i=.38+p*.3;if(practice)i=Math.min(i,.58);
+ if(ships.some(s=>!s.sinking))i+=.1;if(enemyMissiles.length)i+=.06;if(critical())i=Math.max(i+.3,.92);return clamp(i,0,1)}
+function musicBpm(){const b=SONGS[mus.song].bpm;if(state==='menu')return b[0]-16;if(state!=='playing'&&state!=='paused')return b[0]-24;
+ return (critical()?b[1]:b[0]+(b[1]-b[0])*.4*Math.pow(musicProgress(),1.5))*(active('flank')?1.04:1)}
+// Audio time and chord of the next free slot on the music's sixteenth-note grid, snapped to every
+// `every` steps; null when the music is silent.
+function musicGrid(every){if(!audible()||!musicOn||!mus.next)return null;const L=128,st=60/mus.bpm/4,now=audio.currentTime;let at=mus.next,i=mus.step;
+ while(at-st>=now+.005){at-=st;i--}while(((i%every)+every)%every){at+=st;i++}i=((i%L)+L)%L;return {at,ch:chordAt(SONGS[mus.song],i>>4,mus.key||0)}}
+function updateMusic(dt){if(!audio)return;const on=soundOn&&musicOn,now=audio.currentTime;
+ // Mission critical muffles the score as if heard through the hull, so the heartbeat cuts through.
+ const crit=critical();musicBus.gain.setTargetAtTime(on?(state==='paused'?.35:crit?.42:.5+mus.int*.2):0,now,.4);
+ musicTone.frequency.setTargetAtTime(state==='paused'||state==='dying'||state==='over'?650:crit?800:18000,now,crit?.25:.5);
+ const tg=musicTarget();mus.int=mix(mus.int,tg,1-Math.exp(-dt*(tg>mus.int?1.4:.35)));
+ mus.bpm=mix(mus.bpm||100,musicBpm(),1-Math.exp(-dt*.8))}
+function musicTick(){if(!audible()||!musicOn){mus.next=0;return}
+ if(!musicDrive){synthLP=audio.createBiquadFilter();synthLP.type='lowpass';synthLP.frequency.value=18000;synthBus=audio.createGain();synthBus.connect(synthLP).connect(musicBus);
+  musicDrive=audio.createWaveShaper();const c=new Float32Array(1024);for(let i=0;i<1024;i++){const x=i/511.5-1;c[i]=Math.tanh(x*4)}musicDrive.curve=c;const g=audio.createGain();g.gain.value=.5;musicDrive.connect(g).connect(synthBus)}
+ const now=audio.currentTime;if(mus.next<now-.1){mus.next=now+.06}
+ while(mus.next<now+.15){const st=60/(mus.bpm||100)/4;
+  // A new track waits for the next bar line, then starts from its top.
+  if(mus.pending!=null&&mus.step%16===0){mus.song=mus.pending;mus.pending=null;mus.step=0;mus.phrase=0}
+  playStep(mus.step,mus.next,st);mus.step=(mus.step+1)%128;mus.next+=st}}
+// Drums go straight to the music bus; everything tonal goes through the pumping synth bus.
+function kick(at,v,st){const o=audio.createOscillator(),g=audio.createGain();o.frequency.setValueAtTime(190,at);o.frequency.exponentialRampToValueAtTime(48,at+.08);
+ env(g,at,.002,v,.34);o.connect(g).connect(musicBus);o.start(at);o.stop(at+.4);o.onended=()=>{o.disconnect();g.disconnect()};
+ noise(at,.015,v*.25,musicBus,{type:'highpass',f:2500});
+ const p=synthBus.gain,d=.2+.55*mus.int;p.cancelScheduledValues(at);p.setValueAtTime(1-d,at);p.setTargetAtTime(1,at+.015,st*.9)}
+function snare(at,v){noise(at,.17,v,musicBus,{type:'bandpass',f:1900,end:1500,q:.8,verb:.3});osc('triangle',230,160,at,.09,v*.45,musicBus,{a:.002})}
+function saws(m,at,dur,v,o){[-14,0,14].forEach(d=>osc('sawtooth',mtof(m),mtof(m),at,dur,v,synthBus,{a:.006,rel:Math.min(.08,dur/3),detune:d,...o}))}
+function playStep(n,at,st){const I=mus.int,s=n%16,bar=n>>4,so=SONGS[mus.song];
+ if(n===0){mus.phrase=(mus.phrase||0)+1;const p=musicProgress();
+  mus.key=state==='playing'?(p>.7?2:p>.4?1:0):0;
+  mus.sec=state==='playing'&&I>.58&&mus.phrase%4===0?'break':'main';
+  const f=synthLP.frequency;f.cancelScheduledValues(at);
+  if(mus.sec==='break'){f.setValueAtTime(f.value,at);f.setTargetAtTime(900,at,st*4)}else f.setValueAtTime(18000,at)}
+ const brk=mus.sec==='break',quiet=brk&&bar<4,build=brk&&bar>=4,fill=!brk&&bar===7&&I>.5,drop=!brk&&I>.68;
+ if(build&&n===64){const f=synthLP.frequency;f.cancelScheduledValues(at);f.setValueAtTime(900,at);f.exponentialRampToValueAtTime(16000,at+st*64)}
+ const key=mus.key||0,ch=chordAt(so,bar,key),root=ch[0];let bn=root-12;while(bn<36)bn+=12;const bf=mtof(bn);
+ // Pad: always there, swelling in the breakdown and thinning out once the drop takes over.
+ if(s===0)ch.forEach(m=>[-9,9].forEach(d=>osc('sawtooth',mtof(m),mtof(m),at,st*16+.4,quiet?.02:drop?.008:.012,synthBus,{a:.4,cut:500+I*1600,detune:d,verb:.5,rel:1})));
+ // Arpeggio: eighths, then sixteenths, an octave up at full tilt.
+ const ai=so.arp[s];if(ai!=='.'&&(s%2===0||I>.5)){const m=ch[+ai]+12+(I>.8&&s>=8?12:0);osc('square',mtof(m),mtof(m),at,st*.7,.009+.008*I,synthBus,{a:.003,cut:1400+2200*I,cutEnd:700,verb:.3})}
+ // Drums.
+ if(I>.25&&!quiet){
+  let k;if(build)k=s%4===0&&(bar<7||s<12);
+  else if(so.drums==='half'&&I>.62)k=s===0||s===10||(I>.82&&(s===3||s===14));
+  else k=s===0||s===8||(I>.42&&s%4===0)||(I>.9&&s===14);
+  if(fill&&s>=12)k=false;if(k)kick(at,I>.5?.36:.26,st);
+  let sn=I>.4&&(so.drums==='half'&&I>.62?s===8:s===4||s===12);
+  if(fill&&s>=8&&(s>=12||s%2===0))sn=true;
+  if(sn&&!build)snare(at,fill&&s>=8?.06+.012*(s-8):.15);
+  if(build){const u=(bar-4)*16+s,every=bar===4?4:bar===5?2:1;if(s%every===0){snare(at,.04+.1*u/64);if(bar===7)snare(at+st/2,.04+.1*u/64)}}
+  if(I>.35&&!build&&s%4===2)noise(at,.12,.045,musicBus,{type:'highpass',f:7000});
+  if(I>.6&&!build&&s%2===1)noise(at,.03,.018,musicBus,{type:'highpass',f:9000})}
+ // The drop: a crash and a sub hit on the first downbeat of each hot phrase.
+ if(n===0&&I>.5&&mus.phrase>1){noise(at,1.8,.09,musicBus,{type:'highpass',f:4500,end:2800,verb:.6});if(I>.68)osc('sine',90,30,at,1.1,.25,musicBus,{a:.003})}
+ // Risers into each new phrase.
+ if(fill&&s===0)noise(at,st*16,.06,musicBus,{type:'bandpass',f:400,end:6000,q:2,a:st*14});
+ if(build&&n===64){noise(at,st*64,.08,musicBus,{type:'bandpass',f:300,end:8000,q:1.6,a:st*60,verb:.3});osc('sawtooth',110,1760,at,st*64,.02,synthBus,{a:st*58,cut:3000})}
+ // Bass: long notes early, then each track's own groove.
+ if(I>.15&&!quiet){
+  if(build){if(s%2===0)osc('sawtooth',bf,bf,at,st*1.6,.05,synthBus,{a:.004,cut:300+1400*(n-64)/64,cutEnd:150})}
+  else if(I<.42){if(s===0||s===8)osc('sawtooth',bf,bf,at,st*7.5,.06,synthBus,{a:.02,cut:200+I*800,rel:.2})}
+  else{const b=so.bass,v=.075*(.7+I*.3),o={a:.004,cut:400+I*1800,cutEnd:150};
+   if(b==='wobble'&&I>.62){if(s%2===0){const up=(s>>1)%2;osc('sawtooth',bf,bf,at,st*1.9,.11,musicDrive,{a:.004,cut:up?250:3200,cutEnd:up?2600:220});osc('sine',bf/2,bf/2,at,st*1.9,.09,synthBus,{a:.004})}}
+   else if(b==='roll'){if(s%4!==0){osc('sawtooth',bf,bf,at,st*.85,v,synthBus,o);osc('sine',bf/2,bf/2,at,st*.85,v*.8,synthBus,{a:.004})}}
+   else if(b==='bounce'){if(s%4===2||s%4===3){const f=s%4===3?bf*2:bf;osc('sawtooth',f,f,at,st*.9,v,synthBus,o);osc('sine',bf/2,bf/2,at,st*.9,v*.8,synthBus,{a:.004})}}
+   else if(s%4===2){osc('sawtooth',bf,bf,at,st*1.7,v,synthBus,o);osc('sine',bf/2,bf/2,at,st*1.7,v*.9,synthBus,{a:.004})}
+   if(I>.8&&b!=='wobble'&&s%4===0&&!fill){const f=bf/2;osc('sawtooth',f,f,at,st*1.6,.08,musicDrive,{a:.004,cut:900,cutEnd:200})}}}
+ // Chord stabs in the drop.
+ if(drop&&!build&&so.stab.includes(s)&&!(fill&&s>=12))ch.forEach(m=>saws(m+12,at,st*1.2,.011,{cut:4200,cutEnd:700,verb:.3}));
+ // Lead: a soft pluck once things get moving, the track's full voice in the drop, and a
+ // harmony a third up on alternate phrases when it is all-out.
+ const nt=so.notes[bar][s];if(nt&&I>.45){const m=so.tonic+12+key+sdeg(nt.d),dur=nt.len*st*.95,f=mtof(m);
+  if(!drop||quiet)osc('triangle',f,f,at,Math.min(dur,st*3),quiet?.05:.04,synthBus,{a:.003,verb:.5,rel:.05});
+  else{if(so.voice==='saw')saws(m,at,dur,.02,{cut:4200,cutEnd:1800,verb:.4});
+   else if(so.voice==='chip'){osc('square',f,f,at,dur,.026,synthBus,{a:.003,cut:5000,verb:.35,rel:.03});osc('square',f*2,f*2,at,dur,.009,synthBus,{a:.003,cut:6000,detune:7,rel:.03})}
+   else{saws(m,at,Math.min(dur,st*2.5),.018,{a:.003,cut:5200,cutEnd:900,verb:.45});osc('triangle',f*2,f*2,at,Math.min(dur,st*2),.02,synthBus,{a:.003,rel:.04})}
+   if(I>.88&&mus.phrase%2===0){const h=mtof(so.tonic+12+key+sdeg(nt.d+2));osc('square',h,h,at,dur,.01,synthBus,{a:.006,cut:3500,verb:.4})}}}}
+function updateSound(){$('sound').setAttribute('aria-label',soundOn?'Mute sound':'Enable sound');$('sound').setAttribute('aria-pressed',String(soundOn));$('soundWaves').setAttribute('d',soundOn?'M17 8q5 4 0 8M20 5q8 7 0 14':'m17 9 5 6m0-6-5 6');
+ $('music').setAttribute('aria-label',musicOn?'Mute music':'Play music');$('music').setAttribute('aria-pressed',String(musicOn&&soundOn));$('musicSlash').style.display=musicOn&&soundOn?'none':'';
+ if(!soundOn&&engineGain)engineGain.gain.setTargetAtTime(0,audio.currentTime,.1)}
+let unlockTried=false;
+function toggleSound(){if(soundOn&&!audible()&&!unlockTried){unlockTried=true;initAudio();updateSound();return}soundOn=!soundOn;store.set('undertow.sound',soundOn);initAudio();updateSound();if(soundOn)tone(450,.12,.035,600)}
+function toggleMusic(){if(musicOn&&soundOn&&!audible()&&!unlockTried){unlockTried=true;initAudio();updateSound();return}musicOn=!musicOn;store.set('undertow.music',musicOn);if(musicOn&&!soundOn){soundOn=true;store.set('undertow.sound',true);initAudio()}updateSound()}
+function ping(){if(state!=='playing'||t<sonarDownUntil||t-lastPing<2.15*S.sonar)return false;lastPing=t;pings.push({x:sub.x,y:sub.y,born:t,r:0,hit:new Set()});sfx.ping();return true;}
 function updateSonar(dt){
  if(night>.06&&t-lastPing>=2.15*S.sonar)ping();
  for(const p of pings){p.r=(t-p.born)*SOUND_SPEED;for(const g of gates)for(let k=0;k<2;k++){if(g.dead[k])continue;const key=g.x+':'+k, my=mineY(g,k),dist=Math.hypot(g.x-p.x,my-p.y);if(dist<=SONAR_RANGE&&dist<=p.r&&!p.hit.has(key)){p.hit.add(key);echoes.push({x:g.x,y:my,ox:g.x,oy:my,g,k,born:t});}}}
  pings=pings.filter(p=>p.r<SONAR_RANGE);
- for(let i=echoes.length-1;i>=0;i--){let e=echoes[i],dx=sub.x-e.x,dy=sub.y-e.y,dist=Math.hypot(dx,dy);if(dist<SOUND_SPEED*dt+8){e.g.echo[e.k]=t;if(e.g.x>sub.x-100&&e.g.x<sub.x+700)tone(1250,.16,.018,850);echoes.splice(i,1);}else {e.x+=dx/dist*SOUND_SPEED*dt;e.y+=dy/dist*SOUND_SPEED*dt;}}
+ for(let i=echoes.length-1;i>=0;i--){let e=echoes[i],dx=sub.x-e.x,dy=sub.y-e.y,dist=Math.hypot(dx,dy);if(dist<SOUND_SPEED*dt+8){e.g.echo[e.k]=t;if(e.g.x>sub.x-100&&e.g.x<sub.x+700)sfx.echo();echoes.splice(i,1);}else {e.x+=dx/dist*SOUND_SPEED*dt;e.y+=dy/dist*SOUND_SPEED*dt;}}
 }
 /* Weapons. Player missiles lock onto the most urgent target at launch:
    an incoming missile, then a warship, then the nearest mine ahead. */
+const reloadTime=()=>active('rapid')?.5:S.reload;
+function launch(target,vy=0,life=4.2){run.fired++;missiles.push({x:sub.x+S.hx*.9,y:sub.y+3,vx:speed+150,vy:sub.v*.3+15+vy,target,life})}
 function fire(){
  if(state!=='playing')return;
- if(t-lastFire<S.reload){if(t-lastFire>.25)tone(150,.07,.02,120);return}
- lastFire=t;missiles.push({x:sub.x+S.hx*.9,y:sub.y+3,vx:speed+150,vy:sub.v*.3+15,target:acquire(),life:4.2});
- tone(260,.4,.07,70);for(let i=0;i<10;i++)bubbles.push({x:sub.x+S.hx,y:sub.y+(Math.random()-.5)*8,r:1+Math.random()*2.5,life:1+Math.random(),vx:speed*.6+Math.random()*60,vy:-10-Math.random()*30});
+ if(t-lastFire<reloadTime()){if(t-lastFire>.25)tone(150,.07,.02,120);return}
+ lastFire=t;launch(acquire());if(!practice)ach.st.fired++;
+ sfx.launch();for(let i=0;i<10;i++)bubbles.push({x:sub.x+S.hx,y:sub.y+(Math.random()-.5)*8,r:1+Math.random()*2.5,life:1+Math.random(),vx:speed*.6+Math.random()*60,vy:-10-Math.random()*30});
 }
-function acquire(){
+// skip lists targets already claimed (missiles, ships, or 'x:k' mine keys).
+function acquire(skip=[]){
  let found=null,bestD=Infinity;
- for(const m of enemyMissiles){if(m.air)continue;const d=Math.hypot(m.x-sub.x,m.y-sub.y);if(d<420&&d<bestD){bestD=d;found={missile:m}}}
+ for(const m of enemyMissiles){if(m.air||skip.includes(m))continue;const d=Math.hypot(m.x-sub.x,m.y-sub.y);if(d<420&&d<bestD){bestD=d;found={missile:m}}}
  if(found)return found;
- if(terrain(sub.x).cave<.3)for(const s of ships){if(s.sinking||s.x<sub.x-120||s.x>sub.x+1500||terrain(s.x).cave>.15)continue;const d=Math.abs(s.x-sub.x);if(d<bestD){bestD=d;found={ship:s}}}
+ if(terrain(sub.x).cave<.3)for(const s of ships){if(s.sinking||skip.includes(s)||s.x<sub.x-120||s.x>sub.x+1500||terrain(s.x).cave>.15)continue;const d=Math.abs(s.x-sub.x);if(d<bestD){bestD=d;found={ship:s}}}
  if(found)return found;
- for(const g of gates){if(g.x<sub.x+S.hx+30||g.x>sub.x+950)continue;for(let k=0;k<2;k++){if(g.dead[k])continue;const d=(g.x-sub.x)+Math.abs(mineY(g,k)-sub.y)*2;if(d<bestD){bestD=d;found={gate:g,k}}}}
+ for(const g of gates){if(g.x<sub.x+S.hx+30||g.x>sub.x+950)continue;for(let k=0;k<2;k++){if(g.dead[k]||skip.includes(g.x+':'+k))continue;const d=(g.x-sub.x)+Math.abs(mineY(g,k)-sub.y)*2;if(d<bestD){bestD=d;found={gate:g,k}}}}
  return found;
+}
+/* Special abilities (E). Each class has one; timed ones run until abilityUntil.
+   An ability that would do nothing right now is refused without spending the charge. */
+const active=id=>S.ability.id===id&&t<abilityUntil;
+function useAbility(){
+ if(state!=='playing')return;
+ const A=S.ability;
+ if(t-abilityAt<A.cd){if(t-abilityAt>.25)tone(150,.07,.02,120);return}
+ const refuse=(title,body)=>{toast(title,body,1.8);tone(150,.12,.03,110);return false};
+ let ok=true;
+ if(A.id==='salvo'){const taken=[];for(let i=0;i<3;i++){const tg=acquire(taken);if(tg)taken.push(tg.missile||tg.ship||tg.gate.x+':'+tg.k);launch(tg,(i-1)*110)}
+  for(let i=0;i<24;i++)bubbles.push({x:sub.x+S.hx,y:sub.y+(Math.random()-.5)*14,r:1+Math.random()*2.5,life:1+Math.random(),vx:speed*.6+Math.random()*60,vy:-10-Math.random()*30})}
+ else if(A.id==='strike'){let n=0;
+  if(terrain(sub.x).cave<.3)for(const s of ships){if(s.sinking||s.x<camX-100||s.x>camX+vw+200||terrain(s.x).cave>.15)continue;for(let i=0;i<s.hp;i++){launch({ship:s},-420-i*70,5.5);n++}}
+  for(const m of enemyMissiles)if(Math.hypot(m.x-sub.x,m.y-sub.y)<700){launch({missile:m},-160);n++}
+  if(!n)ok=refuse('NO TARGETS','No warships or seekers in range. Charge held.')}
+ else if(A.id==='air'){if(o2>=S.o2*.97&&t>=leakUntil)ok=refuse('AIR TANKS FULL','Charge held for when you need it.');else{o2=Math.min(S.o2,o2+S.o2*.5);leakUntil=0;lowO2Warned=false}}
+ else if(A.id==='repair'){if(hull>=S.hull&&t>=sonarDownUntil&&t>=leakUntil&&t>=ballastUntil)ok=refuse('ALL SYSTEMS NOMINAL','Nothing to repair. Charge held.');else{hull=Math.min(S.hull,hull+1);sonarDownUntil=leakUntil=ballastUntil=0}}
+ else if(A.id==='silent'){for(const m of enemyMissiles)m.seek=0}
+ else if(A.id==='rapid'){lastFire=-99}
+ if(!ok)return;
+ abilityAt=t;abilityUntil=t+(A.dur||0);run.ability++;if(!practice){ach.st.ability++;ach.st.abil[S.id]=1}lastHud=-1;toast(A.name,A.desc,2.2);sfx.ability();
 }
 function targetPos(tg){
  if(!tg)return null;
@@ -282,10 +545,10 @@ function targetPos(tg){
  if(tg.ship)return !tg.ship.sinking&&ships.includes(tg.ship)?[tg.ship.x,SURFACE+2]:null;
  return !tg.gate.dead[tg.k]&&gates.includes(tg.gate)?[tg.gate.x,mineY(tg.gate,tg.k)]:null;
 }
-function boom(x,y,size){booms.push({x,y,size,born:ambient});for(let i=0;i<size*.7;i++){let a=Math.random()*TAU,s=20+Math.random()*size*5;debris.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.4+Math.random()*.8,r:.8+Math.random()*2.6,hot:Math.random()<.55})}tone(95,.5,Math.min(.2,.05*size/20),30)}
+function boom(x,y,size){booms.push({x,y,size,born:ambient});for(let i=0;i<size*.7;i++){let a=Math.random()*TAU,s=20+Math.random()*size*5;debris.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.4+Math.random()*.8,r:.8+Math.random()*2.6,hot:Math.random()<.55})}sfx.boom(size)}
 function splash(x){for(let i=0;i<14;i++)bubbles.push({x:x+(Math.random()-.5)*16,y:SURFACE+4+Math.random()*10,r:1+Math.random()*3,life:.8+Math.random(),vx:(Math.random()-.5)*40,vy:-10-Math.random()*25})}
 function detonateMine(g,k,byMissile){g.dead[k]=true;boom(g.x,mineY(g,k),34);if(byMissile){minesDestroyed++;bonus+=25}}
-function hitShip(s,x,y){s.hp--;s.hitAt=t;boom(x,y,30);if(s.hp<=0){s.sinking=t;shipsSunk++;bonus+=250;boom(s.x,SURFACE-8,60);toast('WARSHIP SUNK','+250. More will follow.',2.2);tone(70,1.2,.2,25)}}
+function hitShip(s,x,y){s.hp--;s.hitAt=t;boom(x,y,30);if(s.hp<=0){s.sinking=t;shipsSunk++;bonus+=250;boom(s.x,SURFACE-8,60);toast('WARSHIP SUNK','+250. More will follow.',2.2);sfx.sunk()}}
 function updateMissiles(dt){
  for(let i=missiles.length-1;i>=0;i--){
   const m=missiles[i];m.life-=dt;const tp=targetPos(m.target);if(!tp)m.target=null;
@@ -305,7 +568,7 @@ function updateShips(dt){
  if(sub.x>firstShip&&t>nextShipAt&&ships.filter(s=>!s.sinking).length<cap){
   const x=camX+vw+260;
   if(terrain(sub.x).cave<.05&&[0,.5,1].every(k=>terrain(mix(sub.x,x+700,k)).cave<.01)){
-   ships.push({x,hp:D.shipHp,max:D.shipHp,fire:t+rnd(.8,2.6),sp:rnd(.35,.7),sinking:0,hitAt:-9,kind:Math.random()<.5?0:1});
+   ships.push({x,hp:D.shipHp,max:D.shipHp,fire:t+(announced.ship?rnd(.8,2.6):rnd(2.8,3.6)),sp:rnd(.35,.7),sinking:0,hitAt:-9,kind:Math.random()<.5?0:1});
    nextShipAt=t+mix(D.shipGap[0],D.shipGap[1],difficulty)*rnd(.55,1.5);
    if(!announced.ship){announced.ship=true;toast('SURFACE CONTACT','A hostile warship is hunting you. Dodge its missiles or fire back with F / right-click.',4.5,true)}
   }else nextShipAt=t+1.5;
@@ -314,30 +577,36 @@ function updateShips(dt){
   if(s.sinking){s.x+=speed*.2*dt;if(t-s.sinking>5)ships.splice(i,1);continue}
   if(terrain(s.x+130).cave<.003)s.x+=speed*s.sp*dt;if(s.x<camX-320){ships.splice(i,1);continue}
   if(state==='playing'&&t>=invulnUntil&&sub.y-S.hy<SURFACE+12&&Math.abs(s.x-sub.x)<96+S.hx*.8){hitShip(s,sub.x+S.hx,SURFACE);damage(2,'The vessel rammed a warship and broke apart.','breach');if(state!=='playing')return}
-  if(t>s.fire&&s.x>camX+60&&s.x<camX+vw-30&&terrain(s.x).cave<.15&&terrain(sub.x).cave<.35){
+  if(t>s.fire&&!active('silent')&&s.x>camX+60&&s.x<camX+vw-30&&terrain(s.x).cave<.15&&terrain(sub.x).cave<.35){
    // Seekers start crude and improve the farther the patrol runs: weaker turning,
    // shorter lock time, slower runs and a wider aim error early on.
    const acc=clamp((sub.x-firstShip)/(D.ramp*1.3),0,1);
-   enemyMissiles.push({x:s.x+(s.kind?30:-20),y:SURFACE-22,vx:(sub.x-s.x)*.12+speed*.4,vy:-190-Math.random()*50,air:true,life:7,turn:D.turn*mix(.4,1,acc),seek:mix(1.1,3.2,acc),err:(Math.random()-.5)*2*mix(80,18,acc),sp:speed+D.mvel*mix(.45,1,acc)});
-   s.fire=t+mix(D.fire[0],D.fire[1],difficulty)*(.8+Math.random()*.4);tone(330,.25,.03,520);
+   enemyMissiles.push({x:s.x+(s.kind?30:-20),y:SURFACE-22,vx:(sub.x-s.x)*.12+speed*.4,vy:-190-Math.random()*50,air:true,life:7,turn:D.turn*mix(.28,.85,acc),seek:mix(.8,2.6,acc),err:(Math.random()-.5)*2*mix(115,28,acc),sp:speed+D.mvel*mix(.32,.88,acc)});
+   s.fire=t+mix(D.fire[0],D.fire[1],difficulty)*(.8+Math.random()*.4);sfx.enemyLaunch();
   }
  }
 }
 function updateEnemyMissiles(dt){
  for(let i=enemyMissiles.length-1;i>=0;i--){const m=enemyMissiles[i];m.life-=dt;
   if(m.air){m.vy+=430*dt;m.x+=m.vx*dt;m.y+=m.vy*dt;if(Math.random()<.7)bubbles.push({x:m.x,y:m.y,r:1.5+Math.random()*2,life:.7+Math.random()*.5,vx:0,vy:-6,smoke:true});
-   if(m.y>SURFACE&&m.vy>0){m.air=false;const a=Math.atan2(m.vy,m.vx),sp=Math.hypot(m.vx,m.vy)*.5;m.vx=Math.cos(a)*sp;m.vy=Math.sin(a)*sp;splash(m.x);tone(200,.2,.02,90)}}
-  else{let a=Math.atan2(m.vy,m.vx);if(m.seek>0){m.seek-=dt;a+=clamp(angDiff(Math.atan2(sub.y+m.err-m.y,sub.x+speed*.25-m.x),a),-m.turn*dt,m.turn*dt)}const sp=Math.min(m.sp,Math.hypot(m.vx,m.vy)+260*dt);m.vx=Math.cos(a)*sp;m.vy=Math.sin(a)*sp;m.x+=m.vx*dt;m.y+=m.vy*dt;if(Math.random()<.5)bubbles.push({x:m.x-Math.cos(a)*10,y:m.y-Math.sin(a)*10,r:1+Math.random()*1.8,life:.6+Math.random()*.5,vx:0,vy:-12})}
+   if(m.y>SURFACE&&m.vy>0){m.air=false;const a=Math.atan2(m.vy,m.vx),sp=Math.hypot(m.vx,m.vy)*.5;m.vx=Math.cos(a)*sp;m.vy=Math.sin(a)*sp;splash(m.x);sfx.splash()}}
+  else{let a=Math.atan2(m.vy,m.vx);
+   // Once a seeker overshoots (it is moving away from the boat), it loses lock for good, so a late dodge sticks.
+   if(m.seek>0&&(m.vx-speed)*(sub.x-m.x)+(m.vy-sub.v)*(sub.y-m.y)<0)m.seek=0;
+   if(m.seek>0&&!active('silent')){m.seek-=dt;a+=clamp(angDiff(Math.atan2(sub.y+m.err-m.y,sub.x+speed*.25-m.x),a),-m.turn*dt,m.turn*dt)}const sp=Math.min(m.sp,Math.hypot(m.vx,m.vy)+260*dt);m.vx=Math.cos(a)*sp;m.vy=Math.sin(a)*sp;m.x+=m.vx*dt;m.y+=m.vy*dt;if(Math.random()<.5)bubbles.push({x:m.x-Math.cos(a)*10,y:m.y-Math.sin(a)*10,r:1+Math.random()*1.8,life:.6+Math.random()*.5,vx:0,vy:-12})}
   const z=terrain(m.x);let gone=m.life<=0||m.y>z.bottom||(!m.air&&z.top>SURFACE+2&&m.y<z.top);
   if(!gone&&state==='playing'){const dx=(m.x-sub.x)/(S.hx+4),dy=(m.y-sub.y)/(S.hy+5);if(dx*dx+dy*dy<1){gone=true;damage(1,'Enemy missiles tore the pressure hull apart.','random')}}
   if(gone){boom(m.x,m.y,22);enemyMissiles.splice(i,1)}
+  // A fatal hit runs crash(), which clears enemyMissiles; stop iterating the stale indices.
+  if(state!=='playing'&&!enemyMissiles.length)return;
  }
 }
 function damage(n,cause,effect){
  if(state!=='playing'||t<invulnUntil)return;
- invulnUntil=t+1.2;lastHitAt=t;shake=reduced?0:7;flash=reduced?.05:.25;tone(120,.5,.15,40);if(cam3d&&!reduced)yawKick+=(Math.random()<.5?-1:1)*.14;
+ if(active('shield')){invulnUntil=t+.4;shake=reduced?0:3;sfx.shield();return}
+ invulnUntil=t+1.2;lastHitAt=t;shake=reduced?0:7;flash=reduced?.05:.25;sfx.impact();if(cam3d&&!reduced)yawKick+=(Math.random()<.5?-1:1)*.14;
  if(practice){toast('IMPACT / PRACTICE MODE','Damage is disabled in practice.',1.5);return}
- hull-=n;if(hull<=0){hull=0;crash(cause);return}
+ run.hits++;hull-=n;if(hull<=0){hull=0;crash(cause);return}
  if(effect==='random')effect=['sonar','breach','ballast'][Math.floor(Math.random()*3)];
  if(effect==='sonar'){sonarDownUntil=t+7;toast('SONAR DAMAGED','The array is offline for 7 seconds. Navigate by sight.',2.5,true)}
  else if(effect==='breach'){o2=Math.max(0,o2-S.o2*.2);leakUntil=t+6;toast('HULL BREACH','Losing air fast. Find an air pocket.',2.5,true)}
@@ -346,12 +615,12 @@ function damage(n,cause,effect){
 function crash(reason){if(state!=='playing')return;if(practice){if(t-practiceHit>1.3){practiceHit=t;toast('CONTACT / PRACTICE MODE','Contact registered. Keep exploring.',1.5)}return;}state='dying';clearInput();deathCause=reason;crashAt=ambient;
  // The hull breaks its back, rolls and sinks to the seabed.
  wreck={x:sub.x,y:sub.y,vx:speed*.35,vy:Math.max(0,sub.v*.3)+10,angle:clamp(sub.v/650,-.22,.22)+tilt,rest:.22+Math.random()*.12,roll:0,rollTo:(Math.random()<.5?-1:1)*(.35+Math.random()*.25),bend:-(.18+Math.random()*.14),born:ambient,lastBubble:0,settled:false};
- enemyMissiles=[];missiles=[];tone(880,1.8,.025,870);shake=reduced?0:10;flash=reduced?.1:.6;show('pause',false);tone(90,1,.22,22);for(let i=0;i<75;i++){let a=Math.random()*TAU,s=30+Math.random()*220;debris.push({x:sub.x,y:sub.y,vx:Math.cos(a)*s+speed*.25,vy:Math.sin(a)*s,life:1+Math.random()*1.4,r:1+Math.random()*4,hot:i<25})}}
+ enemyMissiles=[];missiles=[];tone(880,1.8,.025,870);shake=reduced?0:10;flash=reduced?.1:.6;show('pause',false);sfx.crash();for(let i=0;i<75;i++){let a=Math.random()*TAU,s=30+Math.random()*220;debris.push({x:sub.x,y:sub.y,vx:Math.cos(a)*s+speed*.25,vy:Math.sin(a)*s,life:1+Math.random()*1.4,r:1+Math.random()*4,hot:i<25})}}
 function updateWreck(dt){
  const w=wreck;if(!w)return;
  if(!w.settled){w.vy=Math.min(w.vy+55*dt,90);w.y+=w.vy*dt;w.x+=w.vx*dt;w.vx*=Math.exp(-dt*.9);w.angle=mix(w.angle,w.rest,1-Math.exp(-dt*.8));w.roll=mix(w.roll,w.rollTo,1-Math.exp(-dt*.7));
   const floor=terrain(w.x).bottom-S.hy*.55;
-  if(w.y>=floor){w.y=floor;w.settled=true;w.settledAt=ambient;shake=reduced?0:4;tone(60,.8,.12,30);for(let i=0;i<46;i++){const a=Math.PI+Math.random()*Math.PI;debris.push({x:w.x+(Math.random()-.5)*S.hx*2,y:floor+S.hy*.5,vx:Math.cos(a)*(20+Math.random()*70),vy:Math.sin(a)*(8+Math.random()*30),life:1.2+Math.random()*1.6,r:1.5+Math.random()*3.5})}}}
+  if(w.y>=floor){w.y=floor;w.settled=true;w.settledAt=ambient;shake=reduced?0:4;sfx.settle();for(let i=0;i<46;i++){const a=Math.PI+Math.random()*Math.PI;debris.push({x:w.x+(Math.random()-.5)*S.hx*2,y:floor+S.hy*.5,vx:Math.cos(a)*(20+Math.random()*70),vy:Math.sin(a)*(8+Math.random()*30),life:1.2+Math.random()*1.6,r:1.5+Math.random()*3.5})}}}
  else{w.angle=mix(w.angle,.06,1-Math.exp(-dt*1.5))}
  // Escaping air: a stream while sinking, then a slow trickle.
  if(ambient-w.lastBubble>(w.settled?.22:.04)){w.lastBubble=ambient;bubbles.push({x:w.x+(Math.random()-.5)*S.hx,y:w.y-S.hy*.4,r:1+Math.random()*3,life:2.5+Math.random()*2,vx:(Math.random()-.5)*12,vy:-28-Math.random()*30})}
@@ -363,14 +632,15 @@ function updateDebris(dt){for(const p of debris){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*
  for(const p of spray){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=620*dt;p.life-=dt}spray=spray.filter(p=>p.life>0&&!(p.vy>0&&p.y>SURFACE+2));ripples=ripples.filter(r=>ambient-r.born<1.6)}
 /* Breaking the surface throws spray in proportion to the climb rate, pitches the
    bow up and leaves expanding rings; diving back under leaves a smaller splash. */
-function breach(v){surfaced=true;surfacedAt=t;const k=clamp(v/170,.25,1);tilt=-.2*k;ripples.push({x:sub.x,born:ambient,w:S.hx*1.4});tone(170,.55,.06*k+.02,80);for(let i=0;i<60*k+14;i++){const fx=(Math.random()-.3)*S.hx*2;spray.push({x:sub.x+fx,y:SURFACE-1,vx:speed*.8+(Math.random()-.5)*140,vy:-(70+Math.random()*260)*k-20,life:1.4,r:1+Math.random()*2.6})}for(let i=0;i<20;i++)bubbles.push({x:sub.x+(Math.random()-.5)*S.hx*2,y:SURFACE+6+Math.random()*16,r:1+Math.random()*3,life:.6+Math.random()*.6,vx:speed*.5,vy:-20})}
-function dive(){ripples.push({x:sub.x,born:ambient,w:S.hx});tone(140,.3,.03,60);for(let i=0;i<18;i++)spray.push({x:sub.x+(Math.random()-.5)*S.hx*1.6,y:SURFACE-1,vx:speed*.8+(Math.random()-.5)*60,vy:-40-Math.random()*90,life:1,r:.8+Math.random()*1.8})}
+function breach(v){surfaced=true;surfacedAt=t;const k=clamp(v/170,.25,1);tilt=-.2*k;ripples.push({x:sub.x,born:ambient,w:S.hx*1.4});sfx.surface(k);for(let i=0;i<60*k+14;i++){const fx=(Math.random()-.3)*S.hx*2;spray.push({x:sub.x+fx,y:SURFACE-1,vx:speed*.8+(Math.random()-.5)*140,vy:-(70+Math.random()*260)*k-20,life:1.4,r:1+Math.random()*2.6})}for(let i=0;i<20;i++)bubbles.push({x:sub.x+(Math.random()-.5)*S.hx*2,y:SURFACE+6+Math.random()*16,r:1+Math.random()*3,life:.6+Math.random()*.6,vx:speed*.5,vy:-20})}
+function dive(){ripples.push({x:sub.x,born:ambient,w:S.hx});sfx.dive();for(let i=0;i<18;i++)spray.push({x:sub.x+(Math.random()-.5)*S.hx*1.6,y:SURFACE-1,vx:speed*.8+(Math.random()-.5)*60,vy:-40-Math.random()*90,life:1,r:.8+Math.random()*1.8})}
 async function finish(){
  state='over';const final=score(),metres=Math.floor(distance),newBest=!practice&&final>best;
  if(newBest){best=final;store.set('undertow.best.v2',best)}
  $('overLabel').textContent=practice?'PRACTICE DIVE ENDED':newBest?'NEW PERSONAL BEST':'PATROL ENDED';$('cause').textContent=deathCause;
  $('endScore').textContent=final.toLocaleString();$('endMeta').textContent=S.name.toUpperCase()+' CLASS / '+D.label.toUpperCase()+' / '+D.score+'x';
  $('endDistance').textContent=metres+' m';$('endShips').textContent=shipsSunk;$('endGates').textContent=cleared;$('endDepth').textContent=Math.floor(maxDepth)+' m';$('endAir').textContent=airCollected;$('endBest').textContent=best.toLocaleString();
+ achCommit();renderEarned();$('place').hidden=true;
  show('over',true);overAt=performance.now();$('hud').classList.add('ended');$('again').focus({preventScroll:true});$('saveShared').hidden=true;
  if(practice){lastEntry=null;$('saveNote').textContent='Practice dives are not recorded.';return}
  lastEntry={id:Date.now().toString(36)+Math.random().toString(36).slice(2,8),name:callsign(),score:final,distance:metres,sub:S.id,diff:diffId,ships:shipsSunk,date:new Date().toISOString().slice(0,10)};
@@ -378,7 +648,7 @@ async function finish(){
 }
 function physics(dt){
  t+=dt;difficulty=clamp(sub.x/D.ramp,0,1);
- speed=mix(D.speed[0],D.speed[1],difficulty)*(1+clamp((sub.x-D.ramp)/80000,0,.2))*S.speed*(practice?.85:1);
+ speed=mix(D.speed[0],D.speed[1],difficulty)*(1+clamp((sub.x-D.ramp)/80000,0,.2))*S.speed*(practice?.85:1)*(active('flank')?1.5:1);
  sub.x+=speed*dt;distance=sub.x*.1;night=smooth(TP.night,TP.night+3500,sub.x);camX=sub.x-vw*.24;
  held=pointerLift||inputKeys.has('Space')||inputKeys.has('ArrowUp')||inputKeys.has('KeyW');down=inputKeys.has('ArrowDown')||inputKeys.has('KeyS');
  const agi=S.agility*(t<ballastUntil?.55:1), accel=held?-470*agi:(down?660*agi:360*agi);
@@ -406,8 +676,8 @@ function physics(dt){
  }
  // Air: drains every second, faster through a breach; implosion at zero.
  if(!practice){o2=Math.max(0,o2-D.o2*(t<leakUntil?2.6:1)*dt);if(o2<=0){crash('Life support failed. The hull imploded under the crushing pressure.');return}}
- if(o2<S.o2*.25){if(t-lastAlarm>1.4){lastAlarm=t;tone(880,.12,.04,700)}if(!lowO2Warned){lowO2Warned=true;toast('OXYGEN LOW','Steer through an air pocket before life support fails.',3,true)}}else if(o2>S.o2*.4)lowO2Warned=false;
- for(const p of pickups){if(p.taken)continue;p.cy=p.y+Math.sin(t*1.6+p.phase)*6;const dx=(p.x-sub.x)/(S.hx+18),dy=(p.cy-sub.y)/(S.hy+18);if(dx*dx+dy*dy<1){p.taken=true;o2=Math.min(S.o2,o2+S.o2*.3);airCollected++;bonus+=5;tone(620,.18,.05,1240);for(let i=0;i<16;i++)bubbles.push({x:p.x+(Math.random()-.5)*20,y:p.cy+(Math.random()-.5)*20,r:1+Math.random()*3,life:.8+Math.random(),vx:(Math.random()-.5)*60,vy:-20-Math.random()*40})}}
+ if(o2<S.o2*.25){if(t-lastAlarm>1.4){lastAlarm=t;sfx.alarm()}if(!lowO2Warned){lowO2Warned=true;toast('OXYGEN LOW','Steer through an air pocket before life support fails.',3,true)}}else if(o2>S.o2*.4)lowO2Warned=false;
+ for(const p of pickups){if(p.taken)continue;p.cy=p.y+Math.sin(t*1.6+p.phase)*6;const dx=(p.x-sub.x)/(S.hx+18),dy=(p.cy-sub.y)/(S.hy+18);if(dx*dx+dy*dy<1){p.taken=true;o2=Math.min(S.o2,o2+S.o2*.3);airCollected++;bonus+=5;sfx.pickup();for(let i=0;i<16;i++)bubbles.push({x:p.x+(Math.random()-.5)*20,y:p.cy+(Math.random()-.5)*20,r:1+Math.random()*3,life:.8+Math.random(),vx:(Math.random()-.5)*60,vy:-20-Math.random()*40})}}
  updateShips(dt);updateEnemyMissiles(dt);if(state!=='playing')return;updateMissiles(dt);updateSonar(dt);updateDebris(dt);
  if(!announced.sunset&&sub.x>3000){announced.sunset=true;toast('LIGHT IS FADING','Automatic sonar coming online. Watch for returning echoes.',4)}
  if(!announced.cave&&z.cave>.5){announced.cave=true;toast('ENTERING THE CATHEDRAL','Rock above. Rock below. Ships cannot reach you here.',3.5)}
@@ -415,10 +685,10 @@ function physics(dt){
  if(!announced.drift&&gates.some(g=>g.amp&&g.x>sub.x&&g.x<camX+vw)){announced.drift=true;toast('DRIFTING MINES','Some mines now ride the current. Time your passage.',3.5,true)}
  if(t>toastUntil)$('toast').classList.remove('show');
  if(t>8)$('hint').style.opacity='0';
- if(t-lastBubble>.04){lastBubble=t;bubbles.push({x:sub.x-S.hx*1.2,y:sub.y+(Math.random()-.5)*9,r:1+Math.random()*2.3,life:2+Math.random(),vx:-30-Math.random()*35,vy:-8-Math.random()*18});}
+ if(t-lastBubble>(active('flank')?.012:.04)){lastBubble=t;bubbles.push({x:sub.x-S.hx*1.2,y:sub.y+(Math.random()-.5)*9,r:1+Math.random()*2.3,life:2+Math.random(),vx:-30-Math.random()*35,vy:-8-Math.random()*18});}
  for(let i=bubbles.length-1;i>=0;i--){let b=bubbles[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;if(b.life<0||(!b.smoke&&b.y<SURFACE))bubbles.splice(i,1)}
  camY=mix(camY,Math.max(-130,mix(z.centre,sub.y,.35)-vh*.53),1-Math.exp(-dt*2));
- if(t-lastHud>.1){lastHud=t;updateHUD(z)}
+ if(t-lastHud>.1){lastHud=t;updateHUD(z);if(Math.floor(t*4)!==Math.floor((t-.1)*4))achCheck()}
 }
 function buildPips(){const p=$('pips');p.textContent='';for(let i=0;i<S.hull;i++)p.append(document.createElement('i'))}
 function setRing(el,p,off){el.style.background=off?'#3a1c1cb0':`conic-gradient(rgba(166,234,213,.36) ${Math.round(p*360)}deg, rgba(12,38,52,.72) 0)`;el.classList.toggle('ready',p>=1&&!off);el.classList.toggle('off',!!off)}
@@ -426,9 +696,10 @@ function effect(label,until){const s=document.createElement('span'),i=document.c
 function updateHUD(z){
  $('score').textContent=score().toLocaleString();$('distance').textContent=String(Math.floor(distance)).padStart(4,'0');$('depth').textContent=String(Math.max(0,Math.floor((sub.y-68)*.1))).padStart(3,'0');$('sunk').textContent=shipsSunk;
  $('sector').textContent=(practice?'PRACTICE / ':z.cave>.45?'02 / ':z.basin>.4?'03 / ':'01 / ')+(z.cave>.45?'THE CATHEDRAL':z.basin>1.25?'THE TRENCH':z.basin>.4?'HADAL BASIN':z.lift>70?'THE SHOALS':night>.9?'MIDNIGHT SHELF':'CONTINENTAL SHELF')+' / '+D.label.toUpperCase();
- const sonarDown=t<sonarDownUntil, sc=clamp((t-lastPing)/(1.15*S.sonar),0,1);setRing($('ping'),sc,sonarDown);$('sonarCopy').classList.toggle('off',sonarDown);
- $('sonarState').textContent=sonarDown?'SONAR OFFLINE':sc<1?'LISTENING FOR ECHO':night>.06?'AUTO SONAR ACTIVE':'SONAR READY';$('sonarHint').textContent=sonarDown?'REPAIRING':sc<1?'PULSE IN TRANSIT':'E / TAP TO PING';
- const mc=clamp((t-lastFire)/S.reload,0,1);setRing($('fire'),mc);$('fireState').textContent=mc<1?'RELOADING':'MISSILE READY';$('fireHint').textContent=mc<1?(S.reload*(1-mc)).toFixed(1)+' s':'F / RIGHT-CLICK';
+ const sonarDown=t<sonarDownUntil, A=S.ability, on=t<abilityUntil, ac=clamp((t-abilityAt)/A.cd,0,1);
+ setRing($('ability'),on?(abilityUntil-t)/A.dur:ac);$('ability').classList.toggle('active',on);$('abilityCopy').classList.toggle('active',on);
+ $('abilityState').textContent=on?A.name:ac<1?'RECHARGING':A.name;$('abilityHint').textContent=on?'ACTIVE '+Math.ceil(abilityUntil-t)+' s':ac<1?(A.cd*(1-ac)).toFixed(1)+' s':'E / TAP';
+ const rl=reloadTime(),mc=clamp((t-lastFire)/rl,0,1);setRing($('fire'),mc);$('fireState').textContent=mc<1?'RELOADING':'MISSILE READY';$('fireHint').textContent=mc<1?(rl*(1-mc)).toFixed(1)+' s':'F / RIGHT-CLICK';
  [...$('pips').children].forEach((p,i)=>p.classList.toggle('lost',i>=hull));
  const pct=clamp(o2/S.o2,0,1);$('o2bar').style.width=pct*100+'%';$('o2val').textContent=Math.ceil(pct*100)+'%';$('airRow').classList.toggle('low',pct<.25);
  const fx=$('effects');fx.textContent='';if(sonarDown)fx.append(effect('SONAR OFFLINE',sonarDownUntil));if(t<leakUntil)fx.append(effect('AIR LEAK',leakUntil));if(t<ballastUntil)fx.append(effect('BALLAST FAULT',ballastUntil));if(surfaced){const sn=document.createElement('span');sn.className='good';sn.textContent='SURFACED / SNORKEL OPEN';fx.append(sn)}
@@ -655,7 +926,7 @@ function drawSub3D(angle,wk=null){
   if(wk){if(v[0]<-6){const dx=x+6*kx;x=-6*kx+dx*cb-y*sb;y=dx*sb+y*cb}const ry=y*cr-z*sr;z=y*sr+z*cr;y=ry}
   return [x*ca-y*sa,x*sa+y*ca+bob,z]};
  const view=w=>[ox+scale*(w[0]*cyw+w[2]*syw),oy+scale*(w[1]*cpt-w[2]*cyw*spt),w[0]*d[0]+w[1]*d[1]+w[2]*d[2]];
- c.save();c.setTransform(dpr,0,0,dpr,0,0);if(state==='playing'&&t<invulnUntil&&Math.floor(t*14)%2)c.globalAlpha=.45;
+ c.save();c.setTransform(dpr,0,0,dpr,0,0);if(state==='playing'&&t<invulnUntil&&!active('shield')&&Math.floor(t*14)%2)c.globalAlpha=.45;else if(state==='playing'&&active('silent'))c.globalAlpha=.42;
  // Headlamp beam; on a wreck it stutters out.
  const lampOn=!wk||(ambient-wk.born<1.8&&Math.random()<.45);
  const B=view(world([45,0,0])),E=view(world([270,0,0])),bl=Math.hypot(E[0]-B[0],E[1]-B[1])||1,nx=-(E[1]-B[1])/bl,ny=(E[0]-B[0])/bl,bw=46*ky*scale,b0=3*ky*scale;
@@ -684,7 +955,16 @@ function drawSub3D(angle,wk=null){
  if(lampOn)glow(nose[0],nose[1],12*kx*scale,'#b7f6df55');if(lampOn){circle(nose[0],nose[1],2.3*kx*scale,'#e2f2d4');circle(red[0],red[1],1.2*kx*scale,'#bf8b61')}
  c.restore();
 }
-function drawSub(){const angle=clamp(sub.v/650,-.22,.22)+tilt+(surfaced?Math.sin(ambient*1.9)*.02:0);if(!flat()){drawSub3D(angle);return}c.save();c.translate(sub.x,sub.y+(surfaced?Math.sin(ambient*2.3)*1.4:0));c.rotate(angle);if(state==='menu')c.scale(1.45,1.45);if(state==='playing'&&t<invulnUntil&&Math.floor(t*14)%2)c.globalAlpha=.45;drawSubModel(S,true);c.restore()}
+function drawAbilityFx(){
+ if(state!=='playing'||t>=abilityUntil)return;const id=S.ability.id,fade=clamp((abilityUntil-t)*2,0,1);
+ c.save();c.globalCompositeOperation='screen';
+ if(id==='shield'){glow(sub.x,sub.y,S.hx*1.7,`rgba(140,200,255,${(.22+.08*Math.sin(ambient*9))*fade})`);c.beginPath();c.ellipse(sub.x,sub.y,S.hx*1.4,S.hy*2.5,0,0,TAU);c.strokeStyle=`rgba(185,230,255,${.6*fade})`;c.lineWidth=1.6;c.stroke()}
+ else if(id==='flank'){c.strokeStyle=`rgba(200,240,232,${.35*fade})`;c.lineWidth=1.2;c.beginPath();for(let i=0;i<5;i++){const y=sub.y+(i-2)*S.hy*.5,x=sub.x-S.hx*(1.3+hash(i+Math.floor(ambient*20))*.6);c.moveTo(x,y);c.lineTo(x-60-hash(i*7)*60,y)}c.stroke()}
+ else if(id==='silent'){glow(sub.x,sub.y,S.hx*1.5,`rgba(20,40,60,${.25*fade})`)}
+ else if(id==='rapid'){glow(sub.x+S.hx,sub.y,24,`rgba(255,214,150,${.3*fade})`)}
+ c.restore();
+}
+function drawSub(){const angle=clamp(sub.v/650,-.22,.22)+tilt+(surfaced?Math.sin(ambient*1.9)*.02:0);if(!flat()){drawSub3D(angle);return}c.save();c.translate(sub.x,sub.y+(surfaced?Math.sin(ambient*2.3)*1.4:0));c.rotate(angle);if(state==='menu')c.scale(1.45,1.45);if(state==='playing'&&t<invulnUntil&&!active('shield')&&Math.floor(t*14)%2)c.globalAlpha=.45;else if(state==='playing'&&active('silent'))c.globalAlpha=.42;drawSubModel(S,true);c.restore()}
 function drawPreview(cv,m,w,h){const ctx=cv.getContext('2d');ctx.setTransform(cv.width/w,0,0,cv.height/h,0,0);ctx.clearRect(0,0,w,h);const saved=c;c=ctx;try{const k=Math.min(w/((m.hx/45)*128),h/((m.hy/17)*58));c.translate(w/2+2*k,h/2+12*k*(m.hy/17));c.scale(k,k);drawSubModel(m,false)}finally{c=saved}}
 function drawSurfaceFx(){
  for(const r of ripples){const k=(ambient-r.born)/1.6;c.strokeStyle=`rgba(225,245,240,${(1-k)*.5})`;c.lineWidth=1.4;c.beginPath();c.ellipse(r.x,SURFACE+2,r.w*(.6+k*1.6),5+k*7,0,0,TAU);c.stroke()}
@@ -709,17 +989,18 @@ function drawInstruments(){
    narrows the view with each laboured breath. A failing hull drives a heartbeat:
    the frame throbs and zooms, the edges flush red, and the last hull section
    cracks the viewport. Hits and both states warp the picture with a strip pass. */
-let airFx=0,hullFx=0,crackFx=0,beatPhase=0,fxBuf=null,fxCtx=null,frostTex=null,crackTex=null,maskBuf=null,maskCtx=null,fxW=0,fxH=0;
+let airFx=0,hullFx=0,crackFx=0,critFx=0,wasCritical=false,beatPhase=0,fxBuf=null,fxCtx=null,frostTex=null,crackTex=null,maskBuf=null,maskCtx=null,fxW=0,fxH=0;
 // Lub-dub envelope, 0..1.
 function heartbeat(){const p=beatPhase%1;return Math.min(1,Math.exp(-((p/.045)**2))+Math.exp(-(((p-1)/.045)**2))+.6*Math.exp(-(((p-.2)/.05)**2)))}
 const hitFx=()=>state==='playing'||state==='dying'?clamp(1-(t-lastHitAt)/.8,0,1):0;
 function updateDistress(dt){
  const live=(state==='playing'||state==='dying'||state==='paused')&&!practice;
  const air=live?clamp(1-o2/(S.o2*.35),0,1):0,hurt=live?(hull<=1?1:clamp(1-(hull-1)/Math.max(1,S.hull-2),0,1)*.45):0;
- const k=1-Math.exp(-dt*1.5);airFx=mix(airFx,air,k);hullFx=mix(hullFx,hurt,k);crackFx=mix(crackFx,live&&hull<=1?1:0,1-Math.exp(-dt*6));
+ const k=1-Math.exp(-dt*1.5);airFx=mix(airFx,air,k);hullFx=mix(hullFx,hurt,k);crackFx=mix(crackFx,live&&hull<=1?1:0,1-Math.exp(-dt*6));critFx=mix(critFx,live&&hull<=1?1:0,1-Math.exp(-dt*3));
+ if(critical()&&!wasCritical)toast('MISSION CRITICAL','One more hit and the boat is lost. Steer clear of everything.',3,true);wasCritical=critical();
  if(state==='paused')return;
  const stress=Math.max(hullFx,airFx*.7),prev=beatPhase;beatPhase+=dt*mix(66,150,stress)/60;
- if(stress>.15){if(Math.floor(beatPhase)>Math.floor(prev))tone(58,.16,.1*stress,38);else if(prev%1<.2&&beatPhase%1>=.2)tone(50,.14,.07*stress,34)}
+ if(stress>.15){const k=critical()?1:stress*.45;if(Math.floor(beatPhase)>Math.floor(prev))sfx.heart(k,false);else if(prev%1<.2&&beatPhase%1>=.2)sfx.heart(k,true)}
 }
 const edgeness=(px,py,w,h)=>clamp((Math.hypot((px/w-.5)*2,(py/h-.5)*2)-.5)/.6,0,1);
 function buildFrost(w,h){
@@ -775,7 +1056,7 @@ function distort(beat){
 }
 function drawDistress(beat){
  const hitK=hitFx(),hud=$('hud');
- if(airFx<.01&&hullFx<.01&&crackFx<.01&&hitK<.01){if(hud.style.transform)hud.style.transform='';return}
+ if(airFx<.01&&hullFx<.01&&crackFx<.01&&critFx<.01&&hitK<.01){if(hud.style.transform)hud.style.transform='';return}
  const m=Math.min(W,H),M=Math.max(W,H),breath=.5+.5*Math.sin(ambient*1.4);
  if(airFx>.01){
   c.save();c.globalCompositeOperation='saturation';let sg=c.createRadialGradient(W/2,H/2,m*.4,W/2,H/2,M*.72);sg.addColorStop(0,'rgba(128,128,128,0)');sg.addColorStop(1,`rgba(128,128,128,${airFx*.8})`);c.fillStyle=sg;c.fillRect(0,0,W,H);c.restore();
@@ -787,6 +1068,11 @@ function drawDistress(beat){
   const k=clamp(hullFx*beat*.5+hitK*.35,0,1);c.save();c.globalCompositeOperation='multiply';let mg=c.createRadialGradient(W/2,H/2,m*.48,W/2,H/2,M*.72);mg.addColorStop(0,'#fff');mg.addColorStop(1,`rgb(255,${Math.round(255-130*k)},${Math.round(255-140*k)})`);c.fillStyle=mg;c.fillRect(0,0,W,H);c.restore();
   const g=c.createRadialGradient(W/2,H/2,m*mix(.62,.52,hullFx*beat),W/2,H/2,M*.75);g.addColorStop(0,'rgba(150,15,10,0)');g.addColorStop(.6,`rgba(150,15,10,${red*.18})`);g.addColorStop(1,`rgba(110,0,0,${Math.min(.9,red)})`);c.fillStyle=g;c.fillRect(0,0,W,H);
  }
+ // Mission critical: a hard red frame along every edge that throbs with the heartbeat.
+ if(critFx>.01){const a=critFx*(.45+.4*beat),w=m*mix(.07,.1,beat);c.save();c.globalCompositeOperation='screen';
+  for(const [x0,y0,x1,y1,rx,ry,rw,rh] of [[0,0,0,w,0,0,W,w],[0,H,0,H-w,0,H-w,W,w],[0,0,w,0,0,0,w,H],[W,0,W-w,0,W-w,0,w,H]]){
+   const g=c.createLinearGradient(x0,y0,x1,y1);g.addColorStop(0,`rgba(255,40,25,${a})`);g.addColorStop(.25,`rgba(220,20,10,${a*.45})`);g.addColorStop(1,'rgba(200,0,0,0)');c.fillStyle=g;c.fillRect(rx,ry,rw,rh)}
+  c.restore()}
  if(crackFx>.01){ensureFx();c.save();c.globalAlpha=crackFx*(.6+.2*beat);c.drawImage(crackTex,0,0,W,H);c.restore()}
  hud.style.transform=reduced?'':`scale(${1+beat*.006*hullFx})`;
 }
@@ -802,7 +1088,7 @@ function draw(){
  drawSurface();if(state!=='menu')drawShips();drawTerrainDepth();drawTerrain();
  if(state!=='menu'){drawPickups();drawMines();drawMissiles()}
  drawSonar();drawParticles();
- if(state!=='dying'&&state!=='over')drawSub();else if(wreck)drawSub3D(wreck.angle,wreck);
+ if(state!=='dying'&&state!=='over'){drawSub();drawAbilityFx()}else if(wreck)drawSub3D(wreck.angle,wreck);
  if(state!=='menu')drawSurfaceFx();drawBooms();unwiden();distort(beat);
  c.setTransform(dpr,0,0,dpr,0,0);drawInstruments();
  if(night>0){let gg=c.createRadialGradient(W*.38,H*.47,Math.min(W,H)*.1,W*.4,H*.5,Math.max(W,H)*.7);gg.addColorStop(0,'#00000000');gg.addColorStop(1,`rgba(0,4,12,${night*.32})`);c.fillStyle=gg;c.fillRect(0,0,W,H)}
@@ -816,13 +1102,13 @@ function frame(now){let dt=Math.min((now-last)/1000,.08);last=now;
  if(state==='dying'||state==='over'){updateDebris(dt);updateWreck(dt)}
  if(state==='dying'&&((wreck&&wreck.settled&&ambient-wreck.settledAt>.6)||ambient-crashAt>5))finish();
  shake*=Math.exp(-dt*5);flash*=Math.exp(-dt*5);if(state!=='paused')updateCamera(dt);updateDistress(dt);
- if(engineGain){let gain=soundOn&&state==='playing'?.024+(held?.008:0):0;engineGain.gain.setTargetAtTime(gain,audio.currentTime,.15);engine.frequency.setTargetAtTime(held?53:45,audio.currentTime,.2)}
+ updateMusic(dt);if(engineGain){let gain=soundOn&&state==='playing'?.024+(held?.008:0):0;engineGain.gain.setTargetAtTime(gain,audio.currentTime,.15);engine.frequency.setTargetAtTime(held?53:45,audio.currentTime,.2)}
  draw();requestAnimationFrame(frame);
 }
 /* ---- Menu, hangar ---- */
 function updateMenu(){
  document.querySelectorAll('#diffRow button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.diff===diffId)));
- $('vesselName').textContent=S.name.toUpperCase()+' CLASS';$('vesselOrigin').textContent=S.origin.toUpperCase()+' / HULL '+S.hull;$('footVessel').textContent=S.name.toUpperCase()+' / '+S.mark;$('best').textContent=best.toLocaleString();
+ $('vesselName').textContent=S.name.toUpperCase()+' CLASS';$('vesselOrigin').textContent=S.origin.toUpperCase()+' / HULL '+S.hull+' / E: '+S.ability.name;$('footVessel').textContent=S.name.toUpperCase()+' / '+S.mark;$('best').textContent=best.toLocaleString();
  const th=$('thumb');th.width=Math.round(112*dpr);th.height=Math.round(38*dpr);drawPreview(th,S,112,38);renderChip();
 }
 function selectSub(id){subId=id;S=SUB_BY_ID[id];store.set('undertow.sub',id);if(state==='menu')reset();updateMenu();document.querySelectorAll('.sub-card').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.sub===id)))}
@@ -834,7 +1120,8 @@ function renderHangar(){
   const cv=document.createElement('canvas');cv.className='mini';cv.width=Math.round(240*dpr);cv.height=Math.round(64*dpr);
   const nm=document.createElement('b');nm.textContent=m.name.toUpperCase()+' CLASS';const ns=document.createElementNS('http://www.w3.org/2000/svg','svg'),nu=document.createElementNS('http://www.w3.org/2000/svg','use');ns.setAttribute('class','ic');nu.setAttribute('href','#i-check');ns.append(nu);nm.append(ns);
   const og=document.createElement('small');og.textContent=m.origin.toUpperCase()+' / '+m.mark;const p=document.createElement('p');p.textContent=m.desc;
-  b.append(cv,nm,og,p);
+  const ab=document.createElement('div'),an=document.createElement('b');ab.className='ab';an.textContent='E / '+m.ability.name;ab.append(an,m.ability.desc+' Recharge '+m.ability.cd+' s.');
+  b.append(cv,nm,og,p,ab);
   for(const [label,v] of statRows(m)){const row=document.createElement('div'),l=document.createElement('label'),bar=document.createElement('span'),fill=document.createElement('i');row.className='stat';l.textContent=label;fill.style.width=Math.round(clamp(v,.08,1)*100)+'%';bar.append(fill);row.append(l,bar);b.append(row)}
   b.onclick=()=>selectSub(m.id);list.append(b);drawPreview(cv,m,240,64);
  }
@@ -849,11 +1136,17 @@ document.querySelectorAll('#diffRow button').forEach(b=>b.onclick=()=>{diffId=b.
 const BOARD_CAP=5000, sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function cleanEntry(e){if(!e||typeof e!=='object')return null;const s=Math.floor(Number(e.score));if(!Number.isFinite(s)||s<0||s>1e9)return null;return {id:String(e.id||Math.random()).slice(0,40),name:String(e.name||'Anonymous').replace(/[\u0000-\u001f]/g,'').slice(0,16)||'Anonymous',score:s,distance:Math.max(0,Math.floor(Number(e.distance)||0)),sub:SUB_BY_ID[e.sub]?e.sub:'virginia',diff:DIFFS[e.diff]?e.diff:'officer',ships:Math.max(0,Math.floor(Number(e.ships)||0)),date:String(e.date||'').slice(0,10)}}
 function mergeEntries(a,b){const m=new Map();for(const e of [...a,...b])m.set(e.id,e);return [...m.values()].sort((x,y)=>y.score-x.score).slice(0,BOARD_CAP)}
+// Achievements in the shared file: players[lower-case callsign] = {name, ach:{id:date}}. Unions only, never removals.
+function mergePlayer(a,b){if(!a)return b;if(!b)return a;const m={...b.ach};for(const [id,d] of Object.entries(a.ach))if(!m[id]||d<m[id])m[id]=d;return {name:b.name||a.name,ach:m}}
+function cleanPlayers(p){const out={};if(p&&typeof p==='object'&&!Array.isArray(p))for(const v of Object.values(p)){if(!v||typeof v!=='object')continue;const name=String(v.name||'').replace(/[\u0000-\u001f]/g,'').trim().slice(0,16);if(!name)continue;const a={};if(v.ach&&typeof v.ach==='object')for(const [id,d] of Object.entries(v.ach))if(ACH_BY_ID[id])a[id]=String(d||'').slice(0,10);const k=name.toLowerCase();out[k]=mergePlayer(out[k],{name,ach:a})}return out}
+function mergePlayers(a,b){const o={...a};for(const [k,v] of Object.entries(b))o[k]=mergePlayer(o[k],v);return o}
+function myPlayer(){const name=callsign();if(name==='Anonymous'||!Object.keys(ach.un).length)return null;return {name,ach:{...ach.un}}}
+function playerCurrent(players){const me=myPlayer();if(!me)return true;const p=players[me.name.toLowerCase()];return !!p&&Object.keys(me.ach).every(id=>p.ach[id])}
 const included=(list,e)=>list.some(x=>x.id===e.id)||(list.length>=BOARD_CAP&&e.score<=list[list.length-1].score);
 // Where this page lives, e.g. \\SERVER\Share\Games\ or Z:\Games\, shown so players pick the right folder.
 const PAGE_NAME=(()=>{try{return decodeURIComponent(location.pathname.split('/').pop()||'')}catch(_){return ''}})();
 const GAME_DIR=(()=>{try{if(location.protocol!=='file:')return '';const p=decodeURIComponent(location.pathname);return (location.host?'\\\\'+location.host:'')+p.slice(0,p.lastIndexOf('/')+1).replace(/^\/([A-Za-z]:)/,'$1').replace(/\//g,'\\')}catch(_){return ''}})();
-const lb={supported:typeof window.showDirectoryPicker==='function',dir:null,perm:'none',shared:[],local:(store.get('undertow.local.v1',[])||[]).map(cleanEntry).filter(Boolean),source:'shared',filter:'all',note:'',warn:'',mine:new Set(store.get('undertow.mine.v1',[]))};
+const lb={supported:typeof window.showDirectoryPicker==='function',dir:null,perm:'none',shared:[],players:{},achView:'path',achWho:'',local:(store.get('undertow.local.v1',[])||[]).map(cleanEntry).filter(Boolean),source:'shared',filter:'all',note:'',warn:'',mine:new Set(store.get('undertow.mine.v1',[]))};
 if(!lb.supported)lb.source='local';
 $('lbPath').textContent=(GAME_DIR||'the game\u2019s folder \\ ')+BOARD_FILE;
 function idb(mode,fn){return new Promise((res,rej)=>{let open;try{open=indexedDB.open('undertow',1)}catch(e){rej(e);return}open.onupgradeneeded=()=>open.result.createObjectStore('kv');open.onerror=()=>rej(open.error);open.onsuccess=()=>{const db=open.result;let tx,req;try{tx=db.transaction('kv',mode);req=fn(tx.objectStore('kv'))}catch(e){db.close();rej(e);return}tx.oncomplete=()=>{db.close();res(req.result)};tx.onerror=tx.onabort=()=>{db.close();rej(tx.error)}}})}
@@ -864,9 +1157,9 @@ async function writeText(name,text){const w=await (await lb.dir.getFileHandle(na
 async function lbPermitted(ask){if(!lb.dir)return false;const o={mode:'readwrite'};try{if(await lb.dir.queryPermission(o)==='granted')return true;if(ask&&await lb.dir.requestPermission(o)==='granted')return true}catch(_){}return false}
 async function lbRead(){
  for(let i=0;;i++){
-  let text='';try{text=await readText(BOARD_FILE)}catch(e){if(e&&e.name==='NotFoundError')return [];if(i>=3)throw e;await sleep(120);continue}
-  if(!text.trim())return [];
-  try{const data=JSON.parse(text),list=Array.isArray(data)?data:data&&Array.isArray(data.entries)?data.entries:null;if(list)return list.map(cleanEntry).filter(Boolean)}catch(_){}
+  let text='';try{text=await readText(BOARD_FILE)}catch(e){if(e&&e.name==='NotFoundError')return {entries:[],players:{}};if(i>=3)throw e;await sleep(120);continue}
+  if(!text.trim())return {entries:[],players:{}};
+  try{const data=JSON.parse(text),list=Array.isArray(data)?data:data&&Array.isArray(data.entries)?data.entries:null;if(list)return {entries:list.map(cleanEntry).filter(Boolean),players:cleanPlayers(data.players)}}catch(_){}
   // Unreadable content is never overwritten; it may be mid-replace, so look again.
   if(i>=3)throw new Error(BOARD_FILE+' is not a readable Undertow leaderboard.');await sleep(150);
  }
@@ -883,17 +1176,18 @@ async function withLock(fn){
  try{return await fn(got)}finally{if(got)try{await lb.dir.removeEntry(LOCK_FILE)}catch(_){}}
 }
 async function lbFlush(){
- const queue=pending();
+ const queue=pending(),me=myPlayer();
  return withLock(async locked=>{
   for(let attempt=0;attempt<6;attempt++){
-   let list=await lbRead();
+   let {entries:list,players}=await lbRead();
    const missing=queue.filter(e=>!included(list,e));
-   if(missing.length){
-    try{await writeText(BOARD_FILE,JSON.stringify({game:'UNDERTOW',version:2,updated:new Date().toISOString(),entries:mergeEntries(list,missing)}))}catch(_){await sleep(100+Math.random()*250);continue}
+   if(missing.length||!playerCurrent(players)){
+    const merged=me?mergePlayers(players,{[me.name.toLowerCase()]:me}):players;
+    try{await writeText(BOARD_FILE,JSON.stringify({game:'UNDERTOW',version:3,updated:new Date().toISOString(),entries:mergeEntries(list,missing),players:merged}))}catch(_){await sleep(100+Math.random()*250);continue}
     // Without the lock another write may land on top, so give it a moment first.
-    if(!locked)await sleep(80+Math.random()*120);list=await lbRead();
+    if(!locked)await sleep(80+Math.random()*120);({entries:list,players}=await lbRead());
    }
-   if(queue.every(e=>included(list,e))){store.set('undertow.pending.v1',pending().filter(e=>!queue.some(q=>q.id===e.id)));lb.shared=list;return}
+   if(queue.every(e=>included(list,e))&&playerCurrent(players)){store.set('undertow.pending.v1',pending().filter(e=>!queue.some(q=>q.id===e.id)));lb.shared=list;lb.players=players;return}
    await sleep(100+Math.random()*250);
   }
   throw new Error('the file was busy.');
@@ -906,7 +1200,7 @@ async function syncNow(ask){
  if(!lb.dir){lb.perm='none';renderBoard();return false}
  if(!await lbPermitted(ask)){lb.perm='prompt';renderBoard();return false}
  lb.perm='granted';
- try{if(pending().length)await lbFlush();else lb.shared=await lbRead();lb.note='';retries=0}
+ try{const r=await lbRead();lb.shared=r.entries;lb.players=r.players;if(pending().length||!playerCurrent(r.players))await lbFlush();lb.note='';retries=0}
  catch(e){lb.note='Could not update '+BOARD_FILE+': '+(e&&e.message||e)+(retries<8?' Retrying shortly.':'');if(retries<8){retries++;clearTimeout(retryTimer);retryTimer=setTimeout(()=>lbSync(false).then(ok=>{if(ok&&state==='over')describeSave('shared')}),1500+Math.random()*2000)}renderBoard();return false}
  renderBoard();return true;
 }
@@ -930,7 +1224,15 @@ async function submitScore(entry){
 function describeSave(res){
  if(!lastEntry)return;const list=res==='shared'?lb.shared:lb.local,rank=list.findIndex(e=>e.id===lastEntry.id)+1;
  const msg={shared:'Posted to the shared leaderboard'+(rank?`: rank ${rank} of ${list.length}.`:'.'),retrying:'Saved on this computer. The shared file is busy; posting again in a moment.',pending:'Saved on this computer. Allow access to post it to the shared leaderboard.',nohandle:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+'. Connect the shared folder from the Leaderboard screen to post scores for everyone.',local:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+'. Use Edge or Chrome for the shared leaderboard.'}[res];
- $('saveNote').textContent=msg;$('saveShared').hidden=res!=='pending';
+ $('saveNote').textContent=msg;$('saveShared').hidden=res!=='pending';renderPlace(list,res==='shared');
+}
+function renderEarned(){const box=$('achEarned');box.textContent='';for(const id of run.earned){const a=ACH_BY_ID[id],sp=document.createElement('span'),i=document.createElementNS('http://www.w3.org/2000/svg','svg'),u=document.createElementNS('http://www.w3.org/2000/svg','use');i.setAttribute('class','ic');u.setAttribute('href','#i-medal');i.append(u);sp.append(i,a.name.toUpperCase());box.append(sp)}}
+// Game over: your row on the board with up to two runs above and two below.
+function renderPlace(list,shared){
+ const box=$('placeRows'),i=lastEntry?list.findIndex(e=>e.id===lastEntry.id):-1;box.textContent='';$('place').hidden=i<0;if(i<0)return;
+ $('placeLabel').textContent=(shared?'SHARED LEADERBOARD':'THIS COMPUTER')+' / RANK '+(i+1)+' OF '+list.length;
+ for(let k=Math.max(0,i-2);k<=Math.min(list.length-1,i+2);k++){const e=list[k],row=document.createElement('div');row.className=k===i?'pr me':'pr';
+  for(const [txt,cls] of [['#'+(k+1)],[e.name,'nm'],[e.score.toLocaleString()],[e.distance+' m']]){const sp=document.createElement('span');sp.textContent=txt;if(cls)sp.className=cls;row.append(sp)}box.append(row)}
 }
 function cell(tr,text,cls){const td=document.createElement('td');td.textContent=text;if(cls)td.className=cls;tr.append(td)}
 function renderBoard(){
@@ -946,28 +1248,57 @@ function renderBoard(){
  const rows=(useShared?(connected?lb.shared:[]):lb.local).filter(e=>lb.filter==='all'||e.diff===lb.filter).slice(0,50);
  if(!rows.length){const tr=document.createElement('tr');cell(tr,useShared&&!connected?'Connect the shared folder to see everyone\u2019s scores.':'No scores yet. Be the first on the board.','empty');tr.firstChild.colSpan=7;body.append(tr)}
  rows.forEach((e,i)=>{const tr=document.createElement('tr');if(lb.mine.has(e.id))tr.className='me';cell(tr,i+1);cell(tr,e.name,'name');cell(tr,e.score.toLocaleString(),'num');cell(tr,e.distance+' m','num hide-sm');cell(tr,SUB_BY_ID[e.sub].name,'hide-sm');cell(tr,DIFFS[e.diff].label);cell(tr,e.date,'hide-sm');body.append(tr)});
- renderChip();
+ renderChip();if(panel==='ach')renderAch();
 }
-function renderChip(){const ch=$('lbChip');ch.classList.toggle('on',lb.perm==='granted');ch.classList.toggle('warn',!!lb.dir&&lb.perm!=='granted');ch.querySelector('span').textContent=!lb.supported?'LEADERBOARD / THIS COMPUTER':!lb.dir?'SHARED LEADERBOARD NOT CONNECTED':lb.perm==='granted'?'SHARED LEADERBOARD CONNECTED':'SHARED LEADERBOARD / ALLOW ACCESS'}
+// The fleet is everyone in the shared file plus you, ranked by achievements held.
+function fleet(){const me=myPlayer(),all=mergePlayers(lb.players,me?{[me.name.toLowerCase()]:me}:{});return Object.values(all).map(p=>({...p,n:Object.keys(p.ach).length,last:Object.values(p.ach).sort().pop()||''})).filter(p=>p.n).sort((a,b)=>b.n-a.n||a.last.localeCompare(b.last))}
+function svgIcon(id){const i=document.createElementNS('http://www.w3.org/2000/svg','svg'),u=document.createElementNS('http://www.w3.org/2000/svg','use');i.setAttribute('class','ic');u.setAttribute('href','#'+id);i.append(u);return i}
+function renderAch(){
+ const v=lb.achView,F=fleet(),meKey=callsign().toLowerCase(),other=lb.achWho&&lb.achWho!==meKey?F.find(p=>p.name.toLowerCase()===lb.achWho):null;
+ document.querySelectorAll('#achSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)));
+ $('achPathView').hidden=v!=='path';$('achFleetView').hidden=v!=='fleet';
+ const held=other?other.ach:ach.un,n=ACHS.filter(a=>held[a.id]).length;
+ $('achNum').textContent=n+' / '+ACHS.length;$('achWho').textContent=other?other.name.toUpperCase()+'\u2019S RECORD':'YOUR RECORD';$('achBar').style.width=(n/ACHS.length*100)+'%';
+ const path=$('achPath');path.textContent='';
+ TIERS.forEach(([tn,sub],ti)=>{const list=ACHS.filter(a=>a.tier===ti),got=list.filter(a=>held[a.id]).length;
+  const h=document.createElement('div');h.className='ach-tier';h.textContent=tn;const sm=document.createElement('small');sm.textContent=sub.toUpperCase()+' / '+got+' OF '+list.length;h.append(sm);path.append(h);
+  const grid=document.createElement('div');grid.className='ach-grid';
+  for(const a of list){const card=document.createElement('div'),has=held[a.id];card.className='ach'+(has?' got':'');
+   const b=document.createElement('b');b.textContent=a.name.toUpperCase();const d=document.createElement('span');d.textContent=a.desc;const em=document.createElement('em');
+   const holders=F.filter(p=>p.ach[a.id]).length;
+   if(has)em.textContent='UNLOCKED '+has+(F.length>1?' / '+holders+' OF '+F.length+' SAILORS':'');
+   else if(other)em.textContent='LOCKED'+(F.length>1?' / '+holders+' OF '+F.length+' SAILORS':'');
+   else{const cur=Math.min(ach.best[a.id]||0,a.goal),u=document.createElement('u'),i=document.createElement('i');i.style.width=(cur/a.goal*100)+'%';u.append(i);em.append(u,a.goal>1?cur.toLocaleString()+' / '+a.goal.toLocaleString():'LOCKED')}
+   card.append(svgIcon(has?'i-medal':'i-lock'),b,d,em);grid.append(card)}
+  path.append(grid)});
+ $('achFleetNote').textContent=(lb.dir&&lb.perm==='granted'?'Sailors on the shared leaderboard, ranked by achievements. ':'Connect the shared folder from the Leaderboard screen to see other sailors. ')+'Select a callsign to see their record.'+(callsign()==='Anonymous'?' Set a callsign on the home screen to post your own.':'');
+ const body=$('achFleet');body.textContent='';
+ if(!F.length){const tr=document.createElement('tr');cell(tr,'No achievements posted yet.','empty');tr.firstChild.colSpan=4;body.append(tr)}
+ F.forEach((p,i)=>{const tr=document.createElement('tr'),k=p.name.toLowerCase();if(k===meKey)tr.className='me';if(k===lb.achWho)tr.classList.add('sel');cell(tr,i+1);cell(tr,p.name,'name');
+  const td=document.createElement('td'),m=document.createElement('span'),mi=document.createElement('i');m.className='meter';mi.style.width=(p.n/ACHS.length*100)+'%';m.append(mi);td.append(m,p.n+' / '+ACHS.length);tr.append(td);
+  const la=p.last?Object.keys(p.ach).find(id=>p.ach[id]===p.last):'';cell(tr,la?ACH_BY_ID[la].name:'','hide-sm');
+  tr.onclick=()=>{lb.achWho=k;lb.achView='path';renderAch()};body.append(tr)});
+}
+function renderChip(){$('achCount').textContent=achCountText();const ch=$('lbChip');ch.classList.toggle('on',lb.perm==='granted');ch.classList.toggle('warn',!!lb.dir&&lb.perm!=='granted');ch.querySelector('span').textContent=!lb.supported?'LEADERBOARD / THIS COMPUTER':!lb.dir?'SHARED LEADERBOARD NOT CONNECTED':lb.perm==='granted'?'SHARED LEADERBOARD CONNECTED':'SHARED LEADERBOARD / ALLOW ACCESS'}
 $('lbConnect').onclick=()=>lb.dir&&lb.perm!=='granted'?lbSync(true):lbPick();
 $('lbRefresh').onclick=()=>lbSync(true);
 $('lbForget').onclick=async()=>{lb.dir=null;lb.perm='none';lb.shared=[];lb.note='';lb.warn='';try{await idbDel('folder')}catch(_){}renderBoard()};
 document.querySelectorAll('#srcSeg button').forEach(b=>b.onclick=()=>{lb.source=b.dataset.src;renderBoard()});
 document.querySelectorAll('#filterSeg button').forEach(b=>b.onclick=()=>{lb.filter=b.dataset.filter;renderBoard()});
 $('saveShared').onclick=async()=>describeSave(await lbSync(true)?'shared':lb.perm==='granted'?'retrying':'pending');
-setInterval(()=>{if(panel==='board'&&lb.perm==='granted')lbSync(false)},10000);
+setInterval(()=>{if((panel==='board'||panel==='ach')&&lb.perm==='granted')lbSync(false)},10000);
 if(lb.supported)(async()=>{try{lb.dir=await idbGet('folder')||null;idbDel('board').catch(()=>{})}catch(_){}await lbSync(false)})();
 /* ---- Input ---- */
-$('launch').onclick=start;$('again').onclick=start;$('restartPause').onclick=start;$('home').onclick=home;$('quit').onclick=home;$('pause').onclick=pause;$('resume').onclick=resume;$('sound').onclick=toggleSound;
+$('launch').onclick=start;$('again').onclick=start;$('restartPause').onclick=start;$('home').onclick=home;$('quit').onclick=home;$('pause').onclick=pause;$('resume').onclick=resume;$('sound').onclick=toggleSound;$('music').onclick=toggleMusic;
 $('standard').onclick=()=>{practice=false;$('standard').setAttribute('aria-pressed','true');$('practice').setAttribute('aria-pressed','false')};
 $('practice').onclick=()=>{practice=true;$('standard').setAttribute('aria-pressed','false');$('practice').setAttribute('aria-pressed','true')};
 $('helpOpen').onclick=()=>openPanel('help');$('helpClose').onclick=closePanel;$('hangarOpen').onclick=()=>openPanel('hangar');$('hangarClose').onclick=closePanel;
-$('boardOpen').onclick=()=>openPanel('board');$('lbChip').onclick=()=>openPanel('board');$('overBoard').onclick=()=>openPanel('board');$('boardClose').onclick=closePanel;
+$('boardOpen').onclick=()=>openPanel('board');$('achOpen').onclick=()=>openPanel('ach');$('overAch').onclick=()=>openPanel('ach');$('achClose').onclick=closePanel;document.querySelectorAll('#achSeg button').forEach(b=>b.onclick=()=>{lb.achView=b.dataset.v;if(b.dataset.v==='path')lb.achWho='';renderAch()});$('lbChip').onclick=()=>openPanel('board');$('overBoard').onclick=()=>openPanel('board');$('boardClose').onclick=closePanel;
 $('callsign').addEventListener('change',()=>store.set('undertow.callsign',$('callsign').value.trim().slice(0,16)));
 $('motion').onclick=()=>{reduced=!reduced;$('motion').textContent='Motion effects: '+(reduced?'reduced':'on')};
 $('camBtn').onclick=toggleCam;$('camBtn').textContent='Camera: '+(cam3d?'3D orbit':'flat');
 $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else toast('FULLSCREEN UNAVAILABLE','Use your browser’s full-screen view.',3)}catch(_){} };
-$('ping').onclick=()=>{initAudio();ping(true)};$('fire').onclick=()=>{initAudio();fire()};
+$('ability').onclick=()=>{initAudio();useAbility()};$('fire').onclick=()=>{initAudio();fire()};
 function pointerStart(e){if(state==='over'&&!panel){if(performance.now()-overAt>700){e.preventDefault();start()}return}if(state!=='playing')return;e.preventDefault();initAudio();if(e.button===2){fire();return}pointerLift=true;try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){} }
 for(const el of [canvas,$('thrust')]){el.addEventListener('pointerdown',pointerStart);el.addEventListener('pointerup',e=>{if(e.button!==2)pointerLift=false});el.addEventListener('pointercancel',()=>pointerLift=false);el.addEventListener('lostpointercapture',()=>pointerLift=false)}
 // A right press while the left button is already held arrives as a chorded pointermove.
@@ -975,18 +1306,23 @@ canvas.addEventListener('pointermove',e=>{if(state==='playing'&&e.button===2&&(e
 addEventListener('contextmenu',e=>{if(state==='playing'||e.target===canvas)e.preventDefault()});
 addEventListener('keydown',e=>{
  if(e.target instanceof HTMLInputElement){if(e.code==='Enter'||e.code==='Escape'){e.preventDefault();e.target.blur()}return}
- const controls=['Space','ArrowUp','ArrowDown','KeyW','KeyS','KeyE','KeyF','KeyX','Escape','KeyP','KeyM','KeyR','KeyA','KeyD','ArrowLeft','ArrowRight','KeyC','Enter'];if(!controls.includes(e.code))return;
+ const controls=['Space','ArrowUp','ArrowDown','KeyW','KeyS','KeyE','KeyF','KeyX','Escape','KeyP','KeyM','KeyN','KeyR','KeyA','KeyD','ArrowLeft','ArrowRight','KeyC','Enter'];if(!controls.includes(e.code))return;
  if(e.code==='KeyM'&&!e.repeat){toggleSound();return}
+ if(e.code==='KeyN'&&!e.repeat){toggleMusic();return}
  if(e.code==='KeyC'&&!e.repeat){toggleCam();return}
  if(['KeyA','KeyD','ArrowLeft','ArrowRight'].includes(e.code)){if(!panel&&state!=='paused'){e.preventDefault();inputKeys.add(e.code)}return}
  if((e.code==='KeyP'||e.code==='Escape')&&!e.repeat){e.preventDefault();if(panel)closePanel();else if(state==='playing')pause();else if(state==='paused')resume();return}
- if(state==='playing'){e.preventDefault();if(e.code==='KeyE'&&!e.repeat)ping(true);if((e.code==='KeyF'||e.code==='KeyX')&&!e.repeat)fire();inputKeys.add(e.code)}
+ if(state==='playing'){e.preventDefault();if(e.code==='KeyE'&&!e.repeat)useAbility();if((e.code==='KeyF'||e.code==='KeyX')&&!e.repeat)fire();inputKeys.add(e.code)}
  // After a wreck, any dive key starts again (a short delay ignores keys still held from the crash).
  else if(state==='over'&&!panel&&!e.repeat&&['KeyR','Space','KeyW','ArrowUp','Enter'].includes(e.code)&&!(e.target instanceof HTMLButtonElement&&e.target.id!=='again')&&performance.now()-overAt>700){e.preventDefault();start()}
 });addEventListener('keyup',e=>inputKeys.delete(e.code));
 addEventListener('blur',()=>{clearInput();if(state==='playing')pause()});document.addEventListener('visibilitychange',()=>{if(document.hidden){clearInput();if(state==='playing')pause()}});
 addEventListener('error',e=>{$('error').textContent='The dive was interrupted. Reload the file to restart. '+(e.message||'');show('error',true)});
 $('fullscreen').hidden=!document.documentElement.requestFullscreen;
+// Browsers usually hold audio until a user gesture. Build the graph now (it may start straight away), and
+// resume it on the first click, tap or key. A press of the sound/music button while it is still waiting
+// only unlocks audio, so a saved "on" setting is never flipped off by that first click.
+initAudio();['pointerdown','touchstart','keydown'].forEach(ev=>addEventListener(ev,()=>{if(soundOn)initAudio()},{capture:true,passive:true}));
 reset();updateSound();updateMenu();requestAnimationFrame(frame);
 })();
 </script>
