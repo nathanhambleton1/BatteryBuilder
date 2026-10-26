@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "undertow",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["C:\\Users\\nhamb\\AppData\\Local\\Temp\\claude\\C--App-Projects-BatteryBuilder\\8f85c6a3-1ba8-4a8e-9abe-571e275f2c16\\scratchpad\\serve.py", "8767", "C:\\App Projects\\BatteryBuilder"],
+      "port": 8767
+    }
+  ]
+}
