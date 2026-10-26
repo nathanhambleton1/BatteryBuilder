@@ -15,7 +15,7 @@
    bin.dat.bak is a copy of the last good write. An older plain bin.json is
    imported once, when there is no bin.dat yet. */
 // Shown in the footer and on the Duel screen, so players can tell which copy of the game they are running.
-const BUILD='2026-10-26 / 9';
+const BUILD='2026-10-26 / 10';
 const BOARD_FILE='bin.dat', BACKUP_FILE='bin.dat.bak', LOCK_FILE='bin.dat.lock', LEGACY_FILE='bin.json';
 
 /* ---- Seal ------------------------------------------------------------------
@@ -119,6 +119,22 @@ const ACHS=[
  ['lifer',4,'Lifer','Dive on 20 different days.',20,(R,L)=>L.days],
  ['million',4,'Millionaire','Score 1,000,000 points across your career.',1000000,(R,L)=>L.score],
  ['fleetmaster',4,'Master of the Fleet','Travel 3,000 m in one dive with every class.',SUBS.length,(R,L)=>L.fleet],
+ // Campaign (Operation Deep Meridian); L.c* come from campLife() in campaign.js.
+ ['enlist',0,'Enlisted','Complete your first campaign mission.',1,(R,L)=>L.cmis],
+ ['salvor',0,'Salvor','Recover a load of salvage with the drone.',1,(R,L)=>L.csalv],
+ ['strait',1,'The Strait Is Open','Sink the cruiser Grozny in the campaign.',1,(R,L)=>L.cboss.warden],
+ ['skyeyes',1,'Eyes in the Sky','Find 5 beacons with the spotter drone.',5,(R,L)=>L.cclues],
+ ['shipwright',1,'Shipwright','Build 3 upgrades in the campaign workshop.',3,(R,L)=>L.cbuilt],
+ ['calamari',2,'Calamari','Defeat Old Mother in the sea caves.',1,(R,L)=>L.cboss.mother],
+ ['redtide',2,'Red Tide','Defeat Volkov’s Vepr.',1,(R,L)=>L.cboss.vepr],
+ ['photo',2,'Photo Finish','Win a race against Volkov.',1,(R,L)=>L.craces],
+ ['archivist',2,'Archivist','Recover 12 pages of Dr. Vance’s journal.',12,(R,L)=>L.crelic],
+ ['kraken',3,'Release the Kraken','Defeat the Kraken.',1,(R,L)=>L.cboss.kraken],
+ ['scrapper',3,'Scrapper','Recover 75 loads of salvage.',75,(R,L)=>L.csalv],
+ ['decorated',3,'Decorated','Earn 50 campaign stars.',50,(R,L)=>L.cstars],
+ ['meridian',4,'Meridian','Complete Operation Deep Meridian.',1,(R,L)=>L.cfin],
+ ['perfect',4,'Perfect Record','Earn all 72 campaign stars.',72,(R,L)=>L.cstars],
+ ['fitted',4,'Fully Fitted','Build every workshop upgrade to its last level.',14,(R,L)=>L.cbuilt],
 ].map(([id,tier,name,desc,goal,v])=>({id,tier,name,desc,goal,v}));
 ACHS.push({id:'undertow',tier:4,name:'Undertow',desc:'Unlock every other achievement.',goal:ACHS.length,v:(R,L)=>L.count});
 const ACH_BY_ID=Object.fromEntries(ACHS.map(a=>[a.id,a]));
@@ -141,7 +157,8 @@ let hull=3,o2=80,invulnUntil=0,lastHitAt=-9,sonarDownUntil=0,leakUntil=0,ballast
 let firstShip=0,wreck=null,camLead=.24,overAt=0,toastUntil=0,announced={},practiceHit=-9,deathCause='',runSeed=Math.random()*1000,lastEntry=null;
 let best=Number(store.get('undertow.best.v2',0))||0;
 let reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, soundOn=!!store.get('undertow.sound',false),musicOn=!!store.get('undertow.music',true),audio=null,engine=null,engineGain=null;
-let lastHud=-1;
+// cm is the campaign mission being flown and cr its live state (campaign.js); null outside the campaign.
+let lastHud=-1,runX0=0,cm=null,cr=null;
 $('motion').textContent='Motion effects: '+(reduced?'reduced':'on');
 $('callsign').value=String(store.get('undertow.callsign','')).slice(0,16);
 function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,1.5)*quality;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);scale=Math.min(clamp(H/820,.3,1.22),W/650);vw=W/scale;vh=H/scale;}
@@ -172,6 +189,7 @@ function newWorld(){
  TP={a1:wrnd(35,70),w1:wrnd(700,1100),p1:wrnd(0,TAU),a2:wrnd(15,40),w2:wrnd(300,500),p2:wrnd(0,TAU),p3:wrnd(0,TAU),p4:wrnd(0,TAU),
   r1:wrnd(30,60),rw1:wrnd(380,700),rp1:wrnd(0,TAU),r2:wrnd(10,25),rw2:wrnd(800,1300),rp2:wrnd(0,TAU),night:wrnd(2400,4200),sd:wrnd(0,999)};
  SEG=[{x0:0,len:wrnd(2400,3300),r:1,kind:'open',v:{cave:0,basin:0,lift:0,tight:0,rough:1}}];
+ if(cm)campWorld();
 }
 function extendWorld(q){
  while(SEG[SEG.length-1].x0+SEG[SEG.length-1].len<=q){
@@ -219,9 +237,9 @@ function makeGate(x,space){
  if(x>1500&&gateRand()<D.air){const px=x+space*.5,pz=terrain(px),py=clamp(mix(centre,route(px),.5)+(gateRand()-.5)*gap*.8,pz.top+55,pz.bottom-55);pickups.push({x:px,y:py,cy:py,phase:gateRand()*TAU,taken:false});}
 }
 let burst=0;
-function populate(){while(nextGate<sub.x+Math.max(vw,2600)+900){let space=mix(D.space[0],D.space[1],clamp(nextGate/D.ramp,0,1));
+function populate(){while(nextGate<(cm?campReach():sub.x)+Math.max(vw,2600)+900){let space=mix(D.space[0],D.space[1],clamp(nextGate/D.ramp,0,1));
  if(burst>0){burst--;space*=grnd(.5,.65)}else if(nextGate>2000&&gateRand()<.12){burst=1+Math.floor(gateRand()*3);space*=grnd(.5,.65)}else if(gateRand()<.1)space*=grnd(1.6,2.2);else space*=grnd(.75,1.35);
- if(nextGate<2000||gateRand()>.06)makeGate(nextGate,space);nextGate+=space;}gates=gates.filter(g=>g.x>sub.x-700);pickups=pickups.filter(p=>p.x>sub.x-700&&!p.taken);}
+ if((nextGate<2000||gateRand()>.06)&&!(cm&&campCalm(nextGate)))makeGate(nextGate,space);nextGate+=space;}gates=gates.filter(g=>g.x>sub.x-700);pickups=pickups.filter(p=>p.x>sub.x-700&&!p.taken);}
 /* Lifetime totals. Numbers only ever grow, and the maps (classes dived, abilities used,
    days dived, best distance per class) only gain keys, so two copies of a sailor's
    record merge by taking the larger of each. */
@@ -244,7 +262,7 @@ const rankTitle=L=>RANKS.filter(r=>L>=r[0]).pop()[1];
 function profXp(st=ach.st,un=ach.un){
  let x=st.dist*.5+st.gates*2+st.ships*60+st.mines*15+st.ints*40+st.air*10+st.runs*25+st.time/4+st.duels*100+st.wins*250+Object.keys(st.days).length*150;
  for(const id of Object.keys(un))if(ACH_BY_ID[id])x+=TIER_XP[ACH_BY_ID[id].tier];
- return Math.floor(x);
+ return Math.floor(x+campXp());
 }
 const today=()=>new Date().toISOString().slice(0,10);
 function achLife(){const st=ach.st,live=state==='playing'&&!run.committed&&!practice;
@@ -252,7 +270,7 @@ function achLife(){const st=ach.st,live=state==='playing'&&!run.committed&&!prac
  return {runs:st.runs,fired:st.fired,ability:st.ability,ships:st.ships+(live?shipsSunk:0),dist:st.dist+(live?Math.floor(distance):0),mines:st.mines+(live?minesDestroyed:0),
   ints:st.ints+(live?intercepts:0),air:st.air+(live?airCollected:0),score:st.score+(live?score():0),time:Math.floor((st.time+(live?t:0))/60),duels:st.duels,wins:st.wins,adm:st.adm,
   days:Object.keys(days).length,fleet:SUBS.filter(s=>(subDist[s.id]||0)>=3000).length,lvl:levelOf(profXp()),
-  subs:Object.keys(st.subs).length,abil:Object.keys(st.abil).length,count:ACHS.filter(a=>a.id!=='undertow'&&ach.un[a.id]).length}}
+  subs:Object.keys(st.subs).length,abil:Object.keys(st.abil).length,count:ACHS.filter(a=>a.id!=='undertow'&&ach.un[a.id]).length,...campLife()}}
 function achRun(){return {dist:Math.floor(distance),ships:shipsSunk,gates:cleared,air:airCollected,ints:intercepts,depth:Math.floor(maxDepth),score:score(),diff:DIFF_RANK[diffId],hits:run.hits,fired:run.fired,surface:announced.surface?1:0,night:announced.night?1:0,cave:announced.cave?1:0}}
 // Checked a few times a second during a dive and once more when it ends. Practice never counts.
 function achCheck(){
@@ -272,12 +290,13 @@ function achCommit(){
 }
 function achCountText(){const n=ACHS.filter(a=>ach.un[a.id]).length;return 'Achievements '+n+'/'+ACHS.length}
 function reset(){
- D=DIFFS[diffId];S=SUB_BY_ID[subId];
+ D=cm?campDiff():DIFFS[diffId];S=cm?campSub():SUB_BY_ID[subId];runX0=0;
  t=0;distance=0;difficulty=0;speed=D.speed[0];night=0;runSeed=Math.random()*1000;if(courseSeed===null)worldRand=gateRand=Math.random;else{worldRand=mulberry(courseSeed);gateRand=mulberry(courseSeed^0x9E3779B9)}newWorld();burst=0;firstShip=D.ships*rnd(.7,1.3);sub={x:0,y:route(0),v:0};gates=[];nextGate=900;lastCenter=null;
  pings=[];echoes=[];bubbles=[];debris=[];ships=[];enemyMissiles=[];missiles=[];booms=[];pickups=[];spray=[];ripples=[];surfaced=false;surfacedAt=-9;tilt=0;lastDrip=0;
  cleared=0;maxDepth=0;lastPing=-10;lastBubble=0;shake=0;flash=0;airFx=hullFx=crackFx=0;wreck=null;camLead=.24;
  hull=S.hull;o2=S.o2;invulnUntil=0;lastHitAt=-9;sonarDownUntil=0;leakUntil=0;ballastUntil=0;lastFire=-99;nextShipAt=0;shipsSunk=0;minesDestroyed=0;intercepts=0;airCollected=0;bonus=0;lastAlarm=0;lowO2Warned=false;abilityAt=-99;abilityUntil=0;
  announced={};run={hits:0,fired:0,ability:0,committed:false,earned:[]};practiceHit=-9;lastHud=-1;toastUntil=0;camY=Math.max(-130,terrain(0).centre-vh*.53);clearInput();populate();buildPips();
+ if(cm)campReset();
 }
 function score(){return Math.floor((distance+cleared*10+bonus)*D.score)}
 function show(id,visible){$(id).hidden=!visible}
@@ -287,11 +306,11 @@ function callsign(){return $('callsign').value.replace(/[\u0000-\u001f]/g,'').tr
 function callsignSet(){return callsign().toLowerCase()!=='anonymous'}
 function callsignState(){const ok=callsignSet(),l=$('launch');l.classList.toggle('locked',!ok);l.setAttribute('aria-disabled',String(!ok));if(ok){$('callsignMsg').hidden=true;$('callsign').classList.remove('err')}}
 function launchDive(){if(callsignSet())return start();const i=$('callsign');i.classList.remove('err');void i.offsetWidth;i.classList.add('err');$('callsignMsg').hidden=false;i.focus();callsignState()}
-function start(){initAudio();nextSong();store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch();if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}reset();run.xp0=profXp();state='playing';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';show('restartPause',true);setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach','duel'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
-function home(){state='menu';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';clearInput();$('hud').classList.remove('ended');['paused','over','hud','pause','help','board','hangar','ach','duel'].forEach(id=>show(id,false));show('menu',true);show('footer',true);reset();updateMenu();}
+function start(){initAudio();nextSong();store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch();if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}reset();run.xp0=profXp();state='playing';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';show('restartPause',true);setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach','duel','camp','campDone'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
+function home(){const wasCamp=campExit();state='menu';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';clearInput();$('hud').classList.remove('ended');['paused','over','hud','pause','help','board','hangar','ach','duel'].forEach(id=>show(id,false));show('menu',true);show('footer',true);reset();updateMenu();if(wasCamp)openPanel('camp');}
 function clearInput(){held=false;down=false;pointerLift=false;inputKeys.clear();$('thrust').classList.remove('on')}
 function pause(){if(state!=='playing')return;state='paused';clearInput();show('paused',true);$('resume').focus()}
 function resume(){if(state!=='paused')return;state='playing';show('paused',false);last=performance.now();acc=0;}
 function toast(title,body,seconds=4,bad=false){$('toastTitle').textContent=title;$('toastBody').textContent=body;toastUntil=t+seconds;$('toast').classList.add('show');$('toast').classList.toggle('bad',bad);}
-function openPanel(id){if(panel)show(panel,false);panel=id;if(state==='over')show('over',false);show(id,true);if(id==='board'){renderBoard();lbSync(false)}if(id==='hangar')renderHangar();if(id==='duel'){if(!duel.diffSet){duel.diff=diffId;duel.diffSet=true}renderDuel();duelTick()}if(id==='ach'){lb.achWho='';renderAch();lbSync(false)}const f=$(id).querySelector('.launch');if(f)f.focus({preventScroll:true})}
+function openPanel(id){if(panel)show(panel,false);panel=id;if(state==='over')show('over',false);show(id,true);if(id==='board'){renderBoard();lbSync(false)}if(id==='hangar')renderHangar();if(id==='duel'){if(!duel.diffSet){duel.diff=diffId;duel.diffSet=true}renderDuel();duelTick()}if(id==='ach'){lb.achWho='';renderAch();lbSync(false)}if(id==='camp')renderCamp();const f=$(id).querySelector('.launch');if(f)f.focus({preventScroll:true})}
 function closePanel(){if(!panel)return;show(panel,false);panel=null;if(state==='over'){show('over',true);$('again').focus()}}

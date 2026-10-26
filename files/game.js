@@ -16,7 +16,7 @@ function updateSonar(dt){
 const reloadTime=()=>active('rapid')?.5:S.reload;
 function launch(target,vy=0,life=4.2){run.fired++;missiles.push({x:sub.x+S.hx*.9,y:sub.y+3,vx:speed+150,vy:sub.v*.3+15+vy,target,life})}
 function fire(){
- if(state!=='playing')return;
+ if(state!=='playing'||(cm&&!campCanFire()))return;
  if(t-lastFire<reloadTime()){if(t-lastFire>.25)tone(150,.07,.02,120);return}
  lastFire=t;launch(acquire());if(!practice)ach.st.fired++;
  sfx.launch();for(let i=0;i<10;i++)bubbles.push({x:sub.x+S.hx,y:sub.y+(Math.random()-.5)*8,r:1+Math.random()*2.5,life:1+Math.random(),vx:speed*.6+Math.random()*60,vy:-10-Math.random()*30});
@@ -24,8 +24,10 @@ function fire(){
 // skip lists targets already claimed (missiles, ships, or 'x:k' mine keys).
 function acquire(skip=[]){
  let found=null,bestD=Infinity;
- for(const m of enemyMissiles){if(m.air||skip.includes(m))continue;const d=Math.hypot(m.x-sub.x,m.y-sub.y);if(d<420&&d<bestD){bestD=d;found={missile:m}}}
+ // Unguided torpedoes can be dodged, so they only take priority once they are close.
+ for(const m of enemyMissiles){if(m.air||skip.includes(m))continue;const d=Math.hypot(m.x-sub.x,m.y-sub.y);if(d<(m.torp?240:420)&&d<bestD){bestD=d;found={missile:m}}}
  if(found)return found;
+ if(cm){found=campAcquire(skip);if(found)return found}
  if(terrain(sub.x).cave<.3)for(const s of ships){if(s.sinking||skip.includes(s)||s.x<sub.x-120||s.x>sub.x+1500||terrain(s.x).cave>.15)continue;const d=Math.abs(s.x-sub.x);if(d<bestD){bestD=d;found={ship:s}}}
  if(found)return found;
  for(const g of gates){if(g.x<sub.x+S.hx+30||g.x>sub.x+950)continue;for(let k=0;k<2;k++){if(g.dead[k]||skip.includes(g.x+':'+k))continue;const d=(g.x-sub.x)+Math.abs(mineY(g,k)-sub.y)*2;if(d<bestD){bestD=d;found={gate:g,k}}}}
@@ -39,12 +41,14 @@ function useAbility(){
  const A=S.ability;
  if(t-abilityAt<A.cd){if(t-abilityAt>.25)tone(150,.07,.02,120);return}
  const refuse=(title,body)=>{toast(title,body,1.8);tone(150,.12,.03,110);return false};
+ if(cm&&['salvo','strike','rapid'].includes(A.id)&&!campCanFire())return;
  let ok=true;
  if(A.id==='salvo'){const taken=[];for(let i=0;i<3;i++){const tg=acquire(taken);if(tg)taken.push(tg.missile||tg.ship||tg.gate.x+':'+tg.k);launch(tg,(i-1)*110)}
   for(let i=0;i<24;i++)bubbles.push({x:sub.x+S.hx,y:sub.y+(Math.random()-.5)*14,r:1+Math.random()*2.5,life:1+Math.random(),vx:speed*.6+Math.random()*60,vy:-10-Math.random()*30})}
  else if(A.id==='strike'){let n=0;
   if(terrain(sub.x).cave<.3)for(const s of ships){if(s.sinking||s.x<camX-100||s.x>camX+vw+200||terrain(s.x).cave>.15)continue;for(let i=0;i<s.hp;i++){launch({ship:s},-420-i*70,5.5);n++}}
   for(const m of enemyMissiles)if(Math.hypot(m.x-sub.x,m.y-sub.y)<700){launch({missile:m},-160);n++}
+  if(cm)n+=campStrike();
   if(!n)ok=refuse('NO TARGETS','No warships or seekers in range. Charge held.')}
  else if(A.id==='air'){if(o2>=S.o2*.97&&t>=leakUntil)ok=refuse('AIR TANKS FULL','Charge held for when you need it.');else{o2=Math.min(S.o2,o2+S.o2*.5);leakUntil=0;lowO2Warned=false}}
  else if(A.id==='repair'){if(hull>=S.hull&&t>=sonarDownUntil&&t>=leakUntil&&t>=ballastUntil)ok=refuse('ALL SYSTEMS NOMINAL','Nothing to repair. Charge held.');else{hull=Math.min(S.hull,hull+1);sonarDownUntil=leakUntil=ballastUntil=0}}
@@ -55,6 +59,7 @@ function useAbility(){
 }
 function targetPos(tg){
  if(!tg)return null;
+ if(tg.camp)return campTargetPos(tg);
  if(tg.missile)return enemyMissiles.includes(tg.missile)?[tg.missile.x,tg.missile.y]:null;
  if(tg.ship)return !tg.ship.sinking&&ships.includes(tg.ship)?[tg.ship.x,SURFACE+2]:null;
  return !tg.gate.dead[tg.k]&&gates.includes(tg.gate)?[tg.gate.x,mineY(tg.gate,tg.k)]:null;
@@ -72,6 +77,7 @@ function updateMissiles(dt){
   let done=false,silent=false;
   for(let j=0;j<enemyMissiles.length;j++){const e=enemyMissiles[j];if(Math.hypot(e.x-m.x,e.y-m.y)<22){boom(e.x,e.y,26);enemyMissiles.splice(j,1);intercepts++;bonus+=40;done=silent=true;break}}
   if(!done)for(const s of ships)if(!s.sinking&&Math.abs(m.x-s.x)<95&&m.y>SURFACE-34&&m.y<SURFACE+14){hitShip(s,m.x,m.y);done=silent=true;break}
+  if(!done&&cm&&campMissile(m))done=silent=true;
   if(!done)for(const g of gates){if(Math.abs(g.x-m.x)>R+8)continue;for(let k=0;k<2;k++)if(!g.dead[k]&&Math.hypot(g.x-m.x,mineY(g,k)-m.y)<R+6){detonateMine(g,k,true);done=silent=true;break}if(done)break}
   const z=terrain(m.x);if(!done&&(m.y>z.bottom||(z.top>SURFACE+2&&m.y<z.top)||m.y<SURFACE-260||m.life<=0))done=true;
   if(done){if(!silent)boom(m.x,m.y,16);missiles.splice(i,1)}
@@ -79,7 +85,7 @@ function updateMissiles(dt){
 }
 function updateShips(dt){
  const cap=D.twin&&difficulty>.6?2:1;
- if(sub.x>firstShip&&t>nextShipAt&&ships.filter(s=>!s.sinking).length<cap){
+ if(sub.x>firstShip&&t>nextShipAt&&ships.filter(s=>!s.sinking).length<cap&&!(cm&&campQuiet())){
   const x=camX+vw+260;
   if(terrain(sub.x).cave<.05&&[0,.5,1].every(k=>terrain(mix(sub.x,x+700,k)).cave<.01)){
    ships.push({x,hp:D.shipHp,max:D.shipHp,fire:t+(announced.ship?rnd(.8,2.6):rnd(2.8,3.6)),sp:rnd(.35,.7),sinking:0,hitAt:-9,kind:Math.random()<.5?0:1});
@@ -120,7 +126,7 @@ function damage(n,cause,effect){
  if(active('shield')){invulnUntil=t+.4;shake=reduced?0:3;sfx.shield();return}
  invulnUntil=t+1.2;lastHitAt=t;shake=reduced?0:7;flash=reduced?.05:.25;sfx.impact();if(cam3d&&!reduced)yawKick+=(Math.random()<.5?-1:1)*.14;
  if(practice){toast('IMPACT / PRACTICE MODE','Damage is disabled in practice.',1.5);return}
- run.hits++;hull-=n;if(hull<=0){hull=0;crash(cause);return}
+ if(cm)campHit();run.hits++;hull-=n;if(hull<=0){hull=0;crash(cause);return}
  if(effect==='random')effect=['sonar','breach','ballast'][Math.floor(Math.random()*3)];
  if(effect==='sonar'){sonarDownUntil=t+7;toast('SONAR DAMAGED','The array is offline for 7 seconds. Navigate by sight.',2.5,true)}
  else if(effect==='breach'){o2=Math.max(0,o2-S.o2*.2);leakUntil=t+6;toast('HULL BREACH','Losing air fast. Find an air pocket.',2.5,true)}
@@ -149,6 +155,7 @@ function updateDebris(dt){for(const p of debris){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*
 function breach(v){surfaced=true;surfacedAt=t;const k=clamp(v/170,.25,1);tilt=-.2*k;ripples.push({x:sub.x,born:ambient,w:S.hx*1.4});sfx.surface(k);for(let i=0;i<60*k+14;i++){const fx=(Math.random()-.3)*S.hx*2;spray.push({x:sub.x+fx,y:SURFACE-1,vx:speed*.8+(Math.random()-.5)*140,vy:-(70+Math.random()*260)*k-20,life:1.4,r:1+Math.random()*2.6})}for(let i=0;i<20;i++)bubbles.push({x:sub.x+(Math.random()-.5)*S.hx*2,y:SURFACE+6+Math.random()*16,r:1+Math.random()*3,life:.6+Math.random()*.6,vx:speed*.5,vy:-20})}
 function dive(){ripples.push({x:sub.x,born:ambient,w:S.hx});sfx.dive();for(let i=0;i<18;i++)spray.push({x:sub.x+(Math.random()-.5)*S.hx*1.6,y:SURFACE-1,vx:speed*.8+(Math.random()-.5)*60,vy:-40-Math.random()*90,life:1,r:.8+Math.random()*1.8})}
 async function finish(){
+ if(cm)return campFinish();
  // What was actually dived. duelRoundOver() below restores the player's own menu level and
  // practice setting, so the score entry must use these, not the globals.
  const dived={diff:diffId,sub:S.id,practice};
@@ -169,9 +176,10 @@ async function finish(){
 }
 function physics(dt){
  t+=dt;difficulty=clamp(sub.x/D.ramp,0,1);
- speed=mix(D.speed[0],D.speed[1],difficulty)*(1+clamp((sub.x-D.ramp)/80000,0,.2))*S.speed*(practice?.85:1)*(active('flank')?1.5:1);
- sub.x+=speed*dt;distance=sub.x*.1;night=smooth(TP.night,TP.night+3500,sub.x);camX=sub.x-vw*.24;
+ speed=mix(D.speed[0],D.speed[1],difficulty)*(1+clamp((sub.x-D.ramp)/80000,0,.2))*S.speed*(practice?.85:1)*(active('flank')?1.5:1)*(cm?campSpeed():1);
+ sub.x+=speed*dt;distance=(sub.x-runX0)*.1;night=smooth(TP.night,TP.night+3500,sub.x);camX=sub.x-vw*.24;
  held=pointerLift||inputKeys.has('Space')||inputKeys.has('ArrowUp')||inputKeys.has('KeyW');down=inputKeys.has('ArrowDown')||inputKeys.has('KeyS');
+ if(cm&&campHold())held=down=false;
  const agi=S.agility*(t<ballastUntil?.55:1), accel=held?-470*agi:(down?660*agi:360*agi);
  sub.v=clamp(sub.v+(accel-2.6*sub.v)*dt,-185*agi,(down?235:150)*agi);sub.y+=sub.v*dt;
  const z=terrain(sub.x);maxDepth=Math.max(maxDepth,(sub.y-68)*.1);populate();
@@ -209,6 +217,7 @@ function physics(dt){
  if(t-lastBubble>(active('flank')?.012:.04)){lastBubble=t;bubbles.push({x:sub.x-S.hx*1.2,y:sub.y+(Math.random()-.5)*9,r:1+Math.random()*2.3,life:2+Math.random(),vx:-30-Math.random()*35,vy:-8-Math.random()*18});}
  for(let i=bubbles.length-1;i>=0;i--){let b=bubbles[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;if(b.life<0||(!b.smoke&&b.y<SURFACE))bubbles.splice(i,1)}
  camY=mix(camY,Math.max(-130,mix(z.centre,sub.y,.35)-vh*.53),1-Math.exp(-dt*2));
+ if(cm){campStep(dt);if(state!=='playing')return}
  if(t-lastHud>.1){lastHud=t;updateHUD(z);if(Math.floor(t*4)!==Math.floor((t-.1)*4))achCheck()}
 }
 function buildPips(){const p=$('pips');p.textContent='';for(let i=0;i<S.hull;i++)p.append(document.createElement('i'))}
@@ -225,4 +234,5 @@ function updateHUD(z){
  const pct=clamp(o2/S.o2,0,1);$('o2bar').style.width=pct*100+'%';$('o2val').textContent=Math.ceil(pct*100)+'%';$('airRow').classList.toggle('low',pct<.25);
  const fx=$('effects');fx.textContent='';if(sonarDown)fx.append(effect('SONAR OFFLINE',sonarDownUntil));if(t<leakUntil)fx.append(effect('AIR LEAK',leakUntil));if(t<ballastUntil)fx.append(effect('BALLAST FAULT',ballastUntil));if(surfaced){const sn=document.createElement('span');sn.className='good';sn.textContent='SURFACED / SNORKEL OPEN';fx.append(sn)}
  $('thrust').classList.toggle('on',held);
+ if(cm)campHUD();
 }

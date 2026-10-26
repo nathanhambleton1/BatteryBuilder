@@ -1,6 +1,6 @@
 'use strict';
 /* ---- Input ---- */
-$('launch').onclick=launchDive;$('again').onclick=againOrDuel;$('restartPause').onclick=start;$('home').onclick=home;
+$('launch').onclick=launchDive;$('again').onclick=againOrDuel;$('restartPause').onclick=()=>cm?campRetry():start();$('home').onclick=home;
 // Leaving a duel dive part-way ends the round with the score so far.
 $('quit').onclick=()=>{if(duel.run){show('paused',false);state='playing';deathCause='The dive was abandoned.';finish()}else home()};
 $('duelOpen').onclick=()=>openPanel('duel');$('duelChip').onclick=()=>openPanel('duel');$('duelClose').onclick=closePanel;$('duelConnect').onclick=()=>lbPick().then(duelTick);$('watchLeave').onclick=duelLeaveWatch;

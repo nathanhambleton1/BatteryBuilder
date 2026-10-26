@@ -33,7 +33,8 @@ function drawWater(){
    slides with depth parallax, rock is a slab with thickness, and the boat is a
    small lit 3D mesh. Positive z points away from the viewer. */
 let cam3d=store.get('undertow.cam3d',true)!==false,yaw=0,pitch=0,orbitYaw=0,yawKick=0,shakeX=0,shakeY=0;
-let cyw=1,syw=0,cpt=1,spt=0,Psx=0,Psy=0;
+// fX/fY is the point the camera follows: the boat, or the campaign's spotter drone.
+let cyw=1,syw=0,cpt=1,spt=0,Psx=0,Psy=0,fX=0,fY=0;
 function updateCamera(dt){
  const turn=(inputKeys.has('KeyD')||inputKeys.has('ArrowRight')?1:0)-(inputKeys.has('KeyA')||inputKeys.has('ArrowLeft')?1:0);
  if(cam3d&&turn)orbitYaw=clamp(orbitYaw+turn*dt*1.2,-.9,.9);else orbitYaw*=Math.exp(-dt*(state==='menu'?.3:.8));
@@ -47,17 +48,17 @@ function updateCamera(dt){
  const k=1-Math.exp(-dt*2.5);yaw=mix(yaw,ty,k);pitch=mix(pitch,tp,k);yawKick*=Math.exp(-dt*3);
 }
 function toggleCam(){cam3d=!cam3d;store.set('undertow.cam3d',cam3d);$('camBtn').textContent='Camera: '+(cam3d?'3D orbit':'flat');if(state==='playing')toast(cam3d?'ORBIT CAMERA':'FLAT CAMERA',cam3d?'Hold A / D or the arrow keys to swing around the boat.':'Classic side view. Press C to return to 3D.',1.8)}
-function camSetup(){cyw=Math.cos(yaw);syw=Math.sin(yaw);cpt=Math.cos(pitch);spt=Math.sin(pitch);Psx=(sub.x-camX)*scale;Psy=(sub.y-camY)*scale}
+function camSetup(){cyw=Math.cos(yaw);syw=Math.sin(yaw);cpt=Math.cos(pitch);spt=Math.sin(pitch);Psx=(fX-camX)*scale;Psy=(fY-camY)*scale}
 const flat=()=>Math.abs(yaw)<.003&&Math.abs(pitch)<.003;
 // Screen position (CSS px) of a world point at depth z.
-function proj(x,y,z=0){return [Psx+scale*((x-sub.x)*cyw+z*syw),Psy+scale*((y-sub.y)*cpt-z*cyw*spt)]}
+function proj(x,y,z=0){return [Psx+scale*((x-fX)*cyw+z*syw),Psy+scale*((y-fY)*cpt-z*cyw*spt)]}
 // Horizontal screen shift of a backdrop at depth z; screen y of world height y.
-const par=z=>z*syw*scale, scrY=y=>Psy+scale*cpt*(y-sub.y);
-function worldTransform(){const k=dpr*scale;c.setTransform(k*cyw,0,0,k*cpt,dpr*Psx-k*cyw*sub.x,dpr*Psy-k*cpt*sub.y)}
+const par=z=>z*syw*scale, scrY=y=>Psy+scale*cpt*(y-fY);
+function worldTransform(){const k=dpr*scale;c.setTransform(k*cyw,0,0,k*cpt,dpr*Psx-k*cyw*fX,dpr*Psy-k*cpt*fY)}
 // Undo the plane's squash locally, so round things stay round.
 function billboard(){c.transform(1/cyw,0,0,1/cpt,0,0)}
 // Widen camX/vw/camY/vh to the world area the squashed plane shows; returns a restore function.
-function widenView(){const saved=[camX,camY,vw,vh];camX=sub.x-Psx/(scale*cyw);vw=W/(scale*cyw);camY=sub.y-Psy/(scale*cpt);vh=H/(scale*cpt);return()=>{[camX,camY,vw,vh]=saved}}
+function widenView(){const saved=[camX,camY,vw,vh];camX=fX-Psx/(scale*cyw);vw=W/(scale*cyw);camY=fY-Psy/(scale*cpt);vh=H/(scale*cpt);return()=>{[camX,camY,vw,vh]=saved}}
 function drawSurface(){if(camY>100)return;c.strokeStyle=`rgba(174,220,214,${.23*(1-night*.7)})`;c.lineWidth=1.2;c.beginPath();for(let x=Math.floor(camX/12)*12;x<camX+vw+12;x+=12){let y=68+Math.sin(x*.032+ambient*1.1)*2+Math.sin(x*.076-ambient*.8);x===Math.floor(camX/12)*12?c.moveTo(x,y):c.lineTo(x,y)}c.stroke();for(let i=0;i<18;i++){let x=camX+hash(i+88)*vw;let y=72+hash(i)*18;c.strokeStyle=`rgba(188,217,205,${.1*(1-night)})`;c.beginPath();c.moveTo(x,y);c.lineTo(x+15+hash(i)*70,y);c.stroke()}}
 /* A cavern's ceiling is the underside of an island: the rock rises out of the sea
    into the sky, so the surface and sky stay visible above the cave mouth. */
@@ -302,7 +303,7 @@ function propFaces(L,time){const out=[];if(L.prop==='pump')return out;const spin
  return out}
 function drawSub3D(angle,wk=null){
  const m=S,L=m.look,mesh=meshCache[m.id]||(meshCache[m.id]=buildMesh(m)),P=PALS[L.pal].map(hexRgb);
- const big=state==='menu'&&!wk?1.45:1,kx=m.hx/45*big,ky=m.hy/17*big,ca=Math.cos(angle),sa=Math.sin(angle),bob=surfaced&&!wk?Math.sin(ambient*2.3)*1.4:0,[bx,by]=wk?proj(wk.x,wk.y):[Psx,Psy];
+ const big=state==='menu'&&!wk?1.45:1,kx=m.hx/45*big,ky=m.hy/17*big,ca=Math.cos(angle),sa=Math.sin(angle),bob=surfaced&&!wk?Math.sin(ambient*2.3)*1.4:0,[bx,by]=wk?proj(wk.x,wk.y):proj(sub.x,sub.y);
  const ox=bx+shakeX*scale,oy=by+shakeY*scale,dn=Math.hypot(syw*cpt,cyw*cyw*spt,cyw*cpt),d=[-syw*cpt/dn,cyw*cyw*spt/dn,cyw*cpt/dn],hl=[LIGHT[0]-d[0],LIGHT[1]-d[1],LIGHT[2]-d[2]],hn=Math.hypot(...hl);
  const cr=Math.cos(wk?wk.roll:0),sr=Math.sin(wk?wk.roll:0),cb=Math.cos(wk?wk.bend:0),sb=Math.sin(wk?wk.bend:0);
  const world=v=>{let x=v[0]*kx,y=v[1]*ky,z=v[2]*ky;
@@ -463,18 +464,19 @@ function drawDistress(beat){
 function draw(){
  c.setTransform(dpr,0,0,dpr,0,0);c.globalAlpha=1;c.globalCompositeOperation='source-over';
  if(state==='menu'){sub.x=350+ambient*13;sub.y=390+Math.sin(ambient*.55)*9;sub.v=Math.cos(ambient*.55)*5;camX=sub.x-vw*.63;camY=Math.max(-130,400-vh*.52);night=.12;}else camX=sub.x-vw*camLead;
+ fX=sub.x;fY=sub.y;if(cm&&state!=='menu')campFocus();
  camSetup();const baseScale=scale,beat=heartbeat();
  // The view throbs with the heartbeat and swells with each laboured breath.
  if(!reduced)scale*=1+beat*.004*Math.max(hullFx,airFx*.7)+airFx*.003*(1+Math.sin(ambient*1.4));
  drawSky();drawWater();
  const unwiden=widenView();worldTransform();
  shakeX=shakeY=0;if(shake&&!reduced){shakeX=(Math.random()-.5)*shake;shakeY=(Math.random()-.5)*shake;c.translate(shakeX,shakeY)}
- drawSurface();drawTerrainDepth();if(state!=='menu')drawShips();drawTerrain();
- if(state!=='menu'){drawPickups();drawMines();drawMissiles()}
+ drawSurface();drawTerrainDepth();if(state!=='menu')drawShips();drawTerrain();if(cm)campDrawBack();
+ if(state!=='menu'){drawPickups();drawMines();drawMissiles();if(cm)campDrawFront()}
  drawSonar();drawParticles();
- if(state!=='dying'&&state!=='over'){drawSub();drawAbilityFx()}else if(wreck)drawSub3D(wreck.angle,wreck);
+ if((state!=='dying'&&state!=='over')||(cm&&!wreck)){drawSub();drawAbilityFx()}else if(wreck)drawSub3D(wreck.angle,wreck);
  if(state!=='menu')drawSurfaceFx();drawBooms();unwiden();distort(beat);
- c.setTransform(dpr,0,0,dpr,0,0);drawInstruments();
+ c.setTransform(dpr,0,0,dpr,0,0);drawInstruments();if(cm)campDrawScreen();
  if(night>0){let gg=c.createRadialGradient(W*.38,H*.47,Math.min(W,H)*.1,W*.4,H*.5,Math.max(W,H)*.7);gg.addColorStop(0,'#00000000');gg.addColorStop(1,`rgba(0,4,12,${night*.32})`);c.fillStyle=gg;c.fillRect(0,0,W,H)}
  drawDistress(beat);scale=baseScale;
  $('flash').style.opacity=String(flash);
@@ -485,7 +487,8 @@ const fps={el:$('fps'),gate:$('sfGate'),draws:0,since:last,worst:0};
 function fpsTick(now,dt,covered){fps.worst=Math.max(fps.worst,dt);if(now-fps.since<500)return;
  fps.el.textContent=Math.round(fps.draws*1000/(now-fps.since))+' FPS / '+Math.round(fps.worst*1000)+' MS'+(quality<1?' / RES '+Math.round(quality*100)+'%':'')+(covered?' / PANEL':'');
  fps.draws=0;fps.since=now;fps.worst=0}
-function frame(now){let dt=Math.min((now-last)/1000,.08);last=now;
+// A frame can carry a timestamp from before `last` was reset by an input handler; never step backwards.
+function frame(now){let dt=clamp((now-last)/1000,0,.08);last=now;
  // A full-screen panel blurs the scene behind it, and re-blurring a moving scene every frame
  // is the costliest thing the game asks of a weak GPU, so behind a panel the ocean runs at 15 fps.
  const covered=!!panel||state==='paused'||!fps.gate.hidden;

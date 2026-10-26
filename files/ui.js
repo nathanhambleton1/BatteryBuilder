@@ -3,7 +3,7 @@
 function updateMenu(){
  document.querySelectorAll('#diffRow button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.diff===diffId)));
  $('vesselName').textContent=S.name.toUpperCase()+' CLASS';$('vesselOrigin').textContent=S.origin.toUpperCase()+' / HULL '+S.hull+' / E: '+S.ability.name;$('footVessel').textContent=S.name.toUpperCase()+' / '+S.mark;$('best').textContent=best.toLocaleString();
- const th=$('thumb');th.width=Math.round(112*dpr);th.height=Math.round(38*dpr);drawPreview(th,S,112,38);renderChip();renderRank();
+ const th=$('thumb');th.width=Math.round(112*dpr);th.height=Math.round(38*dpr);drawPreview(th,S,112,38);renderChip();renderRank();campTile();
 }
 function selectSub(id){subId=id;S=SUB_BY_ID[id];store.set('undertow.sub',id);profDirty(true);if(state==='menu')reset();updateMenu();document.querySelectorAll('.sub-card').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.sub===id)))}
 function statRows(m){return [['SPEED',(m.speed-.88)/.26],['AGILITY',(m.agility-.68)/.56],['HULL',m.hull/6],['AIR',m.o2/125],['FIRE RATE',(6.6-m.reload)/4.2],['SONAR',(1.25-m.sonar)/.65]]}

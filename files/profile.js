@@ -8,7 +8,7 @@
    merge: achievements and runs are unions, totals and bests take the larger value, and
    settings come from whichever copy changed them last. */
 const PROFILE_DIR='profiles';
-const blankProfile=name=>({name,ach:{un:{},best:{},st:cleanSt({})},best:0,scores:[],duels:[],set:null,at:0});
+const blankProfile=name=>({name,ach:{un:{},best:{},st:cleanSt({})},best:0,scores:[],duels:[],set:null,camp:blankCamp(),at:0});
 function cleanProfile(p,name){
  if(!p||typeof p!=='object')return blankProfile(name);
  const a=p.ach&&typeof p.ach==='object'?p.ach:{},un={},bst={},s=p.set&&typeof p.set==='object'?p.set:null;
@@ -16,7 +16,7 @@ function cleanProfile(p,name){
  if(a.best&&typeof a.best==='object')for(const [id,v] of Object.entries(a.best))if(ACH_BY_ID[id])bst[id]=Math.max(0,Math.floor(+v||0));
  return {name:String(p.name||name).slice(0,16),ach:{un,best:bst,st:cleanSt(a.st)},best:Math.max(0,Math.floor(+p.best||0)),
   scores:(Array.isArray(p.scores)?p.scores:[]).map(cleanEntry).filter(Boolean).slice(0,PROFILE_RUNS),
-  duels:(Array.isArray(p.duels)?p.duels:[]).filter(h=>h&&typeof h==='object'&&h.id).slice(0,20),
+  duels:(Array.isArray(p.duels)?p.duels:[]).filter(h=>h&&typeof h==='object'&&h.id).slice(0,20),camp:cleanCamp(p.camp),
   set:s&&{diff:DIFFS[s.diff]?s.diff:'officer',practice:!!s.practice,sub:SUB_BY_ID[s.sub]?s.sub:'virginia',rounds:[1,3,5].includes(+s.rounds)?+s.rounds:3,duelDiff:DIFFS[s.duelDiff]?s.duelDiff:'officer'},
   at:Math.max(0,+p.at||0)};
 }
@@ -26,18 +26,19 @@ function mergeProfiles(a,b){
  const st={};for(const k of ST_NUM)st[k]=Math.max(a.ach.st[k],b.ach.st[k]);
  for(const k of ST_MAP){st[k]={...a.ach.st[k]};for(const [id,v] of Object.entries(b.ach.st[k]))st[k][id]=Math.max(st[k][id]||0,v)}
  const newer=b.at>a.at?b:a,duels=[...new Map([...b.duels,...a.duels].map(h=>[h.id,h])).values()].sort((x,y)=>(+y.at||0)-(+x.at||0)).slice(0,20);
- return {name:newer.name,ach:{un,best:bst,st},best:Math.max(a.best,b.best),scores:mergeEntries(a.scores,b.scores).slice(0,PROFILE_RUNS),duels,set:newer.set||a.set||b.set,at:Math.max(a.at,b.at)};
+ return {name:newer.name,ach:{un,best:bst,st},best:Math.max(a.best,b.best),scores:mergeEntries(a.scores,b.scores).slice(0,PROFILE_RUNS),duels,set:newer.set||a.set||b.set,camp:mergeCamp(a.camp,b.camp),at:Math.max(a.at,b.at)};
 }
-function profSnapshot(){return cleanProfile({name:prof.name,ach:{un:ach.un,best:ach.best,st:ach.st},best,scores:prof.scores,duels:duel.history,
- set:{diff:diffId,practice,sub:subId,rounds:duel.rounds,duelDiff:duel.diff},at:prof.at},prof.name)}
+// During a campaign mission the globals hold the mission's level and boat, so the sailor's own come from camp.saved.
+function profSnapshot(){const own=camp.saved||{diffId,subId,practice};return cleanProfile({name:prof.name,ach:{un:ach.un,best:ach.best,st:ach.st},best,scores:prof.scores,duels:duel.history,
+ set:{diff:own.diffId,practice:own.practice,sub:own.subId,rounds:duel.rounds,duelDiff:duel.diff},camp:camp.data,at:prof.at},prof.name)}
 // Settings only change between dives; mid-dive, only the record is taken in.
 function profApply(p,settings=state==='menu'){
- ach.un=p.ach.un;ach.best=p.ach.best;ach.st=p.ach.st;best=p.best;prof.scores=p.scores;prof.at=p.at;duel.history=p.duels;
+ ach.un=p.ach.un;ach.best=p.ach.best;ach.st=p.ach.st;best=p.best;camp.data=p.camp;prof.scores=p.scores;prof.at=p.at;duel.history=p.duels;
  if(p.scores.length){lb.local=mergeEntries(lb.local,p.scores).slice(0,100);store.set('undertow.local.v1',lb.local)}
  if(settings&&p.set){diffId=p.set.diff;subId=p.set.sub;D=DIFFS[diffId];S=SUB_BY_ID[subId];setMission(p.set.practice);duel.rounds=p.set.rounds;duel.diff=p.set.duelDiff;duel.diffSet=true;
   store.set('undertow.diff',diffId);store.set('undertow.sub',subId)}
  if(state==='menu'){reset();updateMenu()}else renderRank();
- if(panel==='duel')renderDuel();if(panel==='ach')renderAch();if(panel==='board')renderBoard();
+ if(panel==='duel')renderDuel();if(panel==='ach')renderAch();if(panel==='board')renderBoard();if(panel==='camp')renderCamp();campTile();
 }
 const profSaveLocal=()=>store.set(PROFILE_PREFIX+prof.key,profSnapshot());
 // Saved here at once; the shared copy follows a moment later so a burst of changes is one write.

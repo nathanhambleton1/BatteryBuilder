@@ -221,7 +221,7 @@ async function duelRoundOver(final){
   $('cause').textContent=deathCause+(now&&now.mine.length>r.round||duel.history.some(h=>h.id===r.id)?' Round '+(r.round+1)+' score posted to your duel with '+r.opp+'.':' The round score could not be saved to the duel folder.')}
  else $('cause').textContent=deathCause+' This round could not be posted: the duel has changed. Check the Duel screen.';
 }
-function againOrDuel(){if(duel.after){home();openPanel('duel')}else start()}
+function againOrDuel(){if(campAgain())return;if(duel.after){home();openPanel('duel')}else start()}
 
 /* Watching: rebuild the same course and replay the rival's track about a second behind. */
 function duelWatch(m){
