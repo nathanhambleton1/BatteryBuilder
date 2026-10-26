@@ -120,7 +120,7 @@
 <div class="seg" id="filterSeg"><span class="row-label">LEVEL</span><button data-filter="all">All</button><button data-filter="cadet">Cadet</button><button data-filter="officer">Officer</button><button data-filter="captain">Captain</button><button data-filter="admiral">Admiral</button></div>
 <div class="lb-status" id="lbStatus"></div>
 <div class="table-wrap"><table class="lb"><thead><tr><th>#</th><th>CALLSIGN</th><th class="num">SCORE</th><th class="num hide-sm">DISTANCE</th><th class="hide-sm">VESSEL</th><th>LEVEL</th><th class="hide-sm">DATE</th></tr></thead><tbody id="lbBody"></tbody></table></div>
-<div class="lb-actions"><button id="lbConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button><button id="lbRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button><button id="lbForget"><svg class="ic"><use href="#i-unlink"/></svg>Disconnect</button></div>
+<div class="lb-actions"><button id="lbConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button><button id="lbRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button></div>
 <p class="path">Leaderboard file: <code id="lbPath"></code></p>
 <button class="launch" id="boardClose">BACK <svg class="ic"><use href="#i-next"/></svg></button></div></section>
 <section class="view overlay" id="duel" hidden><div class="panel wide"><div class="eyebrow">FLEET EXERCISES / 1V1</div><h2>Duel</h2><p>Challenge a sailor who is online. You take turns diving the same course, one round each at a time, and the higher total after every round wins. While your rival dives you can watch their run live.</p>
@@ -136,6 +136,17 @@
 <section class="wreck-ui" id="over" hidden><div class="wr-left"><div class="eyebrow" id="overLabel">PATROL ENDED</div><h2>Signal lost.</h2><p id="cause">Hull integrity compromised.</p><div class="final"><label>FINAL SCORE</label><strong id="endScore">0</strong><span id="endMeta"></span></div><div class="results"><div><label>DISTANCE</label><strong id="endDistance">0 m</strong></div><div><label>SHIPS SUNK</label><strong id="endShips">0</strong></div><div><label>MINEFIELDS</label><strong id="endGates">0</strong></div><div><label>DEEPEST POINT</label><strong id="endDepth">0 m</strong></div><div><label>AIR POCKETS</label><strong id="endAir">0</strong></div><div><label>BEST SCORE</label><strong id="endBest">0</strong></div></div><div class="save-note"><svg class="ic"><use href="#i-trophy"/></svg><span id="saveNote"></span></div><div class="ach-earned" id="achEarned"></div><button class="text-button" id="saveShared" hidden><svg class="ic"><use href="#i-file"/></svg>Post to shared leaderboard</button></div>
 <div class="wr-right"><button class="again" id="again"><span class="again-ring"><svg class="ic"><use href="#i-refresh"/></svg></span>DIVE AGAIN</button><span class="again-hint">CLICK ANYWHERE / SPACE / W</span><div class="wr-links"><button class="text-button" id="overBoard"><svg class="ic"><use href="#i-trophy"/></svg>Leaderboard</button><button class="text-button" id="overAch"><svg class="ic"><use href="#i-medal"/></svg>Achievements</button><button class="text-button" id="home"><svg class="ic"><use href="#i-home"/></svg>Surface</button></div><div class="place" id="place" hidden><label id="placeLabel">YOUR PLACE</label><div id="placeRows"></div></div></div></section>
 <div id="error" hidden></div>
+<style id="shared-folder-css">
+.sf-gate{z-index:15}
+.sf-gate .panel{width:min(560px,100%)}
+.sf-path{display:block;margin:4px 0 6px;padding:10px 12px;background:#03101880;border:1px solid #b5dfd62c;color:var(--mint);font:12px/1.5 ui-monospace,Consolas,monospace;word-break:break-all}
+.sf-msg{margin:10px 0 0;padding:10px 12px;border-left:2px solid var(--red);background:#61382026;color:#f0c2b4!important;font-size:12px!important;line-height:1.6!important}
+.sf-gate .launch{font-size:13px;padding:20px 24px}
+.sf-links{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px}
+.sf-link{background:none;border:0;padding:4px 0;color:var(--muted);font-size:12px;text-decoration:underline;cursor:pointer}
+.sf-link:hover{color:var(--ink)}
+</style>
+<section class="view overlay sf-gate" id="sfGate" hidden role="dialog" aria-modal="true" aria-labelledby="sfTitle"><div class="panel"><div class="eyebrow">SHARED DRIVE</div><h2 id="sfTitle">Connect the shared folder</h2><p id="sfBody"></p><code class="sf-path" id="sfPath"></code><p id="sfHint"></p><p class="sf-msg" id="sfMsg" hidden></p><button class="launch" id="sfGo"><span>ALLOW ACCESS</span><svg class="ic"><use href="#i-file"/></svg></button><div class="sf-links"><button class="sf-link" id="sfOffline">Play offline for now</button><button class="sf-link" id="sfRepick" hidden>Pick the folder again</button></div></div></section>
 <script>
 'use strict';
 /* UNDERTOW — a self-contained Canvas 2D game. No network, fonts or assets required.
@@ -742,6 +753,9 @@ function updateDebris(dt){for(const p of debris){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*
 function breach(v){surfaced=true;surfacedAt=t;const k=clamp(v/170,.25,1);tilt=-.2*k;ripples.push({x:sub.x,born:ambient,w:S.hx*1.4});sfx.surface(k);for(let i=0;i<60*k+14;i++){const fx=(Math.random()-.3)*S.hx*2;spray.push({x:sub.x+fx,y:SURFACE-1,vx:speed*.8+(Math.random()-.5)*140,vy:-(70+Math.random()*260)*k-20,life:1.4,r:1+Math.random()*2.6})}for(let i=0;i<20;i++)bubbles.push({x:sub.x+(Math.random()-.5)*S.hx*2,y:SURFACE+6+Math.random()*16,r:1+Math.random()*3,life:.6+Math.random()*.6,vx:speed*.5,vy:-20})}
 function dive(){ripples.push({x:sub.x,born:ambient,w:S.hx});sfx.dive();for(let i=0;i<18;i++)spray.push({x:sub.x+(Math.random()-.5)*S.hx*1.6,y:SURFACE-1,vx:speed*.8+(Math.random()-.5)*60,vy:-40-Math.random()*90,life:1,r:.8+Math.random()*1.8})}
 async function finish(){
+ // What was actually dived. duelRoundOver() below restores the player's own menu level and
+ // practice setting, so the score entry must use these, not the globals.
+ const dived={diff:diffId,sub:S.id,practice};
  state='over';const final=score(),metres=Math.floor(distance),newBest=!practice&&final>best;
  if(newBest){best=final;store.set('undertow.best.v2',best)}
  $('overLabel').textContent=practice?'PRACTICE DIVE ENDED':newBest?'NEW PERSONAL BEST':'PATROL ENDED';$('cause').textContent=deathCause;
@@ -752,8 +766,9 @@ async function finish(){
  renderEarned();$('place').hidden=true;
  show('over',true);overAt=performance.now();$('hud').classList.add('ended');$('again').focus({preventScroll:true});$('saveShared').hidden=true;
  if(duel.run)await duelRoundOver(final).catch(e=>{$('cause').textContent=deathCause+' The duel round could not be posted: '+(e&&e.message||e)});
- if(practice){lastEntry=null;$('saveNote').textContent='Practice dives are not recorded.';return}
- lastEntry={id:Date.now().toString(36)+Math.random().toString(36).slice(2,8),name:callsign(),score:final,distance:metres,sub:S.id,diff:diffId,ships:shipsSunk,date:new Date().toISOString().slice(0,10)};
+ if(dived.practice){lastEntry=null;$('saveNote').textContent='Practice dives are not recorded.';return}
+ const now=new Date();
+ lastEntry={id:now.getTime().toString(36)+Math.random().toString(36).slice(2,8),name:callsign(),score:final,distance:metres,sub:dived.sub,diff:dived.diff,ships:shipsSunk,date:now.toISOString().slice(0,10),at:now.getTime()};
  $('saveNote').textContent='Saving score...';describeSave(await submitScore(lastEntry));
 }
 function physics(dt){
@@ -1337,7 +1352,10 @@ document.querySelectorAll('#diffRow button').forEach(b=>b.onclick=()=>{diffId=b.
    If another player's write replaced it, it merges and writes again, so several
    people can finish at once without losing scores. Failures retry on their own. */
 const BOARD_CAP=5000, sleep=ms=>new Promise(r=>setTimeout(r,ms));
-function cleanEntry(e){if(!e||typeof e!=='object')return null;const s=Math.floor(Number(e.score));if(!Number.isFinite(s)||s<0||s>1e9)return null;return {id:String(e.id||Math.random()).slice(0,40),name:String(e.name||'Anonymous').replace(/[\u0000-\u001f]/g,'').slice(0,16)||'Anonymous',score:s,distance:Math.max(0,Math.floor(Number(e.distance)||0)),sub:SUB_BY_ID[e.sub]?e.sub:'virginia',diff:DIFFS[e.diff]?e.diff:'officer',ships:Math.max(0,Math.floor(Number(e.ships)||0)),date:String(e.date||'').slice(0,10)}}
+function cleanEntry(e){if(!e||typeof e!=='object')return null;const s=Math.floor(Number(e.score));if(!Number.isFinite(s)||s<0||s>1e9)return null;return {id:String(e.id||Math.random()).slice(0,40),name:String(e.name||'Anonymous').replace(/[\u0000-\u001f]/g,'').slice(0,16)||'Anonymous',score:s,distance:Math.max(0,Math.floor(Number(e.distance)||0)),sub:SUB_BY_ID[e.sub]?e.sub:'virginia',diff:DIFFS[e.diff]?e.diff:'officer',ships:Math.max(0,Math.floor(Number(e.ships)||0)),date:String(e.date||'').slice(0,10),...entryAt(e)}}
+// Runs since the time was added carry at: epoch ms. Older ones only have a UTC date, shown as is.
+function entryAt(e){const at=Math.floor(Number(e.at));return Number.isFinite(at)&&at>1e12&&at<1e13?{at}:{}}
+function whenText(e){if(!e.at)return e.date||'';const d=new Date(e.at),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())}
 function mergeEntries(a,b){const m=new Map();for(const e of [...a,...b])m.set(e.id,e);return [...m.values()].sort((x,y)=>y.score-x.score).slice(0,BOARD_CAP)}
 // Achievements in the shared file: players[lower-case callsign] = {name, ach:{id:date}, xp}. Unions and maximums only, never removals.
 function mergePlayer(a,b){if(!a)return b;if(!b)return a;const m={...b.ach};for(const [id,d] of Object.entries(a.ach))if(!m[id]||d<m[id])m[id]=d;return {name:b.name||a.name,ach:m,xp:Math.max(a.xp||0,b.xp||0)}}
@@ -1349,9 +1367,13 @@ const included=(list,e)=>list.some(x=>x.id===e.id)||(list.length>=BOARD_CAP&&e.s
 // Where this page lives, e.g. \\SERVER\Share\Games\ or Z:\Games\, shown so players pick the right folder.
 const PAGE_NAME=(()=>{try{return decodeURIComponent(location.pathname.split('/').pop()||'')}catch(_){return ''}})();
 const GAME_DIR=(()=>{try{if(location.protocol!=='file:')return '';const p=decodeURIComponent(location.pathname);return (location.host?'\\\\'+location.host:'')+p.slice(0,p.lastIndexOf('/')+1).replace(/^\/([A-Za-z]:)/,'$1').replace(/\//g,'\\')}catch(_){return ''}})();
-const lb={supported:typeof window.showDirectoryPicker==='function',dir:null,perm:'none',shared:[],players:{},achView:'path',achWho:'',local:(store.get('undertow.local.v1',[])||[]).map(cleanEntry).filter(Boolean),source:'shared',filter:'all',note:'',warn:'',mine:new Set(store.get('undertow.mine.v1',[]))};
+// The one folder the whole team shares. A page cannot open a folder by path, so each PC/browser
+// points at it once; the handle is kept in IndexedDB and access is re-asked on load if needed.
+const SHARED_DIR='G:\\Nathan Hambleton\\Submarine Photos\\New Folder', SHARED_NAME=SHARED_DIR.slice(SHARED_DIR.lastIndexOf('\\')+1);
+const sameDir=(a,b)=>!!a&&!!b&&a.replace(/\\+$/,'').toLowerCase()===b.replace(/\\+$/,'').toLowerCase();
+const lb={supported:typeof window.showDirectoryPicker==='function',dir:null,perm:'none',shared:[],players:{},achView:'path',achWho:'',local:(store.get('undertow.local.v1',[])||[]).map(cleanEntry).filter(Boolean),source:'shared',filter:'all',note:'',warn:'',gate:{ready:false,offline:false,msg:'',repick:false,busy:false},mine:new Set(store.get('undertow.mine.v1',[]))};
 if(!lb.supported)lb.source='local';
-$('lbPath').textContent=(GAME_DIR||'the game\u2019s folder \\ ')+BOARD_FILE;
+$('lbPath').textContent=SHARED_DIR+'\\'+BOARD_FILE;
 function idb(mode,fn){return new Promise((res,rej)=>{let open;try{open=indexedDB.open('undertow',1)}catch(e){rej(e);return}open.onupgradeneeded=()=>open.result.createObjectStore('kv');open.onerror=()=>rej(open.error);open.onsuccess=()=>{const db=open.result;let tx,req;try{tx=db.transaction('kv',mode);req=fn(tx.objectStore('kv'))}catch(e){db.close();rej(e);return}tx.oncomplete=()=>{db.close();res(req.result)};tx.onerror=tx.onabort=()=>{db.close();rej(tx.error)}}})}
 const idbGet=k=>idb('readonly',s=>s.get(k)), idbSet=(k,v)=>idb('readwrite',s=>s.put(v,k)), idbDel=k=>idb('readwrite',s=>s.delete(k));
 const pending=()=>(store.get('undertow.pending.v1',[])||[]).map(cleanEntry).filter(Boolean);
@@ -1412,14 +1434,53 @@ async function syncNow(ask){
  catch(e){lb.note='Could not update '+BOARD_FILE+': '+(e&&e.message||e)+(retries<8?' Retrying shortly.':'');if(retries<8){retries++;clearTimeout(retryTimer);retryTimer=setTimeout(()=>lbSync(false).then(ok=>{if(ok&&state==='over')describeSave('shared')}),1500+Math.random()*2000)}renderBoard();return false}
  renderBoard();return true;
 }
-async function lbPick(){
- if(!lb.supported)return;
+/* Shared-folder gate. Called from a click (needs a user gesture): with a stored handle it asks for
+   access again (Chrome/Edge then offer "Allow on every visit"); without one, or if the stored handle
+   is unusable, it opens the folder picker and checks the pick really is the shared game folder. */
+async function lbPick(repick){
+ const g=lb.gate;if(!lb.supported||g.busy)return false;if(repick===true)g.repick=true;g.busy=true;g.msg='';sfRender();
  try{
-  const dir=await window.showDirectoryPicker({id:'undertow',mode:'readwrite'});
-  lb.dir=dir;lb.source='shared';lb.note='';lb.warn='';try{await idbSet('folder',dir)}catch(_){}
-  if(PAGE_NAME&&await lbPermitted(true)){try{await dir.getFileHandle(PAGE_NAME)}catch(_){lb.warn=`Heads up: ${PAGE_NAME} is not in "${dir.name}". Everyone needs to pick the same folder.`}}
-  await lbSync(true);
- }catch(e){if(e&&e.name!=='AbortError'){lb.note='Could not open that folder: '+(e.message||e);renderBoard()}}
+  if(lb.dir&&!g.repick){
+   let st='denied';
+   try{st=await lb.dir.requestPermission({mode:'readwrite'})}
+   catch(e){g.repick=true;g.msg=`The saved link to ${SHARED_NAME} no longer works (${e&&e.message||e}). Select the button to pick the folder again.`;return false}
+   if(st!=='granted'){g.msg='Access was not allowed. Select Allow access again and choose Allow (or Allow on every visit) in the browser prompt. If the browser no longer asks, use Pick the folder again below.';return false}
+  }else if(!await sfPick())return false;
+  g.repick=false;g.msg='';lb.source='shared';lb.note='';
+  return await lbSync(false);
+ }catch(e){g.msg='Could not open the folder: '+(e&&e.message||e);return false}
+ finally{g.busy=false;renderBoard();sfRender()}
+}
+async function sfPick(){
+ const g=lb.gate,o={id:'undertow',mode:'readwrite'};let dir;
+ try{try{const from=lb.dir||g.startIn;dir=await window.showDirectoryPicker(from?{...o,startIn:from}:o)}catch(e){if(e&&e.name==='AbortError')throw e;dir=await window.showDirectoryPicker(o)}}
+ catch(e){if(e&&e.name==='AbortError'){g.msg=`No folder was picked. Pick ${SHARED_DIR}.`;return false}throw e}
+ let hasPage=false;if(PAGE_NAME){try{await dir.getFileHandle(PAGE_NAME);hasPage=true}catch(_){}}
+ const named=String(dir.name).toLowerCase()===SHARED_NAME.toLowerCase();
+ if(!named||PAGE_NAME&&!hasPage){g.msg=`That was the "${dir.name}" folder${PAGE_NAME&&!hasPage?', which does not contain '+PAGE_NAME:''}. Select the button again and pick ${SHARED_DIR}.`;g.startIn=dir;return false}
+ lb.warn='';lb.dir=dir;try{await idbSet('folder',dir)}catch(_){}
+ return true;
+}
+function sfShouldShow(){const g=lb.gate;return lb.supported&&g.ready&&!g.offline&&lb.perm!=='granted'&&state!=='playing'&&!(duel&&(duel.run||duel.watch))}
+function sfRender(){
+ const g=lb.gate,box=$('sfGate'),was=!box.hidden,on=sfShouldShow();box.hidden=!on;if(!on)return;
+ const first=!lb.dir||g.repick,here=sameDir(GAME_DIR,SHARED_DIR);
+ $('sfTitle').textContent=first?'Connect the shared folder':'Allow the shared folder';
+ $('sfBody').textContent='UNDERTOW saves the leaderboard, duels and your profile to the team’s shared folder:';
+ $('sfPath').textContent=SHARED_DIR;
+ $('sfHint').textContent=first?`The browser needs you to point at it once on this computer. Select the button, go to that folder (${SHARED_NAME}, the one with ${PAGE_NAME||'this game'} in it${here?', where this page was opened from':''}) and choose Select Folder, then allow edits. If the browser offers Allow on every visit, choose it so the game connects on its own next time.`:`Select Allow access and, in the browser prompt, choose Allow on every visit so you are not asked again.`+(GAME_DIR&&!here?` (This page was opened from ${GAME_DIR}.)`:'');
+ $('sfGo').querySelector('span').textContent=first?'CHOOSE '+SHARED_NAME.toUpperCase():'ALLOW ACCESS';$('sfGo').disabled=g.busy;
+ $('sfMsg').textContent=g.msg;$('sfMsg').hidden=!g.msg;
+ $('sfRepick').hidden=!(lb.dir&&!g.repick&&g.msg);
+ if(!was)$('sfGo').focus({preventScroll:true});
+}
+// Re-check when the page comes back; only bring the gate back if access was actually lost.
+async function sfCheck(){
+ if(!lb.supported||!lb.gate.ready||lb.gate.busy||document.hidden)return;
+ const ok=await lbPermitted(false);
+ if(ok&&lb.perm!=='granted')await lbSync(false);
+ else if(!ok&&lb.perm==='granted'){lb.gate.offline=false;lb.perm=lb.dir?'prompt':'none';renderBoard()}
+ sfRender();
 }
 async function submitScore(entry){
  lb.local=mergeEntries(lb.local,[entry]).slice(0,100);store.set('undertow.local.v1',lb.local);
@@ -1432,7 +1493,7 @@ async function submitScore(entry){
 }
 function describeSave(res){
  if(!lastEntry)return;const list=res==='shared'?lb.shared:lb.local,rank=list.findIndex(e=>e.id===lastEntry.id)+1;
- const msg={shared:'Posted to the shared leaderboard'+(rank?`: rank ${rank} of ${list.length}.`:'.'),retrying:'Saved on this computer. The shared file is busy; posting again in a moment.',pending:'Saved on this computer. Allow access to post it to the shared leaderboard.',nohandle:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+'. Connect the shared folder from the Leaderboard screen to post scores for everyone.',local:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+'. Use Edge or Chrome for the shared leaderboard.'}[res];
+ const msg={shared:'Posted to the shared leaderboard'+(rank?`: rank ${rank} of ${list.length}.`:'.'),retrying:'Saved on this computer. The shared file is busy; posting again in a moment.',pending:'Saved on this computer. Allow access to post it to the shared leaderboard.',nohandle:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+`. Select Allow access on the Leaderboard screen to connect ${SHARED_NAME} and post it for everyone.`,local:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+'. Use Edge or Chrome for the shared leaderboard.'}[res];
  $('saveNote').textContent=msg;$('saveShared').hidden=res!=='pending';renderPlace(list,res==='shared');
 }
 function renderEarned(){const box=$('achEarned');box.textContent='';
@@ -1442,23 +1503,23 @@ function renderEarned(){const box=$('achEarned');box.textContent='';
 function renderPlace(list,shared){
  const box=$('placeRows'),i=lastEntry?list.findIndex(e=>e.id===lastEntry.id):-1;box.textContent='';$('place').hidden=i<0;if(i<0)return;
  $('placeLabel').textContent=(shared?'SHARED LEADERBOARD':'THIS COMPUTER')+' / RANK '+(i+1)+' OF '+list.length;
- for(let k=Math.max(0,i-2);k<=Math.min(list.length-1,i+2);k++){const e=list[k],row=document.createElement('div');row.className=k===i?'pr me':'pr';
+ for(let k=Math.max(0,i-2);k<=Math.min(list.length-1,i+2);k++){const e=list[k],row=document.createElement('div');row.className=k===i?'pr me':'pr';row.title=whenText(e);
   for(const [txt,cls] of [['#'+(k+1)],[e.name,'nm'],[e.score.toLocaleString()],[e.distance+' m']]){const sp=document.createElement('span');sp.textContent=txt;if(cls)sp.className=cls;row.append(sp)}box.append(row)}
 }
 function cell(tr,text,cls){const td=document.createElement('td');td.textContent=text;if(cls)td.className=cls;tr.append(td)}
 function renderBoard(){
  const connected=lb.dir&&lb.perm==='granted',useShared=lb.source==='shared';
- let msg=!lb.supported?'This browser cannot use shared folders. Use Microsoft Edge or Google Chrome for the shared leaderboard. Scores are kept on this computer.':!lb.dir?`Not connected. Select Connect shared folder and pick the folder this game is in${GAME_DIR?' ('+GAME_DIR+')':''}. Scores go to ${BOARD_FILE} there, and the browser remembers the folder.`:lb.perm!=='granted'?`Found the "${lb.dir.name}" folder. Select Allow access so scores can sync.`:`Connected to ${lb.dir.name} / ${BOARD_FILE} / ${lb.shared.length} records.`;
+ let msg=!lb.supported?'This browser cannot use shared folders. Use Microsoft Edge or Google Chrome for the shared leaderboard. Scores are kept on this computer.':lb.perm!=='granted'?`Not connected to ${SHARED_NAME} (${SHARED_DIR}). Select Allow access to post and see everyone’s scores; until then they are kept on this computer.`:`Connected to ${lb.dir.name} / ${BOARD_FILE} / ${lb.shared.length} records.`;
  const queued=lb.supported?pending().length:0;if(queued)msg+=` ${queued} score${queued>1?'s':''} waiting to post.`;if(lb.warn)msg+=' '+lb.warn;if(lb.note)msg+=' '+lb.note;
  $('lbStatus').textContent=msg;
- $('lbConnect').hidden=!lb.supported;$('lbForget').hidden=!lb.dir;$('lbRefresh').disabled=!lb.dir;
- $('lbConnect').querySelector('span').textContent=lb.dir&&lb.perm!=='granted'?'Allow access':lb.dir?'Choose a different folder':'Connect shared folder';
+ $('lbConnect').hidden=!lb.supported||connected;$('lbRefresh').disabled=!connected;
+ $('lbConnect').querySelector('span').textContent='Allow access';
  document.querySelectorAll('#srcSeg button').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.src===lb.source));if(b.dataset.src==='shared')b.disabled=!lb.supported});
  document.querySelectorAll('#filterSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.filter===lb.filter)));
  const body=$('lbBody');body.textContent='';
  const rows=(useShared?(connected?lb.shared:[]):lb.local).filter(e=>lb.filter==='all'||e.diff===lb.filter).slice(0,50);
  if(!rows.length){const tr=document.createElement('tr');cell(tr,useShared&&!connected?'Connect the shared folder to see everyone\u2019s scores.':'No scores yet. Be the first on the board.','empty');tr.firstChild.colSpan=7;body.append(tr)}
- rows.forEach((e,i)=>{const tr=document.createElement('tr');if(duelKey(e.name)===prof.key)tr.className='me';cell(tr,i+1);cell(tr,e.name,'name');cell(tr,e.score.toLocaleString(),'num');cell(tr,e.distance+' m','num hide-sm');cell(tr,SUB_BY_ID[e.sub].name,'hide-sm');cell(tr,DIFFS[e.diff].label);cell(tr,e.date,'hide-sm');body.append(tr)});
+ rows.forEach((e,i)=>{const tr=document.createElement('tr');if(duelKey(e.name)===prof.key)tr.className='me';cell(tr,i+1);cell(tr,e.name,'name');cell(tr,e.score.toLocaleString(),'num');cell(tr,e.distance+' m','num hide-sm');cell(tr,SUB_BY_ID[e.sub].name,'hide-sm');cell(tr,DIFFS[e.diff].label);cell(tr,whenText(e),'hide-sm');body.append(tr)});
  renderChip();if(panel==='ach')renderAch();
 }
 // The fleet is everyone in the shared file plus you, ranked by achievements held.
@@ -1491,15 +1552,25 @@ function renderAch(){
   const la=p.last?Object.keys(p.ach).find(id=>p.ach[id]===p.last):'';cell(tr,la?ACH_BY_ID[la].name:'','hide-sm');
   tr.onclick=()=>{lb.achWho=k;lb.achView='path';renderAch()};body.append(tr)});
 }
-function renderChip(){$('achCount').textContent=achCountText();const ch=$('lbChip');ch.classList.toggle('on',lb.perm==='granted');ch.classList.toggle('warn',!!lb.dir&&lb.perm!=='granted');ch.querySelector('span').textContent=!lb.supported?'LEADERBOARD / THIS COMPUTER':!lb.dir?'SHARED LEADERBOARD NOT CONNECTED':lb.perm==='granted'?'SHARED LEADERBOARD CONNECTED':'SHARED LEADERBOARD / ALLOW ACCESS'}
-$('lbConnect').onclick=()=>lb.dir&&lb.perm!=='granted'?lbSync(true):lbPick();
+function renderChip(){$('achCount').textContent=achCountText();const ch=$('lbChip');ch.classList.toggle('on',lb.perm==='granted');ch.classList.toggle('warn',lb.supported&&lb.perm!=='granted');ch.querySelector('span').textContent=!lb.supported?'LEADERBOARD / THIS COMPUTER':lb.perm==='granted'?'CONNECTED TO '+(lb.dir?lb.dir.name:SHARED_NAME).toUpperCase():SHARED_NAME.toUpperCase()+' NOT CONNECTED / ALLOW ACCESS'}
+$('lbConnect').onclick=()=>lbPick();
 $('lbRefresh').onclick=()=>lbSync(true);
-$('lbForget').onclick=async()=>{lb.dir=null;lb.perm='none';lb.shared=[];lb.note='';lb.warn='';try{await idbDel('folder')}catch(_){}renderBoard()};
+$('sfGo').onclick=()=>lbPick();
+$('sfRepick').onclick=()=>lbPick(true);
+$('sfOffline').onclick=()=>{lb.gate.offline=true;lb.gate.msg='';sfRender();renderBoard()};
+// While the gate is up, keep keys and clicks from reaching the game (Space would start a dive).
+for(const ev of ['keydown','keyup'])addEventListener(ev,e=>{if(!$('sfGate').hidden)e.stopPropagation()},true);
+for(const ev of ['pointerdown','pointerup','mousedown','mouseup','touchstart','touchend','contextmenu','wheel'])$('sfGate').addEventListener(ev,e=>e.stopPropagation());
+addEventListener('focus',()=>sfCheck());document.addEventListener('visibilitychange',()=>{if(!document.hidden)sfCheck()});
 document.querySelectorAll('#srcSeg button').forEach(b=>b.onclick=()=>{lb.source=b.dataset.src;renderBoard()});
 document.querySelectorAll('#filterSeg button').forEach(b=>b.onclick=()=>{lb.filter=b.dataset.filter;renderBoard()});
 $('saveShared').onclick=async()=>describeSave(await lbSync(true)?'shared':lb.perm==='granted'?'retrying':'pending');
 setInterval(()=>{if((panel==='board'||panel==='ach')&&lb.perm==='granted')lbSync(false)},10000);
-if(lb.supported)(async()=>{try{lb.dir=await idbGet('folder')||null;idbDel('board').catch(()=>{})}catch(_){}await lbSync(false)})();
+// On load: connect silently if the stored folder is still allowed, otherwise put the gate up right away.
+// A folder linked before there was one fixed folder may be the wrong one: ask for the right one instead.
+if(lb.supported)(async()=>{try{lb.dir=await idbGet('folder')||null;idbDel('board').catch(()=>{})}catch(_){}
+ if(lb.dir&&String(lb.dir.name).toLowerCase()!==SHARED_NAME.toLowerCase()){lb.gate.startIn=lb.dir;lb.gate.msg=`This browser was linked to the "${lb.dir.name}" folder. The team now uses ${SHARED_NAME} only, so please pick it.`;lb.dir=null}
+ try{await lbSync(false)}catch(_){}lb.gate.ready=true;sfRender()})();
 /* ---- 1v1 duels ---------------------------------------------------------------
    Duels live in a data folder next to bin.dat, one file per writer so no two
    computers ever write the same file:
