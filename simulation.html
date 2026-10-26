@@ -123,11 +123,26 @@
    Physics: 120 Hz fixed steps, all velocities in world units per second. */
 (() => {
 /* ---- Shared leaderboard ----------------------------------------------------
-   Scores are shared through bin.json in the same folder as this HTML file.
+   Scores are shared through bin.dat in the same folder as this HTML file.
    Browsers never let a page write next to itself unasked, so in Microsoft Edge
    or Google Chrome each player picks that folder once (Leaderboard screen) and
-   the browser remembers it. bin.json is created automatically if it is missing. */
-const BOARD_FILE='bin.json', LOCK_FILE='bin.json.lock';
+   the browser remembers it. bin.dat is created automatically if it is missing;
+   bin.dat.bak is a copy of the last good write. An older plain bin.json is
+   imported once, when there is no bin.dat yet. */
+const BOARD_FILE='bin.dat', BACKUP_FILE='bin.dat.bak', LOCK_FILE='bin.dat.lock', LEGACY_FILE='bin.json';
+
+/* ---- Seal ------------------------------------------------------------------
+   Scores and achievements, on this computer and in the shared file, are saved
+   scrambled and signed: the text is unreadable, and anything edited by hand no
+   longer matches its signature and is thrown away. The key is in this page, so
+   this stops casual edits, not someone willing to read the code. */
+const SEAL_KEY='n9GekSKyVr_kwL6HkOCF5TuDMairIJL7', SEAL_TAG='UDT1:';
+function sealHash(s,seed){let a=0xdeadbeef^seed,b=0x41c6ce57^seed;for(let i=0;i<s.length;i++){const ch=s.charCodeAt(i);a=Math.imul(a^ch,2654435761);b=Math.imul(b^ch,1597334677)}a=Math.imul(a^(a>>>16),2246822507)^Math.imul(b^(b>>>13),3266489909);b=Math.imul(b^(b>>>16),2246822507)^Math.imul(a^(a>>>13),3266489909);return [a>>>0,b>>>0]}
+const sealSig=s=>[...sealHash(SEAL_KEY+s,1),...sealHash(s+SEAL_KEY,2)].map(n=>n.toString(16).padStart(8,'0')).join('');
+function sealXor(bytes,nonce){let x=sealHash(SEAL_KEY,nonce)[0]||1;for(let i=0;i<bytes.length;i++){x^=x<<13;x^=x>>>17;x^=x<<5;bytes[i]^=x&255}return bytes}
+function seal(text){const nonce=crypto.getRandomValues(new Uint32Array(1))[0],body=sealXor(new TextEncoder().encode(sealSig(text)+text),nonce);let bin=String.fromCharCode(nonce>>>24,nonce>>>16&255,nonce>>>8&255,nonce&255);for(let i=0;i<body.length;i+=8192)bin+=String.fromCharCode.apply(null,body.subarray(i,i+8192));return SEAL_TAG+btoa(bin)}
+// The original text, or null if it is not sealed or has been altered.
+function unseal(s){try{if(typeof s!=='string'||!s.startsWith(SEAL_TAG))return null;const bin=atob(s.slice(SEAL_TAG.length).trim());if(bin.length<36)return null;const nonce=((bin.charCodeAt(0)<<24)|(bin.charCodeAt(1)<<16)|(bin.charCodeAt(2)<<8)|bin.charCodeAt(3))>>>0,body=new Uint8Array(bin.length-4);for(let i=0;i<body.length;i++)body[i]=bin.charCodeAt(i+4);const t=new TextDecoder('utf-8',{fatal:true}).decode(sealXor(body,nonce)),text=t.slice(32);return t.slice(0,32)===sealSig(text)?text:null}catch(_){return null}}
 
 const $=id=>document.getElementById(id), canvas=$('world');
 let c=canvas.getContext('2d',{alpha:false});
@@ -202,7 +217,11 @@ const ACHS=[
 ].map(([id,tier,name,desc,goal,v])=>({id,tier,name,desc,goal,v}));
 ACHS.push({id:'undertow',tier:4,name:'Undertow',desc:'Unlock every other achievement.',goal:ACHS.length,v:(R,L)=>L.count});
 const ACH_BY_ID=Object.fromEntries(ACHS.map(a=>[a.id,a]));
-const store={get(k,f){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(_){return f}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(_){}}};
+// Records worth cheating on are sealed; settings stay plain. Unsealed records from
+// before sealing existed are converted once, then never accepted again.
+const SEALED=new Set(['undertow.ach.v1','undertow.best.v2','undertow.local.v1','undertow.mine.v1','undertow.pending.v1']);
+const store={get(k,f){try{const v=localStorage.getItem(k);if(v===null)return f;if(!SEALED.has(k))return JSON.parse(v);const t=unseal(v);return t===null?f:JSON.parse(t)}catch(_){return f}},set(k,v){try{const t=JSON.stringify(v);localStorage.setItem(k,SEALED.has(k)?seal(t):t)}catch(_){}}};
+try{if(!localStorage.getItem('undertow.sealed')){for(const k of SEALED){const v=localStorage.getItem(k);if(v!==null&&unseal(v)===null)localStorage.setItem(k,seal(v))}localStorage.setItem('undertow.sealed','1')}}catch(_){}
 let W=innerWidth,H=innerHeight,dpr=1,scale=1,vw=1,vh=1,camX=0,camY=-10;
 let state='menu', panel=null, practice=false, held=false, down=false, inputKeys=new Set(),pointerLift=false;
 let diffId=store.get('undertow.diff','officer'), subId=store.get('undertow.sub','virginia');
@@ -1218,7 +1237,7 @@ function renderHangar(){
 }
 document.querySelectorAll('#diffRow button').forEach(b=>b.onclick=()=>{diffId=b.dataset.diff;store.set('undertow.diff',diffId);D=DIFFS[diffId];updateMenu()});
 /* ---- Leaderboard ----------------------------------------------------------
-   Every run is saved on this computer, then queued for bin.json. Posting takes a
+   Every run is saved on this computer, then queued for bin.dat. Posting takes a
    short-lived lock file so players write one at a time, re-reads the board,
    merges by entry id, writes it, then reads it back to confirm the entry landed.
    If another player's write replaced it, it merges and writes again, so several
@@ -1247,13 +1266,17 @@ async function writeText(name,text){const w=await (await lb.dir.getFileHandle(na
 async function lbPermitted(ask){if(!lb.dir)return false;const o={mode:'readwrite'};try{if(await lb.dir.queryPermission(o)==='granted')return true;if(ask&&await lb.dir.requestPermission(o)==='granted')return true}catch(_){}return false}
 async function lbRead(){
  for(let i=0;;i++){
-  let text='';try{text=await readText(BOARD_FILE)}catch(e){if(e&&e.name==='NotFoundError')return {entries:[],players:{}};if(i>=3)throw e;await sleep(120);continue}
-  if(!text.trim())return {entries:[],players:{}};
-  try{const data=JSON.parse(text),list=Array.isArray(data)?data:data&&Array.isArray(data.entries)?data.entries:null;if(list)return {entries:list.map(cleanEntry).filter(Boolean),players:cleanPlayers(data.players)}}catch(_){}
-  // Unreadable content is never overwritten; it may be mid-replace, so look again.
-  if(i>=3)throw new Error(BOARD_FILE+' is not a readable Undertow leaderboard.');await sleep(150);
+  let text='';try{text=await readText(BOARD_FILE)}catch(e){if(e&&e.name==='NotFoundError')return lbFallback();if(i>=3)throw e;await sleep(120);continue}
+  if(!text.trim())return lbFallback();
+  const board=parseBoard(unseal(text));if(board)return board;
+  // Unreadable or altered. It may be mid-replace, so look again, then use the backup.
+  if(i>=3){const bak=await readBoard(BACKUP_FILE);if(bak)return bak;throw new Error(BOARD_FILE+' is not a readable Undertow leaderboard.')}await sleep(150);
  }
 }
+function parseBoard(text){if(text==null)return null;try{const data=JSON.parse(text),list=Array.isArray(data)?data:data&&Array.isArray(data.entries)?data.entries:null;if(list)return {entries:list.map(cleanEntry).filter(Boolean),players:cleanPlayers(data.players)}}catch(_){}return null}
+async function readBoard(name){try{return parseBoard(unseal(await readText(name)))}catch(_){return null}}
+// No board yet: use the backup, else import the old plain bin.json.
+async function lbFallback(){let legacy=null;try{legacy=parseBoard(await readText(LEGACY_FILE))}catch(_){}return await readBoard(BACKUP_FILE)||legacy||{entries:[],players:{}}}
 async function withLock(fn){
  const me=Math.random().toString(36).slice(2),begun=performance.now();let got=false,seen=null,seenAt=0;
  while(!got&&performance.now()-begun<4000){
@@ -1273,7 +1296,8 @@ async function lbFlush(){
    const missing=queue.filter(e=>!included(list,e));
    if(missing.length||!playerCurrent(players)){
     const merged=me?mergePlayers(players,{[me.name.toLowerCase()]:me}):players;
-    try{await writeText(BOARD_FILE,JSON.stringify({game:'UNDERTOW',version:3,updated:new Date().toISOString(),entries:mergeEntries(list,missing),players:merged}))}catch(_){await sleep(100+Math.random()*250);continue}
+    const text=seal(JSON.stringify({game:'UNDERTOW',version:4,updated:new Date().toISOString(),entries:mergeEntries(list,missing),players:merged}));
+    try{await writeText(BOARD_FILE,text);await writeText(BACKUP_FILE,text)}catch(_){await sleep(100+Math.random()*250);continue}
     // Without the lock another write may land on top, so give it a moment first.
     if(!locked)await sleep(80+Math.random()*120);({entries:list,players}=await lbRead());
    }
