@@ -62,6 +62,7 @@
 .watch-bar{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);display:flex;gap:14px;align-items:center;padding:10px 12px 10px 16px;background:#0b2129e0;border:1px solid var(--line);font:10px ui-monospace,monospace;letter-spacing:.12em;color:var(--ink);z-index:6;max-width:calc(100% - 32px)}
 .watch-bar button{font-size:10px;padding:7px 12px}
 .hud.watching .lower,.hud.watching .hint{display:none}
+.view#askBox{z-index:7}.panel.ask{width:min(440px,100%)}.ask-row{display:flex;gap:10px;margin-top:18px}.ask-row button{flex:1;margin:0;justify-content:center}
 </style>
 </head>
 <body>
@@ -129,6 +130,7 @@
 <h3 class="duel-h">YOUR DUELS</h3><div class="table-wrap"><table class="lb duel-t"><tbody id="duelMatches"></tbody></table></div>
 <div class="lb-actions"><button id="duelConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button></div>
 <button class="launch" id="duelClose">BACK <svg class="ic"><use href="#i-next"/></svg></button></div></section>
+<section class="view overlay" id="askBox" hidden role="dialog" aria-modal="true" aria-labelledby="askTitle"><div class="panel ask"><div class="eyebrow">CONFIRM</div><h2 id="askTitle"></h2><p id="askBody"></p><div class="ask-row"><button class="launch" id="askYes">Yes</button><button class="text-button" id="askNo">Cancel</button></div></div></section>
 <div class="watch-bar" id="watchBar" hidden><span id="watchText">WATCHING</span><button id="watchLeave">Leave</button></div>
 <section class="wreck-ui" id="over" hidden><div class="wr-left"><div class="eyebrow" id="overLabel">PATROL ENDED</div><h2>Signal lost.</h2><p id="cause">Hull integrity compromised.</p><div class="final"><label>FINAL SCORE</label><strong id="endScore">0</strong><span id="endMeta"></span></div><div class="results"><div><label>DISTANCE</label><strong id="endDistance">0 m</strong></div><div><label>SHIPS SUNK</label><strong id="endShips">0</strong></div><div><label>MINEFIELDS</label><strong id="endGates">0</strong></div><div><label>DEEPEST POINT</label><strong id="endDepth">0 m</strong></div><div><label>AIR POCKETS</label><strong id="endAir">0</strong></div><div><label>BEST SCORE</label><strong id="endBest">0</strong></div></div><div class="save-note"><svg class="ic"><use href="#i-trophy"/></svg><span id="saveNote"></span></div><div class="ach-earned" id="achEarned"></div><button class="text-button" id="saveShared" hidden><svg class="ic"><use href="#i-file"/></svg>Post to shared leaderboard</button></div>
 <div class="wr-right"><button class="again" id="again"><span class="again-ring"><svg class="ic"><use href="#i-refresh"/></svg></span>DIVE AGAIN</button><span class="again-hint">CLICK ANYWHERE / SPACE / W</span><div class="wr-links"><button class="text-button" id="overBoard"><svg class="ic"><use href="#i-trophy"/></svg>Leaderboard</button><button class="text-button" id="overAch"><svg class="ic"><use href="#i-medal"/></svg>Achievements</button><button class="text-button" id="home"><svg class="ic"><use href="#i-home"/></svg>Surface</button></div><div class="place" id="place" hidden><label id="placeLabel">YOUR PLACE</label><div id="placeRows"></div></div></div></section>
@@ -1455,15 +1457,27 @@ if(lb.supported)(async()=>{try{lb.dir=await idbGet('folder')||null;idbDel('board
    Nothing stays on the drive once a duel is over: each player keeps the result in
    their own history on their computer, and the files are deleted. */
 const DUEL_DIR='data',BEAT_MS=4000,POLL_MS=2500,ONLINE_MS=25000,DAY=864e5;
-const duel={root:null,dir:null,beat:0,lastBeat:0,beatFile:'',files:new Map(),seen:new Map(),online:[],matches:[],rounds:3,diff:'officer',run:null,after:null,watch:null,saved:null,busy:false,note:'',fails:0,dupe:false,orphans:new Map(),
+const duel={root:null,dir:null,beat:0,lastBeat:0,beatFile:'',files:new Map(),seen:new Map(),online:[],matches:[],rounds:3,diff:'officer',run:null,after:null,watch:null,saved:null,busy:false,note:'',fails:0,dupe:false,orphans:new Map(),own:new Map(),gone:new Map(),flash:'',flashUntil:0,
  history:(store.get('undertow.duels.v1',[])||[]).filter(h=>h&&h.id).slice(0,20),pc:Math.random().toString(36).slice(2,10)};
 // Each open game has its own presence file; it is removed when the page closes, or a day later.
-addEventListener('pagehide',()=>{if(duel.dir&&duel.beatFile)duelRemove(duel.beatFile)});
+addEventListener('pagehide',()=>{if(duel.dir&&duel.beatFile)duelRemove(duel.beatFile,1)});
 const duelKey=n=>String(n||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,24)||'x';
 const duelSeed=(m,round)=>(m.a.seed+Math.imul(round+1,7919))>>>0;
 const total=a=>a.reduce((n,v)=>n+v,0), fmt=n=>Math.round(n).toLocaleString();
-const duelWrite=(name,obj)=>writeText(name,seal(JSON.stringify(obj)),duel.dir);
-const duelRemove=name=>duel.dir.removeEntry(name).catch(()=>{});
+/* On a network share Windows refuses to replace or delete a file while another PC
+   has it open (the rival's game reads duel files every few seconds), so saves and
+   deletes try again for a few seconds. Windows also caches a folder's listing and
+   file details briefly, so this game remembers its own saves and deletes and trusts
+   those over what the drive shows. */
+async function duelWrite(name,obj,tries=7){
+ obj={...obj,v:Date.now()};const text=seal(JSON.stringify(obj));
+ for(let i=0;;i++){try{await writeText(name,text,duel.dir);break}catch(e){if(i>=tries-1)throw e;await sleep(150*(i+1)+Math.random()*200)}}
+ if(name.startsWith('m-')){duel.own.set(name,obj);duel.gone.delete(name)}return obj;
+}
+async function duelRemove(name,tries=4){
+ for(let i=0;;i++){try{await duel.dir.removeEntry(name);break}catch(e){if(e&&e.name==='NotFoundError')break;if(i>=tries-1)return false;await sleep(150*(i+1)+Math.random()*200)}}
+ duel.own.delete(name);duel.gone.set(name,Date.now());return true;
+}
 // A network drive can replace a file between opening it and reading it (the browser
 // then refuses the read), and a folder listing can fail while files change. Look again.
 async function readFresh(h){for(let i=0;;i++){try{return await (await h.getFile()).text()}catch(e){if(i>=3)throw e;await sleep(60+Math.random()*140)}}}
@@ -1487,6 +1501,8 @@ async function duelScan(){
    const data=JSON.parse(unseal(await readFresh(h))||'null');out.set(name,data?{mod:f.lastModified,size:f.size,data}:old||{mod:0,size:0,data:null})}
   catch(_){out.set(name,old||{mod:0,size:0,data:null})}
  }
+ for(const [name,o] of duel.own){const f=out.get(name);if(!f||!f.data||(+f.data.v||0)<o.v)out.set(name,{mod:f?f.mod:0,size:f?f.size:0,data:o})}
+ for(const [name,at] of duel.gone){if(Date.now()-at>60000)duel.gone.delete(name);else out.delete(name)}
  duel.files=out;
 }
 const duelStatusWord=()=>state==='watching'?'watching a duel':state==='playing'||state==='paused'?(duel.run?'in a duel':'diving'):'in port';
@@ -1494,7 +1510,7 @@ async function duelBeat(){
  if(Date.now()-duel.lastBeat<BEAT_MS)return;duel.lastBeat=Date.now();duel.beat++;
  const file='p-'+duelKey(callsign())+'-'+duel.pc+'.dat';
  if(duel.beatFile&&duel.beatFile!==file)await duelRemove(duel.beatFile);duel.beatFile=file;
- await duelWrite(file,{name:callsign(),pc:duel.pc,beat:duel.beat,at:Date.now(),status:duelStatusWord()});
+ await duelWrite(file,{name:callsign(),pc:duel.pc,beat:duel.beat,at:Date.now(),status:duelStatusWord()},1);
 }
 function duelPeople(){
  const me=duelKey(callsign()),now=Date.now(),by=new Map();duel.dupe=false;
@@ -1563,25 +1579,27 @@ async function duelTick(){
  }
  finally{duel.busy=false;renderDuel()}
 }
+function duelFlash(text){duel.flash=text;duel.flashUntil=Date.now()+8000;renderDuel()}
 async function duelAct(fn){
- if(!await duelFolder())return;
- try{await fn()}catch(e){duel.note='The duel folder is busy, try again: '+(e&&e.message||e)}
- duel.lastBeat=0;while(duel.busy)await sleep(50);await duelTick();
+ if(!await duelFolder())return false;let ok=true;
+ try{await fn()}catch(e){ok=false;duelFlash('The shared folder did not save that, try again. ('+(e&&e.message||e)+')')}
+ duel.lastBeat=0;while(duel.busy)await sleep(50);await duelTick();return ok;
 }
 const myMatchFile=m=>'m-'+m.id+'-'+m.side+'.dat', mySide=m=>m.side==='a'?m.a:m.b;
 function duelChallenge(name){const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);return duelAct(()=>duelWrite('m-'+id+'-a.dat',{id,a:callsign(),b:name,rounds:duel.rounds,diff:duel.diff,seed:Math.floor(Math.random()*2**31),created:Date.now(),at:Date.now(),scores:[]}))}
 const duelReply=(m,yes)=>{if(!yes)duelRemember(m,'declined');return duelAct(()=>duelWrite('m-'+m.id+'-b.dat',{id:m.id,accepted:yes,declined:!yes,at:Date.now(),scores:[]}))};
-const duelCancel=m=>duelAct(async()=>{await duelRemove('m-'+m.id+'-a.dat');await duelRemove('l-'+m.id+'-a.dat')});
-const duelPatch=(m,patch)=>duelAct(()=>duelWrite(myMatchFile(m),{...mySide(m),...patch,at:Date.now()}));
+const duelCancel=m=>duelAct(async()=>{if(!await duelRemove('m-'+m.id+'-a.dat',8))throw new Error('the file is in use');await duelRemove('l-'+m.id+'-a.dat')});
+// Patches build on the newest copy of this side's file, not the one the button was drawn from.
+const duelPatch=(m,patch)=>duelAct(()=>{const cur=duel.matches.find(x=>x.id===m.id)||m;return duelWrite(myMatchFile(cur),{...mySide(cur),...patch,at:Date.now()})});
 
 /* Your round: the seeded course, with your track sent out for spectators. */
 // A round is marked as begun before the dive starts, so closing the game part-way
 // cannot be used to try a round again: an unfinished round counts as 0.
 async function duelDive(m){
  if(m.status!=='active'||m.turn!==m.side||duel.run)return;
- if(m.abandoned){await duelPatch(m,{scores:[...m.mine,0]});duel.note='Round '+(m.round+1)+' was left unfinished, so it counts as 0.';renderDuel();return}
- await duelPatch(m,{began:m.round});
- const now=duel.matches.find(x=>x.id===m.id);if(!now||now.status!=='active'||now.turn!==now.side||mySide(now).began!==m.round){duel.note='Could not start the round: the duel folder did not save. Try again.';renderDuel();return}
+ if(m.abandoned){if(await duelPatch(m,{scores:[...m.mine,0]}))duelFlash('Round '+(m.round+1)+' was left unfinished, so it counts as 0.');return}
+ if(!await duelPatch(m,{began:m.round}))return;
+ const now=duel.matches.find(x=>x.id===m.id)||m;if(now.status!=='active'||now.turn!==now.side||duel.run)return;
  duel.saved={diffId,practice};duel.run={id:m.id,side:m.side,round:m.round,R:m.R,opp:m.opp,samples:[],seq:0,lastSample:-1,timer:0,writing:false};
  courseSeed=duelSeed(m,m.round);diffId=m.diff;practice=false;start();courseSeed=null;show('restartPause',false);
  toast('DUEL / ROUND '+(m.round+1)+' OF '+m.R,'Against '+m.opp+', on the same course '+(m.side==='a'?'they will dive next':'they just dived')+'. Highest total wins.',4);
@@ -1595,7 +1613,7 @@ function duelSample(r=duel.run){
 async function duelLive(r,over){
  if(!r||!duel.dir||(r.writing&&!over))return;r.writing=true;
  const dead=gates.filter(g=>g.dead[0]||g.dead[1]).map(g=>[Math.round(g.x),+g.dead[0],+g.dead[1]]);
- try{await duelWrite('l-'+r.id+'-'+r.side+'.dat',{id:r.id,round:r.round,seq:++r.seq,sub:subId,samples:r.samples.slice(-20),dead,over,score:score(),cause:over?deathCause:''})}catch(_){}
+ try{await duelWrite('l-'+r.id+'-'+r.side+'.dat',{id:r.id,round:r.round,seq:++r.seq,sub:subId,samples:r.samples.slice(-20),dead,over,score:score(),cause:over?deathCause:''},over?6:1)}catch(_){}
  r.writing=false;
 }
 // Called from finish(): posts the round score and points the wreck screen back to the duel.
@@ -1661,6 +1679,13 @@ function duelLeaveWatch(){
 }
 
 /* ---- Duel screen ---- */
+// The game's own yes/no box. Resolves true for yes; Escape, Cancel or a click outside mean no.
+let askDone=null;
+function askBox(title,body,yes='Yes'){
+ if(askDone)askDone(false);$('askTitle').textContent=title;$('askBody').textContent=body;$('askYes').textContent=yes;show('askBox',true);$('askNo').focus({preventScroll:true});
+ return new Promise(res=>{askDone=v=>{askDone=null;show('askBox',false);res(v)}});
+}
+$('askYes').onclick=()=>askDone&&askDone(true);$('askNo').onclick=()=>askDone&&askDone(false);$('askBox').onclick=e=>{if(e.target.id==='askBox'&&askDone)askDone(false)};
 function duelButton(label,fn,cls){const b=document.createElement('button');b.className='act'+(cls?' '+cls:'');b.textContent=label;if(fn)b.onclick=fn;else b.disabled=true;return b}
 function duelRow(body,title,detail,buttons){
  const tr=document.createElement('tr'),td=document.createElement('td');td.className='name';td.textContent=title;
@@ -1673,6 +1698,7 @@ function renderDuel(){
  renderDuelChip();if(panel!=='duel')return;
  const connected=lb.dir&&lb.perm==='granted';
  let msg=!lb.supported?'Duels go through the shared folder, so they need Microsoft Edge or Google Chrome.':!connected?'Connect the shared folder first. Duels are kept in a data folder next to '+BOARD_FILE+'.':callsign()==='Anonymous'?'Set a callsign on the home screen so other sailors can find and challenge you.':'You are online as '+callsign()+'.';
+ if(Date.now()<duel.flashUntil)msg+=' '+duel.flash;
  if(duel.dupe)msg+=' Another game is online with the callsign '+callsign()+'. Each player needs their own callsign to see each other.';if(duel.note)msg+=' '+duel.note;$('duelStatus').textContent=msg;show('duelConnect',lb.supported&&!connected);
  document.querySelectorAll('#duelRoundSeg button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.r===duel.rounds)));
  document.querySelectorAll('#duelDiffSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.diff===duel.diff)));
@@ -1689,7 +1715,7 @@ function renderDuel(){
   else if(m.status==='active'){
    const mineTurn=m.turn===m.side,opp=duel.online.find(p=>p.key===duelKey(m.opp)),live=opp&&opp.online&&opp.status==='in a duel';
    const b=mineTurn?[m.abandoned?duelButton('Score round '+(m.round+1)+' as 0',()=>duelDive(m),'warn'):duelButton('Dive round '+(m.round+1),()=>duelDive(m),'go')]:[live?duelButton('Watch live',()=>duelWatch(m),'go'):duelButton(opp&&opp.online?'Their turn':'Waiting',null,'off')];
-   b.push(duelButton('Forfeit',()=>{if(confirm('Forfeit your duel with '+m.opp+'?'))duelPatch(m,{forfeit:true})},'warn'));
+   b.push(duelButton('Forfeit',async()=>{if(await askBox('Forfeit this duel?','Your duel with '+m.opp+' ends now and counts as a loss.','Forfeit'))duelPatch(m,{forfeit:true})},'warn'));
    duelRow(ms,'You vs '+m.opp+(m.abandoned?' / round '+(m.round+1)+' left unfinished':mineTurn?' / your turn':' / '+m.opp+'’s turn'),head+' / round '+(m.round+1)+' of '+m.R+' / '+score+(m.sa.length?' / '+duelRounds(m):''),b);
   }
  }
@@ -1738,7 +1764,7 @@ addEventListener('keydown',e=>{
  if(e.code==='KeyN'&&!e.repeat){toggleMusic();return}
  if(e.code==='KeyC'&&!e.repeat){toggleCam();return}
  if(['KeyA','KeyD','ArrowLeft','ArrowRight'].includes(e.code)){if(!panel&&state!=='paused'){e.preventDefault();inputKeys.add(e.code)}return}
- if((e.code==='KeyP'||e.code==='Escape')&&!e.repeat){e.preventDefault();if(panel)closePanel();else if(state==='playing')pause();else if(state==='paused')resume();else if(state==='watching')duelLeaveWatch();return}
+ if((e.code==='KeyP'||e.code==='Escape')&&!e.repeat){e.preventDefault();if(askDone)askDone(false);else if(panel)closePanel();else if(state==='playing')pause();else if(state==='paused')resume();else if(state==='watching')duelLeaveWatch();return}
  if(state==='playing'){e.preventDefault();if(e.code==='KeyE'&&!e.repeat)useAbility();if((e.code==='KeyF'||e.code==='KeyX')&&!e.repeat)fire();inputKeys.add(e.code)}
  // After a wreck, any dive key starts again (a short delay ignores keys still held from the crash).
  else if(state==='over'&&!panel&&!e.repeat&&['KeyR','Space','KeyW','ArrowUp','Enter'].includes(e.code)&&!(e.target instanceof HTMLButtonElement&&e.target.id!=='again')&&performance.now()-overAt>700){e.preventDefault();againOrDuel()}
