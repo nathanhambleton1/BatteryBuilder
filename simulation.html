@@ -1443,64 +1443,80 @@ $('saveShared').onclick=async()=>describeSave(await lbSync(true)?'shared':lb.per
 setInterval(()=>{if((panel==='board'||panel==='ach')&&lb.perm==='granted')lbSync(false)},10000);
 if(lb.supported)(async()=>{try{lb.dir=await idbGet('folder')||null;idbDel('board').catch(()=>{})}catch(_){}await lbSync(false)})();
 /* ---- 1v1 duels ---------------------------------------------------------------
-   Duels live in a duel folder next to bin.dat, one file per writer so no player
-   ever overwrites another's:
-     p-<callsign>.dat   presence: a heartbeat every few seconds while the game is open
-     m-<id>-a.dat       the challenge and the challenger's round scores
-     m-<id>-b.dat       the reply and the opponent's round scores
-     l-<id>-a|b.dat     the diver's live track, twice a second, for anyone watching
+   Duels live in a data folder next to bin.dat, one file per writer so no two
+   computers ever write the same file:
+     p-<callsign>-<id>.dat  presence: a heartbeat every few seconds while the game is open
+     m-<id>-a.dat           the challenge and the challenger's round scores
+     m-<id>-b.dat           the reply and the opponent's round scores
+     l-<id>-a|b.dat         the diver's live track, twice a second, for anyone watching
    Each round both players dive the same seeded course, taking turns (challenger
    first). The higher total over 1, 3 or 5 rounds wins. A player counts as online
-   while their heartbeat keeps changing, so clocks on different PCs never matter. */
-const DUEL_DIR='duel',BEAT_MS=4000,POLL_MS=2500,ONLINE_MS=25000,DAY=864e5;
-const duel={root:null,dir:null,beat:0,lastBeat:0,files:new Map(),seen:new Map(),online:[],matches:[],rounds:3,diff:'officer',run:null,after:null,watch:null,saved:null,busy:false,note:''};
+   while their heartbeat keeps changing, so clocks on different PCs never matter.
+   Nothing stays on the drive once a duel is over: each player keeps the result in
+   their own history on their computer, and the files are deleted. */
+const DUEL_DIR='data',BEAT_MS=4000,POLL_MS=2500,ONLINE_MS=25000,DAY=864e5;
+const duel={root:null,dir:null,beat:0,lastBeat:0,beatFile:'',files:new Map(),seen:new Map(),online:[],matches:[],rounds:3,diff:'officer',run:null,after:null,watch:null,saved:null,busy:false,note:'',fails:0,dupe:false,orphans:new Map(),
+ history:(store.get('undertow.duels.v1',[])||[]).filter(h=>h&&h.id).slice(0,20),pc:Math.random().toString(36).slice(2,10)};
+// Each open game has its own presence file; it is removed when the page closes, or a day later.
+addEventListener('pagehide',()=>{if(duel.dir&&duel.beatFile)duelRemove(duel.beatFile)});
 const duelKey=n=>String(n||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,24)||'x';
 const duelSeed=(m,round)=>(m.a.seed+Math.imul(round+1,7919))>>>0;
 const total=a=>a.reduce((n,v)=>n+v,0), fmt=n=>Math.round(n).toLocaleString();
 const duelWrite=(name,obj)=>writeText(name,seal(JSON.stringify(obj)),duel.dir);
-async function duelReadLive(name){try{return JSON.parse(unseal(await readText(name,duel.dir))||'null')}catch(_){return null}}
+const duelRemove=name=>duel.dir.removeEntry(name).catch(()=>{});
+// A network drive can replace a file between opening it and reading it (the browser
+// then refuses the read), and a folder listing can fail while files change. Look again.
+async function readFresh(h){for(let i=0;;i++){try{return await (await h.getFile()).text()}catch(e){if(i>=3)throw e;await sleep(60+Math.random()*140)}}}
+async function duelEntries(){for(let i=0;;i++){try{const out=[];for await (const e of duel.dir.entries())out.push(e);return out}catch(e){if(i>=3)throw e;await sleep(100+Math.random()*200)}}}
+async function duelReadLive(name){try{return JSON.parse(unseal(await readFresh(await duel.dir.getFileHandle(name)))||'null')}catch(_){return null}}
 const duelReady=()=>!!(lb.dir&&lb.perm==='granted'&&callsign()!=='Anonymous');
 async function duelFolder(){
- if(lb.dir!==duel.root){duel.root=lb.dir;duel.dir=null;duel.files=new Map();duel.seen.clear()}
+ if(lb.dir!==duel.root){duel.root=lb.dir;duel.dir=null;duel.files=new Map();duel.seen.clear();duel.beatFile=''}
  if(!duelReady())return null;
  if(!duel.dir)try{duel.dir=await lb.dir.getDirectoryHandle(DUEL_DIR,{create:true})}catch(_){return null}
  return duel.dir;
 }
 // Reads every presence and match file, skipping any unchanged since the last look.
+// A file that cannot be read this time keeps its last known contents.
 async function duelScan(){
  const out=new Map();
- for await (const [name,h] of duel.dir.entries()){
+ for(const [name,h] of await duelEntries()){
   if(h.kind!=='file'||!/^[pm]-[a-z0-9_-]+\.dat$/.test(name))continue;
   const old=duel.files.get(name);
-  try{const f=await h.getFile();if(old&&old.mod===f.lastModified&&old.size===f.size){out.set(name,old);continue}
-   const data=JSON.parse(unseal(await f.text())||'null');out.set(name,data?{mod:f.lastModified,size:f.size,data}:old||{mod:0,size:0,data:null})}
-  catch(_){if(old)out.set(name,old)}
+  try{const f=await h.getFile();if(old&&old.data&&old.mod===f.lastModified&&old.size===f.size){out.set(name,old);continue}
+   const data=JSON.parse(unseal(await readFresh(h))||'null');out.set(name,data?{mod:f.lastModified,size:f.size,data}:old||{mod:0,size:0,data:null})}
+  catch(_){out.set(name,old||{mod:0,size:0,data:null})}
  }
  duel.files=out;
 }
 const duelStatusWord=()=>state==='watching'?'watching a duel':state==='playing'||state==='paused'?(duel.run?'in a duel':'diving'):'in port';
 async function duelBeat(){
  if(Date.now()-duel.lastBeat<BEAT_MS)return;duel.lastBeat=Date.now();duel.beat++;
- await duelWrite('p-'+duelKey(callsign())+'.dat',{name:callsign(),beat:duel.beat,at:Date.now(),status:duelStatusWord()});
+ const file='p-'+duelKey(callsign())+'-'+duel.pc+'.dat';
+ if(duel.beatFile&&duel.beatFile!==file)await duelRemove(duel.beatFile);duel.beatFile=file;
+ await duelWrite(file,{name:callsign(),pc:duel.pc,beat:duel.beat,at:Date.now(),status:duelStatusWord()});
 }
 function duelPeople(){
- const me=duelKey(callsign()),now=Date.now(),list=[];
+ const me=duelKey(callsign()),now=Date.now(),by=new Map();duel.dupe=false;
  for(const [name,f] of duel.files){
-  if(!name.startsWith('p-')||!f.data)continue;const p=f.data,k=duelKey(p.name);if(k===me)continue;
+  if(!name.startsWith('p-')||!f.data)continue;const p=f.data,k=duelKey(p.name);if(k===me&&p.pc===duel.pc)continue;
   // First sighting trusts the file's clock; after that only a changing heartbeat counts.
-  const s=duel.seen.get(k);if(!s||s.beat!==p.beat)duel.seen.set(k,{beat:p.beat,since:s?now:now-clamp(now-(+p.at||0),0,ONLINE_MS)});
-  list.push({name:String(p.name).slice(0,16),key:k,status:String(p.status||'').slice(0,20),online:now-duel.seen.get(k).since<ONLINE_MS});
+  const s=duel.seen.get(name);if(!s||s.beat!==p.beat)duel.seen.set(name,{beat:p.beat,since:s?now:now-clamp(now-(+p.at||0),0,ONLINE_MS)});
+  const online=now-duel.seen.get(name).since<ONLINE_MS;
+  if(k===me){if(online)duel.dupe=true;continue}
+  const prev=by.get(k);if(!prev||online&&!prev.online)by.set(k,{name:String(p.name).slice(0,16),key:k,status:String(p.status||'').slice(0,20),online,file:name,at:+p.at||0});
  }
- return list.sort((a,b)=>b.online-a.online||a.name.localeCompare(b.name));
+ return [...by.values()].sort((a,b)=>b.online-a.online||a.name.localeCompare(b.name));
 }
 function duelMatchList(){
- const me=duelKey(callsign()),by=new Map(),list=[],now=Date.now();
- for(const [name,f] of duel.files){const m=/^m-([a-z0-9]+)-([ab])\.dat$/.exec(name);if(!m||!f.data)continue;const e=by.get(m[1])||{};e[m[2]]=f.data;by.set(m[1],e)}
+ const me=duelKey(callsign()),by=new Map(),list=[],now=Date.now();duel.orphanNames=[];
+ for(const [name,f] of duel.files){const m=/^m-([a-z0-9]+)-([ab])\.dat$/.exec(name);if(!m)continue;const e=by.get(m[1])||{};e[m[2]]=f.data||{unread:true};by.set(m[1],e)}
  for(const [id,{a,b}] of by){
-  if(!a||!a.a||!a.b)continue;const side=duelKey(a.a)===me?'a':duelKey(a.b)===me?'b':null;if(!side)continue;
+  if(!a){if(b&&!b.unread)duel.orphanNames.push(id);continue}
+  if(a.unread||!a.a||!a.b||b&&b.unread)continue;const side=duelKey(a.a)===me?'a':duelKey(a.b)===me?'b':null;if(!side)continue;
   const R=[1,3,5].includes(a.rounds)?a.rounds:3,num=v=>Array.isArray(v)?v.slice(0,R).map(x=>Math.max(0,Math.floor(+x)||0)):[];
   const sa=num(a.scores),sb=num(b&&b.scores),updated=Math.max(+a.created||0,+a.at||0,+(b&&b.at)||0);
-  const status=a.cancelled?'cancelled':!b?(now-updated>DAY?'expired':'pending'):b.declined?'declined':a.forfeit||b.forfeit?'forfeit':sa.length>=R&&sb.length>=R?'done':'active';
+  const status=!b?(a.closed?'closed':now-updated>DAY?'expired':'pending'):b.declined?'declined':a.forfeit||b.forfeit?'forfeit':sa.length>=R&&sb.length>=R?'done':'active';
   const turn=status==='active'?(sa.length===sb.length?'a':'b'):null,mine=side==='a'?sa:sb,theirs=side==='a'?sb:sa;
   const result=status==='done'?(total(mine)>total(theirs)?'won':total(mine)<total(theirs)?'lost':'drew'):status==='forfeit'?((side==='a'?a:b).forfeit?'lost':'won'):null;
   const round=turn==='a'?sa.length:sb.length,own=side==='a'?a:b,abandoned=turn===side&&!!own&&own.began===round&&!(duel.run&&duel.run.id===id);
@@ -1508,18 +1524,43 @@ function duelMatchList(){
  }
  return list.sort((x,y)=>y.updated-x.updated);
 }
-// Finished duels are cleared from the folder after a week; each player removes only their own files.
-async function duelTidy(){
- for(const m of duel.matches)if(!['active','pending'].includes(m.status)&&Date.now()-m.updated>7*DAY)
-  for(const n of ['m-','l-'])try{await duel.dir.removeEntry(n+m.id+'-'+m.side+'.dat')}catch(_){}
+// Results are kept on this computer only; the duel's files are removed from the drive.
+function duelRemember(m,result){
+ if(duel.history.some(h=>h.id===m.id))return;
+ duel.history.unshift({id:m.id,opp:m.opp,result,side:m.side,R:m.R,diff:m.diff,mine:total(m.mine),theirs:total(m.theirs),rounds:m.mine.length||m.theirs.length?duelRounds(m):'',at:Date.now()});
+ duel.history=duel.history.slice(0,20);store.set('undertow.duels.v1',duel.history);
+}
+async function duelCleanup(){
+ for(const m of duel.matches){
+  const own=m.side==='a'?m.a:m.b,other=m.side==='a'?m.b:m.a,file='m-'+m.id+'-'+m.side+'.dat',live='l-'+m.id+'-'+m.side+'.dat';
+  if(m.status==='closed'){await duelRemove(file);await duelRemove(live)}
+  else if(m.side==='a'&&(m.status==='expired'||m.status==='declined')){duelRemember(m,m.status);await duelRemove(file)}
+  else if(m.status==='done'||m.status==='forfeit'){
+   duelRemember(m,m.result);
+   // Each side marks the duel closed; once both have, the files go.
+   if(!own.closed)await duelWrite(file,{...own,closed:true,at:Date.now()}).catch(()=>{});
+   else if(other&&other.closed){await duelRemove(file);await duelRemove(live)}
+  }
+ }
+ // My replies whose challenge has gone (cancelled, or closed by the other side).
+ const me='-b.dat',seenNow=new Set(duel.orphanNames);
+ for(const id of seenNow){const n=(duel.orphans.get(id)||0)+1;duel.orphans.set(id,n);
+  const f=duel.files.get('m-'+id+me);if(f&&f.data&&(f.data.closed||f.data.declined||n>=2)){await duelRemove('m-'+id+me);await duelRemove('l-'+id+'-b.dat');duel.orphans.delete(id)}}
+ for(const id of [...duel.orphans.keys()])if(!seenNow.has(id))duel.orphans.delete(id);
+ // Presence files from games closed without saying goodbye.
+ for(const [name,f] of duel.files)if(name.startsWith('p-')&&f.data&&Date.now()-(+f.data.at||0)>DAY&&name!==duel.beatFile)await duelRemove(name);
 }
 async function duelTick(){
  if(duel.busy)return;duel.busy=true;
  try{
   if(!await duelFolder()){duel.online=[];duel.matches=[];return}
-  await duelBeat();await duelScan();duel.online=duelPeople();duel.matches=duelMatchList();duel.note='';
-  if(Math.random()<.05)await duelTidy();
- }catch(e){duel.note='The duel folder could not be read: '+(e&&e.message||e)}
+  try{await duelBeat()}catch(_){duel.lastBeat=0}
+  await duelScan();duel.online=duelPeople();duel.matches=duelMatchList();
+  await duelCleanup();duel.fails=0;duel.note='';
+ }catch(e){
+  // One failed look is normal on a busy network drive; only report a run of them.
+  if(++duel.fails>=3)duel.note='The data folder could not be read: '+(e&&e.message||e);
+ }
  finally{duel.busy=false;renderDuel()}
 }
 async function duelAct(fn){
@@ -1529,7 +1570,8 @@ async function duelAct(fn){
 }
 const myMatchFile=m=>'m-'+m.id+'-'+m.side+'.dat', mySide=m=>m.side==='a'?m.a:m.b;
 function duelChallenge(name){const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);return duelAct(()=>duelWrite('m-'+id+'-a.dat',{id,a:callsign(),b:name,rounds:duel.rounds,diff:duel.diff,seed:Math.floor(Math.random()*2**31),created:Date.now(),at:Date.now(),scores:[]}))}
-const duelReply=(m,yes)=>duelAct(()=>duelWrite('m-'+m.id+'-b.dat',{id:m.id,accepted:yes,declined:!yes,at:Date.now(),scores:[]}));
+const duelReply=(m,yes)=>{if(!yes)duelRemember(m,'declined');return duelAct(()=>duelWrite('m-'+m.id+'-b.dat',{id:m.id,accepted:yes,declined:!yes,at:Date.now(),scores:[]}))};
+const duelCancel=m=>duelAct(async()=>{await duelRemove('m-'+m.id+'-a.dat');await duelRemove('l-'+m.id+'-a.dat')});
 const duelPatch=(m,patch)=>duelAct(()=>duelWrite(myMatchFile(m),{...mySide(m),...patch,at:Date.now()}));
 
 /* Your round: the seeded course, with your track sent out for spectators. */
@@ -1561,11 +1603,12 @@ async function duelRoundOver(final){
  const r=duel.run;duel.run=null;clearInterval(r.timer);duel.after=r;
  if(duel.saved){diffId=duel.saved.diffId;practice=duel.saved.practice;duel.saved=null}
  $('overLabel').textContent='DUEL / ROUND '+(r.round+1)+' OF '+r.R;$('again').lastChild.textContent='BACK TO DUEL';
+ $('cause').textContent=deathCause+' Posting your round score to the duel...';
  r.lastSample=-1;duelSample(r);await duelLive(r,true);
  const m=duel.matches.find(x=>x.id===r.id);
  if(m&&m.mine.length===r.round){await duelPatch(m,{scores:[...m.mine,final]});
   const now=duel.matches.find(x=>x.id===r.id);
-  $('cause').textContent=deathCause+(now&&now.mine.length>r.round?' Round '+(r.round+1)+' score posted to your duel with '+r.opp+'.':' The round score could not be saved to the duel folder.')}
+  $('cause').textContent=deathCause+(now&&now.mine.length>r.round||duel.history.some(h=>h.id===r.id)?' Round '+(r.round+1)+' score posted to your duel with '+r.opp+'.':' The round score could not be saved to the duel folder.')}
  else $('cause').textContent=deathCause+' This round could not be posted: the duel has changed. Check the Duel screen.';
 }
 function againOrDuel(){if(duel.after){home();openPanel('duel')}else start()}
@@ -1582,8 +1625,10 @@ function duelWatch(m){
 }
 async function duelWatchPoll(){
  const w=duel.watch;if(!w||w.reading||!duel.dir)return;w.reading=true;
- const d=await duelReadLive('l-'+w.id+'-'+w.side+'.dat');w.reading=false;
- if(duel.watch!==w||!d||d.id!==w.id||d.round!==w.round||d.seq<=w.seq)return;
+ const d=await duelReadLive('l-'+w.id+'-'+w.side+'.dat');w.reading=false;if(duel.watch!==w)return;
+ // The round may already be posted and the duel's files cleared before the last update arrives.
+ const m=duel.matches.find(x=>x.id===w.id);if(!d&&w.buf.length&&!(m&&m.status==='active'&&m.turn===w.side&&m.round===w.round)){w.over=true;duelWatchText();return}
+ if(!d||d.id!==w.id||d.round!==w.round||d.seq<=w.seq)return;
  w.seq=d.seq;if(SUB_BY_ID[d.sub]&&S.id!==d.sub){S=SUB_BY_ID[d.sub];buildPips()}
  const lastT=w.buf.length?w.buf[w.buf.length-1][0]:-1;
  for(const s of Array.isArray(d.samples)?d.samples:[])if(Array.isArray(s)&&s.length>=7&&s.every(Number.isFinite)&&s[0]>lastT)w.buf.push(s);
@@ -1627,8 +1672,8 @@ function duelRounds(m){const n=Math.max(m.mine.length,m.theirs.length),v=(a,i)=>
 function renderDuel(){
  renderDuelChip();if(panel!=='duel')return;
  const connected=lb.dir&&lb.perm==='granted';
- let msg=!lb.supported?'Duels go through the shared folder, so they need Microsoft Edge or Google Chrome.':!connected?'Connect the shared folder first. Duels are kept in a duel folder next to '+BOARD_FILE+'.':callsign()==='Anonymous'?'Set a callsign on the home screen so other sailors can find and challenge you.':'You are online as '+callsign()+'.';
- if(duel.note)msg+=' '+duel.note;$('duelStatus').textContent=msg;show('duelConnect',lb.supported&&!connected);
+ let msg=!lb.supported?'Duels go through the shared folder, so they need Microsoft Edge or Google Chrome.':!connected?'Connect the shared folder first. Duels are kept in a data folder next to '+BOARD_FILE+'.':callsign()==='Anonymous'?'Set a callsign on the home screen so other sailors can find and challenge you.':'You are online as '+callsign()+'.';
+ if(duel.dupe)msg+=' Another game is online with the callsign '+callsign()+'. Each player needs their own callsign to see each other.';if(duel.note)msg+=' '+duel.note;$('duelStatus').textContent=msg;show('duelConnect',lb.supported&&!connected);
  document.querySelectorAll('#duelRoundSeg button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.r===duel.rounds)));
  document.querySelectorAll('#duelDiffSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.diff===duel.diff)));
  const busyWith=new Set(duel.matches.filter(m=>m.status==='active'||m.status==='pending').map(m=>duelKey(m.opp)));
@@ -1637,18 +1682,21 @@ function renderDuel(){
  if(!here.length)duelEmpty(on,duelReady()?'No one else is online right now. Anyone who opens the game with the shared folder connected shows up here.':'Online sailors appear here once you are connected.');
  const ms=$('duelMatches');ms.textContent='';let shown=0;
  for(const m of duel.matches){
-  if(m.status!=='active'&&m.status!=='pending'&&Date.now()-m.updated>3*DAY)continue;if(++shown>12)break;
+  if(m.status!=='active'&&m.status!=='pending')continue;if(++shown>12)break;
   const head=DIFFS[m.diff].label+' / '+m.R+' round'+(m.R>1?'s':''),score='You '+fmt(total(m.mine))+' / '+m.opp+' '+fmt(total(m.theirs));
   if(m.status==='pending'&&m.side==='b')duelRow(ms,m.opp+' challenges you',head,[duelButton('Accept',()=>duelReply(m,true)),duelButton('Decline',()=>duelReply(m,false),'warn')]);
-  else if(m.status==='pending')duelRow(ms,'Challenge sent to '+m.opp,head+' / waiting for a reply',[duelButton('Cancel',()=>duelPatch(m,{cancelled:true}),'warn')]);
+  else if(m.status==='pending')duelRow(ms,'Challenge sent to '+m.opp,head+' / waiting for a reply',[duelButton('Cancel',()=>duelCancel(m),'warn')]);
   else if(m.status==='active'){
    const mineTurn=m.turn===m.side,opp=duel.online.find(p=>p.key===duelKey(m.opp)),live=opp&&opp.online&&opp.status==='in a duel';
    const b=mineTurn?[m.abandoned?duelButton('Score round '+(m.round+1)+' as 0',()=>duelDive(m),'warn'):duelButton('Dive round '+(m.round+1),()=>duelDive(m),'go')]:[live?duelButton('Watch live',()=>duelWatch(m),'go'):duelButton(opp&&opp.online?'Their turn':'Waiting',null,'off')];
    b.push(duelButton('Forfeit',()=>{if(confirm('Forfeit your duel with '+m.opp+'?'))duelPatch(m,{forfeit:true})},'warn'));
    duelRow(ms,'You vs '+m.opp+(m.abandoned?' / round '+(m.round+1)+' left unfinished':mineTurn?' / your turn':' / '+m.opp+'’s turn'),head+' / round '+(m.round+1)+' of '+m.R+' / '+score+(m.sa.length?' / '+duelRounds(m):''),b);
   }
-  else{const word={won:'Won',lost:'Lost',drew:'Drew'}[m.result],a=m.side==='a',what={declined:a?m.opp+' declined your challenge':'You declined '+m.opp+'’s challenge',cancelled:a?'You cancelled your challenge to '+m.opp:m.opp+' cancelled their challenge',expired:a?'Your challenge to '+m.opp+' expired':m.opp+'’s challenge expired'}[m.status];
-   duelRow(ms,what||word+' vs '+m.opp+(m.status==='forfeit'?' by forfeit':''),what?head:head+' / '+score+(m.sa.length?' / '+duelRounds(m):''),[])}
+ }
+ for(const h of duel.history.slice(0,8)){
+  const head=(DIFFS[h.diff]||DIFFS.officer).label+' / '+h.R+' round'+(h.R>1?'s':''),a=h.side==='a';
+  const title={won:'Won vs '+h.opp,lost:'Lost vs '+h.opp,drew:'Drew with '+h.opp,declined:a?h.opp+' declined your challenge':'You declined '+h.opp+'’s challenge',expired:'Your challenge to '+h.opp+' expired'}[h.result]||h.opp;
+  duelRow(ms,title,head+(h.result==='won'||h.result==='lost'||h.result==='drew'?' / You '+fmt(h.mine)+' / '+h.opp+' '+fmt(h.theirs)+(h.rounds?' / '+h.rounds:''):''),[]);shown++;
  }
  if(!shown)duelEmpty(ms,'No duels yet. Pick the rounds and level above, then challenge someone who is online.');
 }
