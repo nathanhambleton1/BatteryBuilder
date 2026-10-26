@@ -509,12 +509,17 @@ function updateSound(){$('sound').setAttribute('aria-label',soundOn?'Mute sound'
 let unlockTried=false;
 function toggleSound(){if(soundOn&&!audible()&&!unlockTried){unlockTried=true;initAudio();updateSound();return}soundOn=!soundOn;store.set('undertow.sound',soundOn);initAudio();updateSound();if(soundOn)tone(450,.12,.035,600)}
 function toggleMusic(){if(musicOn&&soundOn&&!audible()&&!unlockTried){unlockTried=true;initAudio();updateSound();return}musicOn=!musicOn;store.set('undertow.music',musicOn);if(musicOn&&!soundOn){soundOn=true;store.set('undertow.sound',true);initAudio()}updateSound()}
-function ping(){if(state!=='playing'||t<sonarDownUntil||t-lastPing<2.15*S.sonar)return false;lastPing=t;pings.push({x:sub.x,y:sub.y,born:t,r:0,hit:new Set()});sfx.ping();return true;}
+/* Sonar keeps pace with the boat: the faster it runs, the more often it pings and
+   the further and faster each ping travels, so mines still show up about two
+   seconds ahead at any level or boost. Echoes stay lit until the next ping lands. */
+const sonarGap=()=>2.15*S.sonar*clamp(300/Math.max(speed,1),.4,1);
+const sonarGlow=()=>Math.max(1.65,sonarGap()+.6);
+function ping(){if(state!=='playing'||t<sonarDownUntil||t-lastPing<sonarGap())return false;lastPing=t;pings.push({x:sub.x,y:sub.y,born:t,r:0,c:SOUND_SPEED+4*speed,range:SONAR_RANGE+2.4*speed,hit:new Set()});sfx.ping();return true;}
 function updateSonar(dt){
- if(night>.06&&t-lastPing>=2.15*S.sonar)ping();
- for(const p of pings){p.r=(t-p.born)*SOUND_SPEED;for(const g of gates)for(let k=0;k<2;k++){if(g.dead[k])continue;const key=g.x+':'+k, my=mineY(g,k),dist=Math.hypot(g.x-p.x,my-p.y);if(dist<=SONAR_RANGE&&dist<=p.r&&!p.hit.has(key)){p.hit.add(key);echoes.push({x:g.x,y:my,ox:g.x,oy:my,g,k,born:t});}}}
- pings=pings.filter(p=>p.r<SONAR_RANGE);
- for(let i=echoes.length-1;i>=0;i--){let e=echoes[i],dx=sub.x-e.x,dy=sub.y-e.y,dist=Math.hypot(dx,dy);if(dist<SOUND_SPEED*dt+8){e.g.echo[e.k]=t;if(e.g.x>sub.x-100&&e.g.x<sub.x+700)sfx.echo();echoes.splice(i,1);}else {e.x+=dx/dist*SOUND_SPEED*dt;e.y+=dy/dist*SOUND_SPEED*dt;}}
+ if(night>.06&&t-lastPing>=sonarGap())ping();
+ for(const p of pings){p.r=(t-p.born)*p.c;for(const g of gates)for(let k=0;k<2;k++){if(g.dead[k])continue;const key=g.x+':'+k, my=mineY(g,k),dist=Math.hypot(g.x-p.x,my-p.y);if(dist<=p.range&&dist<=p.r&&!p.hit.has(key)){p.hit.add(key);echoes.push({x:g.x,y:my,ox:g.x,oy:my,g,k,c:p.c,born:t});}}}
+ pings=pings.filter(p=>p.r<p.range);
+ for(let i=echoes.length-1;i>=0;i--){let e=echoes[i],dx=sub.x-e.x,dy=sub.y-e.y,dist=Math.hypot(dx,dy);if(dist<e.c*dt+8){e.g.echo[e.k]=t;if(e.g.x>sub.x-100&&e.g.x<sub.x+700)sfx.echo();echoes.splice(i,1);}else {e.x+=dx/dist*e.c*dt;e.y+=dy/dist*e.c*dt;}}
 }
 /* Weapons. Player missiles lock onto the most urgent target at launch:
    an incoming missile, then a warship, then the nearest mine ahead. */
@@ -923,7 +928,7 @@ function mine(x,y,alpha,echo){
  let g=c.createRadialGradient(-7,-8,1,1,3,22);g.addColorStop(0,'#738183');g.addColorStop(.35,'#3d4e53');g.addColorStop(.72,'#1c2b32');g.addColorStop(1,'#09131b');circle(0,0,18,g,'#748a8844');c.strokeStyle='#929d8c55';c.lineWidth=.8;c.beginPath();c.ellipse(0,0,18,6,-.27,0,TAU);c.stroke();c.strokeStyle='#09171d';c.beginPath();c.ellipse(0,0,8,18,-.27,0,TAU);c.stroke();for(let i=0;i<5;i++){let a=i*1.3;circle(Math.cos(a)*13,Math.sin(a)*13,1,'#84908b88')}path([[-8,1],[-3,-7],[1,2]],'#a3915366');circle(6,-6,1.7,'#a55e38');c.restore();
  if(echo>.01){c.save();c.globalAlpha=echo;circle(x,y,29,null,'#9ef0cf',.9);c.strokeStyle='#9ef0cf';c.lineWidth=.7;for(let a=0;a<4;a++){let angle=a*Math.PI/2;c.beginPath();c.moveTo(x+Math.cos(angle)*32,y+Math.sin(angle)*32);c.lineTo(x+Math.cos(angle)*38,y+Math.sin(angle)*38);c.stroke()}c.font='8px ui-monospace,monospace';c.fillStyle='#ace9d1';c.fillText('CONTACT',x+36,y-8);c.restore();}
 }
-function drawMines(){for(const g of gates){if(g.x<camX-80||g.x>camX+vw+80)continue;let z=terrain(g.x);for(let k=0;k<2;k++){if(g.dead[k])continue;let y=mineY(g,k),from=k?z.bottom:z.top,elapsed=t-g.echo[k],echo=elapsed>=0?clamp(1-elapsed/1.65,0,1):0,nearLight=clamp(1-Math.hypot(g.x-sub.x,y-sub.y)/180,0,1)*.4;let a=clamp(1-night*.972+echo*.95+nearLight*night,.028,1);c.save();c.globalAlpha=a;c.strokeStyle='#7b8b85';c.lineWidth=1.5;c.beginPath();c.moveTo(g.x,from);c.lineTo(g.x,y);c.stroke();c.strokeStyle='#adc1ac55';c.lineWidth=.65;for(let yy=Math.min(y,from)+5;yy<Math.max(y,from)-5;yy+=11){c.beginPath();c.ellipse(g.x,yy,1.5,3.5,0,0,TAU);c.stroke()}path([[g.x-12,from],[g.x-7,from+(k?7:-7)],[g.x+9,from+(k?7:-7)],[g.x+13,from]],'#52666a');c.restore();mine(g.x,y,a,echo*night);}}
+function drawMines(){const glow=sonarGlow();for(const g of gates){if(g.x<camX-80||g.x>camX+vw+80)continue;let z=terrain(g.x);for(let k=0;k<2;k++){if(g.dead[k])continue;let y=mineY(g,k),from=k?z.bottom:z.top,elapsed=t-g.echo[k],echo=elapsed>=0?clamp(1-elapsed/glow,0,1):0,nearLight=clamp(1-Math.hypot(g.x-sub.x,y-sub.y)/180,0,1)*.4;let a=clamp(1-night*.972+echo*.95+nearLight*night,.028,1);c.save();c.globalAlpha=a;c.strokeStyle='#7b8b85';c.lineWidth=1.5;c.beginPath();c.moveTo(g.x,from);c.lineTo(g.x,y);c.stroke();c.strokeStyle='#adc1ac55';c.lineWidth=.65;for(let yy=Math.min(y,from)+5;yy<Math.max(y,from)-5;yy+=11){c.beginPath();c.ellipse(g.x,yy,1.5,3.5,0,0,TAU);c.stroke()}path([[g.x-12,from],[g.x-7,from+(k?7:-7)],[g.x+9,from+(k?7:-7)],[g.x+13,from]],'#52666a');c.restore();mine(g.x,y,a,echo*night);}}
 }
 function drawPickups(){
  for(const p of pickups){if(p.taken||p.x<camX-60||p.x>camX+vw+60)continue;const y=p.cy,pulse=.7+.3*Math.sin(ambient*3+p.phase);
@@ -955,7 +960,7 @@ function drawMissile(m,enemy){const a=Math.atan2(m.vy,m.vx);c.save();c.translate
 function drawMissiles(){for(const m of enemyMissiles)drawMissile(m,true);for(const m of missiles)drawMissile(m,false)}
 function drawSonar(){
  c.save();c.globalCompositeOperation='screen';
- for(const p of pings){let fade=Math.max(0,1-p.r/SONAR_RANGE);c.lineWidth=1.3;c.strokeStyle=`rgba(131,239,203,${fade*.36})`;circle(p.x,p.y,p.r,null,c.strokeStyle,1.3);if(p.r>8)circle(p.x,p.y,p.r-8,null,`rgba(107,217,200,${fade*.08})`,5)}
+ for(const p of pings){let fade=Math.max(0,1-p.r/p.range);c.lineWidth=1.3;c.strokeStyle=`rgba(131,239,203,${fade*.36})`;circle(p.x,p.y,p.r,null,c.strokeStyle,1.3);if(p.r>8)circle(p.x,p.y,p.r-8,null,`rgba(107,217,200,${fade*.08})`,5)}
  for(const e of echoes){const sx=e.x,sy=e.y;glow(sx,sy,12,'#b4ffe136');circle(sx,sy,2,'#c9ffe9');c.strokeStyle='#b2f7d84a';c.lineWidth=1;c.beginPath();c.moveTo(sx,sy);let dx=e.ox-sx,dy=e.oy-sy,d=Math.hypot(dx,dy);if(d>0)c.lineTo(sx+dx/d*Math.min(d,30),sy+dy/d*Math.min(d,30));c.stroke()}
  c.restore();
 }
