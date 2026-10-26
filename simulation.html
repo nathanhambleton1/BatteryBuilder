@@ -150,7 +150,7 @@
    bin.dat.bak is a copy of the last good write. An older plain bin.json is
    imported once, when there is no bin.dat yet. */
 // Shown in the footer and on the Duel screen, so players can tell which copy of the game they are running.
-const BUILD='2026-10-26 / 5';
+const BUILD='2026-10-26 / 6';
 const BOARD_FILE='bin.dat', BACKUP_FILE='bin.dat.bak', LOCK_FILE='bin.dat.lock', LEGACY_FILE='bin.json';
 
 /* ---- Seal ------------------------------------------------------------------
@@ -640,7 +640,7 @@ function updateShips(dt){
    // Seekers start crude and improve the farther the patrol runs: weaker turning,
    // shorter lock time, slower runs and a wider aim error early on.
    const acc=clamp((sub.x-firstShip)/(D.ramp*1.3),0,1);
-   enemyMissiles.push({x:s.x+(s.kind?30:-20),y:SURFACE-22,vx:(sub.x-s.x)*.12+speed*.4,vy:-190-Math.random()*50,air:true,life:7,turn:D.turn*mix(.28,.85,acc),seek:mix(.8,2.6,acc),err:(Math.random()-.5)*2*mix(115,28,acc),sp:speed+D.mvel*mix(.32,.88,acc)});
+   enemyMissiles.push({x:s.x+(s.kind?30:-20),y:SURFACE-22,vx:(sub.x-s.x)*.12+speed*.4,vy:-190-Math.random()*50,air:true,life:7,turn:D.turn*mix(.2,.55,acc),seek:mix(.6,1.6,acc),err:(Math.random()-.5)*2*mix(140,55,acc),sp:speed+D.mvel*mix(.22,.55,acc)});
    s.fire=t+mix(D.fire[0],D.fire[1],difficulty)*(.8+Math.random()*.4);sfx.enemyLaunch();
   }
  }
@@ -1480,6 +1480,25 @@ async function duelRemove(name,tries=4){
  for(let i=0;;i++){try{await duel.dir.removeEntry(name);break}catch(e){if(e&&e.name==='NotFoundError')break;if(i>=tries-1)return false;await sleep(150*(i+1)+Math.random()*200)}}
  duel.own.delete(name);duel.gone.set(name,Date.now());return true;
 }
+/* Match files are never replaced. The rival's game has them open every few seconds and
+   Windows will not replace a file on a share while another PC is reading it (Chrome
+   reports "state cached in an interface object ... changed since it was read from disk"),
+   so each save is a new m-<id>-<side>-<version>.dat and older copies are deleted once free. */
+const MATCH_RE=/^m-([a-z0-9]+)-([ab])(?:-([a-z0-9]+))?\.dat$/;
+const matchVer=name=>{const x=MATCH_RE.exec(name);return x&&x[3]?parseInt(x[3],36):0};
+const sideFiles=(id,side)=>[...new Set([...duel.files.keys(),...duel.own.keys()])].filter(n=>{const x=MATCH_RE.exec(n);return x&&x[1]===id&&x[2]===side});
+// The newest readable copy of one side; an unreadable one only counts when there is nothing else.
+function duelSide(id,side){
+ let best=null;
+ for(const name of sideFiles(id,side)){const f=duel.files.get(name),data=f?f.data:duel.own.get(name),ver=matchVer(name);if(!best||!!data>!!best.data||!!data===!!best.data&&ver>best.ver)best={name,ver,data}}
+ return best;
+}
+async function duelSave(id,side,obj){
+ const old=sideFiles(id,side),saved=await duelWrite('m-'+id+'-'+side+'-'+Date.now().toString(36)+'.dat',obj);
+ for(const n of old){duel.own.delete(n);await duelRemove(n,1)}
+ return saved;
+}
+async function duelRemoveSide(id,side,tries){let ok=true;for(const n of sideFiles(id,side))if(!await duelRemove(n,tries))ok=false;return ok}
 // A network drive can replace a file between opening it and reading it (the browser
 // then refuses the read), and a folder listing can fail while files change. Look again.
 async function readFresh(h){for(let i=0;;i++){try{return await (await h.getFile()).text()}catch(e){if(i>=3)throw e;await sleep(60+Math.random()*140)}}}
@@ -1540,8 +1559,9 @@ function duelPeople(){
 }
 function duelMatchList(){
  const me=duelKey(callsign()),by=new Map(),list=[],now=Date.now();duel.orphanNames=[];
- for(const [name,f] of duel.files){const m=/^m-([a-z0-9]+)-([ab])\.dat$/.exec(name);if(!m)continue;const e=by.get(m[1])||{};e[m[2]]=f.data||{unread:true};by.set(m[1],e)}
- for(const [id,{a,b}] of by){
+ for(const name of duel.files.keys()){const m=MATCH_RE.exec(name);if(m)by.set(m[1],1)}
+ for(const id of by.keys()){
+  const fa=duelSide(id,'a'),fb=duelSide(id,'b'),a=fa&&(fa.data||{unread:true}),b=fb&&(fb.data||{unread:true});
   if(!a){if(b&&!b.unread)duel.orphanNames.push(id);continue}
   if(a.unread||!a.a||!a.b||b&&b.unread)continue;const side=duelKey(a.a)===me?'a':duelKey(a.b)===me?'b':null;if(!side)continue;
   const R=[1,3,5].includes(a.rounds)?a.rounds:3,num=v=>Array.isArray(v)?v.slice(0,R).map(x=>Math.max(0,Math.floor(+x)||0)):[];
@@ -1562,20 +1582,22 @@ function duelRemember(m,result){
 }
 async function duelCleanup(){
  for(const m of duel.matches){
-  const own=m.side==='a'?m.a:m.b,other=m.side==='a'?m.b:m.a,file='m-'+m.id+'-'+m.side+'.dat',live='l-'+m.id+'-'+m.side+'.dat';
-  if(m.status==='closed'){await duelRemove(file);await duelRemove(live)}
-  else if(m.side==='a'&&(m.status==='expired'||m.status==='declined')){duelRemember(m,m.status);await duelRemove(file)}
+  const own=m.side==='a'?m.a:m.b,other=m.side==='a'?m.b:m.a,live='l-'+m.id+'-'+m.side+'.dat';
+  // Older copies of my side that were still open on the rival's PC when replaced.
+  const cur=duelSide(m.id,m.side);if(cur)for(const n of sideFiles(m.id,m.side))if(matchVer(n)<cur.ver)await duelRemove(n,1);
+  if(m.status==='closed'){await duelRemoveSide(m.id,m.side);await duelRemove(live)}
+  else if(m.side==='a'&&(m.status==='expired'||m.status==='declined')){duelRemember(m,m.status);await duelRemoveSide(m.id,'a')}
   else if(m.status==='done'||m.status==='forfeit'){
    duelRemember(m,m.result);
    // Each side marks the duel closed; once both have, the files go.
-   if(!own.closed)await duelWrite(file,{...own,closed:true,at:Date.now()}).catch(()=>{});
-   else if(other&&other.closed){await duelRemove(file);await duelRemove(live)}
+   if(!own.closed)await duelSave(m.id,m.side,{...own,closed:true,at:Date.now()}).catch(()=>{});
+   else if(other&&other.closed){await duelRemoveSide(m.id,m.side);await duelRemove(live)}
   }
  }
  // My replies whose challenge has gone (cancelled, or closed by the other side).
- const me='-b.dat',seenNow=new Set(duel.orphanNames);
+ const seenNow=new Set(duel.orphanNames);
  for(const id of seenNow){const n=(duel.orphans.get(id)||0)+1;duel.orphans.set(id,n);
-  const f=duel.files.get('m-'+id+me);if(f&&f.data&&(f.data.closed||f.data.declined||n>=2)){await duelRemove('m-'+id+me);await duelRemove('l-'+id+'-b.dat');duel.orphans.delete(id)}}
+  const f=duelSide(id,'b');if(f&&f.data&&(f.data.closed||f.data.declined||n>=2)){await duelRemoveSide(id,'b');await duelRemove('l-'+id+'-b.dat');duel.orphans.delete(id)}}
  for(const id of [...duel.orphans.keys()])if(!seenNow.has(id))duel.orphans.delete(id);
  // Presence files from games closed without saying goodbye.
  for(const [name,f] of duel.files)if(name.startsWith('p-')&&f.data&&Date.now()-(+f.data.at||0)>DAY&&name!==duel.beatFile)await duelRemove(name);
@@ -1599,12 +1621,13 @@ async function duelAct(fn){
  try{await fn()}catch(e){ok=false;duelFlash('The shared folder did not save that, try again. ('+(e&&e.message||e)+')')}
  duel.lastBeat=0;while(duel.busy)await sleep(50);await duelTick();return ok;
 }
-const myMatchFile=m=>'m-'+m.id+'-'+m.side+'.dat', mySide=m=>m.side==='a'?m.a:m.b;
-function duelChallenge(name){const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);return duelAct(()=>duelWrite('m-'+id+'-a.dat',{id,a:callsign(),b:name,rounds:duel.rounds,diff:duel.diff,seed:Math.floor(Math.random()*2**31),created:Date.now(),at:Date.now(),scores:[]}))}
-const duelReply=(m,yes)=>{if(!yes)duelRemember(m,'declined');return duelAct(()=>duelWrite('m-'+m.id+'-b.dat',{id:m.id,accepted:yes,declined:!yes,at:Date.now(),scores:[]}))};
-const duelCancel=m=>duelAct(async()=>{if(!await duelRemove('m-'+m.id+'-a.dat',8))throw new Error('the file is in use');await duelRemove('l-'+m.id+'-a.dat')});
+const mySide=m=>m.side==='a'?m.a:m.b;
+function duelChallenge(name){const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);return duelAct(()=>duelSave(id,'a',{id,a:callsign(),b:name,rounds:duel.rounds,diff:duel.diff,seed:Math.floor(Math.random()*2**31),created:Date.now(),at:Date.now(),scores:[]}))}
+const duelReply=(m,yes)=>{if(!yes)duelRemember(m,'declined');return duelAct(()=>duelSave(m.id,'b',{id:m.id,accepted:yes,declined:!yes,at:Date.now(),scores:[]}))};
+// If the rival's game is holding the challenge open, mark it closed instead; cleanup deletes it later.
+const duelCancel=m=>duelAct(async()=>{if(!await duelRemoveSide(m.id,'a',8))await duelSave(m.id,'a',{...m.a,closed:true,at:Date.now()});await duelRemove('l-'+m.id+'-a.dat')});
 // Patches build on the newest copy of this side's file, not the one the button was drawn from.
-const duelPatch=(m,patch)=>duelAct(()=>{const cur=duel.matches.find(x=>x.id===m.id)||m;return duelWrite(myMatchFile(cur),{...mySide(cur),...patch,at:Date.now()})});
+const duelPatch=(m,patch)=>duelAct(()=>{const cur=duel.matches.find(x=>x.id===m.id)||m;return duelSave(cur.id,cur.side,{...mySide(cur),...patch,at:Date.now()})});
 
 /* Your round: the seeded course, with your track sent out for spectators. */
 // A round is marked as begun before the dive starts, so closing the game part-way
