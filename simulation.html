@@ -101,7 +101,7 @@
 <button class="lb-chip" id="lbChip"><i></i><span>SHARED LEADERBOARD NOT CONNECTED</span></button>
 <button class="lb-chip" id="duelChip" hidden><i></i><span>1V1 DUELS</span></button>
 <div class="legend"><div><b><span class="key">SPACE</span> HOLD TO RISE</b>Release to descend</div><div><b><span class="key">E</span> SPECIAL ABILITY</b>Unique to each boat</div><div><b><span class="key">F</span> / RIGHT-CLICK</b>Launch a missile</div><div><b><span class="key">A</span><span class="key">D</span> ORBIT</b>C toggles 3D camera</div></div></div></section>
-<footer class="foot" id="footer"><span>VESSEL <strong id="footVessel">VIRGINIA / SSN-774</strong><span class="desktop"> &nbsp; / &nbsp; ENDLESS PATROL</span></span><span>BEST SCORE <strong id="best">0</strong></span></footer>
+<footer class="foot" id="footer"><span>VESSEL <strong id="footVessel">VIRGINIA / SSN-774</strong><span class="desktop"> &nbsp; / &nbsp; ENDLESS PATROL</span></span><span>BEST SCORE <strong id="best">0</strong> &nbsp; / &nbsp; BUILD <strong id="build"></strong></span></footer>
 <div class="hud" id="hud" hidden><div class="metrics"><div class="metric score"><label>SCORE</label><strong id="score">0</strong></div><div class="metric"><label>DISTANCE</label><strong id="distance">0000</strong><small>m</small></div><div class="metric"><label>DEPTH</label><strong id="depth">038</strong><small>m</small></div><div class="metric"><label>SUNK</label><strong id="sunk">0</strong></div></div><div class="status"><i class="dot"></i><span id="sector">01 / CONTINENTAL SHELF</span></div>
 <div class="vitals"><div class="vital"><svg class="ic"><use href="#i-hull"/></svg><span class="vlabel">HULL</span><div class="pips" id="pips"></div></div><div class="vital air" id="airRow"><svg class="ic"><use href="#i-air"/></svg><span class="vlabel">O2</span><div class="o2"><i id="o2bar"></i></div><span class="vval" id="o2val">100%</span></div><div class="effects" id="effects"></div></div>
 <div class="ach-pop" id="achPop" role="status"><svg class="ic"><use href="#i-medal"/></svg><div><small>ACHIEVEMENT UNLOCKED</small><b id="achPopName"></b></div></div><div class="toast" id="toast" role="status"><b id="toastTitle"></b><span id="toastBody"></span></div><div class="hint" id="hint">Hold <b>Space / Up</b> or touch the water to rise. Release to descend.<br><b>F</b> or <b>right-click</b> launches a missile. <b>E</b> triggers your boat’s special ability. Collect glowing air pockets. <b>A / D</b> orbits the camera.</div>
@@ -149,6 +149,8 @@
    the browser remembers it. bin.dat is created automatically if it is missing;
    bin.dat.bak is a copy of the last good write. An older plain bin.json is
    imported once, when there is no bin.dat yet. */
+// Shown in the footer and on the Duel screen, so players can tell which copy of the game they are running.
+const BUILD='2026-10-26 / 5';
 const BOARD_FILE='bin.dat', BACKUP_FILE='bin.dat.bak', LOCK_FILE='bin.dat.lock', LEGACY_FILE='bin.json';
 
 /* ---- Seal ------------------------------------------------------------------
@@ -1471,7 +1473,7 @@ const total=a=>a.reduce((n,v)=>n+v,0), fmt=n=>Math.round(n).toLocaleString();
    those over what the drive shows. */
 async function duelWrite(name,obj,tries=7){
  obj={...obj,v:Date.now()};const text=seal(JSON.stringify(obj));
- for(let i=0;;i++){try{await writeText(name,text,duel.dir);break}catch(e){if(i>=tries-1)throw e;await sleep(150*(i+1)+Math.random()*200)}}
+ for(let i=0;;i++){try{if(duel.swap)await duel.dir.removeEntry(name).catch(e=>{if(!e||e.name!=='NotFoundError')throw e});await writeText(name,text,duel.dir);break}catch(e){if(i>=tries-1)throw e;await sleep(150*(i+1)+Math.random()*200)}}
  if(name.startsWith('m-')){duel.own.set(name,obj);duel.gone.delete(name)}return obj;
 }
 async function duelRemove(name,tries=4){
@@ -1487,8 +1489,20 @@ const duelReady=()=>!!(lb.dir&&lb.perm==='granted'&&callsign()!=='Anonymous');
 async function duelFolder(){
  if(lb.dir!==duel.root){duel.root=lb.dir;duel.dir=null;duel.files=new Map();duel.seen.clear();duel.beatFile=''}
  if(!duelReady())return null;
- if(!duel.dir)try{duel.dir=await lb.dir.getDirectoryHandle(DUEL_DIR,{create:true})}catch(_){return null}
+ if(!duel.dir){try{duel.dir=await lb.dir.getDirectoryHandle(DUEL_DIR,{create:true})}catch(_){return null}await duelCheck()}
  return duel.dir;
+}
+/* Once per connection, try each thing duels need on this drive with a scratch file,
+   and report anything that fails on the Duel screen. If the drive will not let a
+   file be replaced but does allow deleting, saves delete the old file first. */
+async function duelCheck(){
+ const n='t-'+duel.pc+'.dat',r={};
+ const step=async(k,fn)=>{try{await fn();r[k]='ok'}catch(e){r[k]=(e&&e.name||'Error')+': '+(e&&e.message||e)}};
+ await step('create',()=>writeText(n,'one',duel.dir));
+ await step('replace',()=>writeText(n,'two',duel.dir));
+ await step('read back',async()=>{const t=await readFresh(await duel.dir.getFileHandle(n));if(t!=='two')throw new Error('got "'+t.slice(0,8)+'" instead of the new text')});
+ await step('delete',()=>duel.dir.removeEntry(n));
+ duel.check=r;duel.swap=r.replace!=='ok'&&r.delete==='ok';
 }
 // Reads every presence and match file, skipping any unchanged since the last look.
 // A file that cannot be read this time keeps its last known contents.
@@ -1599,7 +1613,7 @@ async function duelDive(m){
  if(m.status!=='active'||m.turn!==m.side||duel.run)return;
  if(m.abandoned){if(await duelPatch(m,{scores:[...m.mine,0]}))duelFlash('Round '+(m.round+1)+' was left unfinished, so it counts as 0.');return}
  if(!await duelPatch(m,{began:m.round}))return;
- const now=duel.matches.find(x=>x.id===m.id)||m;if(now.status!=='active'||now.turn!==now.side||duel.run)return;
+ const now=duel.matches.find(x=>x.id===m.id)||m;if(now.status!=='active'||now.turn!==now.side||duel.run){duelFlash('Could not start: this duel now reads as '+(now.status==='active'?m.opp+'’s turn':now.status)+'. Check the list below.');return}
  duel.saved={diffId,practice};duel.run={id:m.id,side:m.side,round:m.round,R:m.R,opp:m.opp,samples:[],seq:0,lastSample:-1,timer:0,writing:false};
  courseSeed=duelSeed(m,m.round);diffId=m.diff;practice=false;start();courseSeed=null;show('restartPause',false);
  toast('DUEL / ROUND '+(m.round+1)+' OF '+m.R,'Against '+m.opp+', on the same course '+(m.side==='a'?'they will dive next':'they just dived')+'. Highest total wins.',4);
@@ -1699,6 +1713,9 @@ function renderDuel(){
  const connected=lb.dir&&lb.perm==='granted';
  let msg=!lb.supported?'Duels go through the shared folder, so they need Microsoft Edge or Google Chrome.':!connected?'Connect the shared folder first. Duels are kept in a data folder next to '+BOARD_FILE+'.':callsign()==='Anonymous'?'Set a callsign on the home screen so other sailors can find and challenge you.':'You are online as '+callsign()+'.';
  if(Date.now()<duel.flashUntil)msg+=' '+duel.flash;
+ const bad=duel.check&&Object.entries(duel.check).filter(([,v])=>v!=='ok');
+ if(bad&&bad.length)msg+=' Drive check: '+bad.map(([k,v])=>k+' failed ('+v+')').join('; ')+'.'+(duel.swap?' Saves will delete and rewrite files instead.':'');
+ msg+=' Build '+BUILD+'.';
  if(duel.dupe)msg+=' Another game is online with the callsign '+callsign()+'. Each player needs their own callsign to see each other.';if(duel.note)msg+=' '+duel.note;$('duelStatus').textContent=msg;show('duelConnect',lb.supported&&!connected);
  document.querySelectorAll('#duelRoundSeg button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.r===duel.rounds)));
  document.querySelectorAll('#duelDiffSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.diff===duel.diff)));
@@ -1771,7 +1788,7 @@ addEventListener('keydown',e=>{
 });addEventListener('keyup',e=>inputKeys.delete(e.code));
 addEventListener('blur',()=>{clearInput();if(state==='playing')pause()});document.addEventListener('visibilitychange',()=>{if(document.hidden){clearInput();if(state==='playing')pause()}});
 addEventListener('error',e=>{$('error').textContent='The dive was interrupted. Reload the file to restart. '+(e.message||'');show('error',true)});
-$('fullscreen').hidden=!document.documentElement.requestFullscreen;
+$('fullscreen').hidden=!document.documentElement.requestFullscreen;$('build').textContent=BUILD;
 // Browsers usually hold audio until a user gesture. Build the graph now (it may start straight away), and
 // resume it on the first click, tap or key. A press of the sound/music button while it is still waiting
 // only unlocks audio, so a saved "on" setting is never flipped off by that first click.
