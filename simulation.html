@@ -12,7 +12,7 @@
 .topbar{position:fixed;top:max(24px,env(safe-area-inset-top));left:max(32px,env(safe-area-inset-left));right:max(32px,env(safe-area-inset-right));display:flex;justify-content:space-between;align-items:center;gap:20px;pointer-events:none;z-index:5}.brand{font-size:12px;letter-spacing:.25em;font-weight:700;display:flex;align-items:center;gap:12px}.brand svg{width:32px;height:32px}.brand small{display:block;color:var(--muted);font-size:8px;letter-spacing:.18em;margin-top:5px;font-weight:400}.tools{display:flex;gap:8px;pointer-events:auto}
 .view{position:fixed;inset:0;z-index:4;display:flex;align-items:center;padding:100px max(6.5vw,24px) 70px;background:linear-gradient(90deg,#04141de8 0%,#04141d8a 42%,transparent 78%)}.view[hidden],[hidden]{display:none!important}.intro{width:min(590px,100%);max-height:100%;overflow-y:auto;overflow-x:hidden;padding:4px 6px 4px 0;scrollbar-width:thin}.eyebrow{font:10px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--mint);letter-spacing:.24em;display:flex;align-items:center;gap:12px}.eyebrow:before{content:'';display:block;width:28px;height:1px;background:var(--mint)}h1{font-size:clamp(50px,6.6vw,92px);font-weight:300;line-height:.94;letter-spacing:.045em;margin:22px 0 8px}h1 .subhead{display:block;font-size:clamp(16px,1.8vw,24px);letter-spacing:.39em;color:#bfd2d2;line-height:1.8;margin-top:10px}p.lead{font-size:14px;line-height:1.75;max-width:420px;color:#a8bfc2;margin:14px 0 20px}
 .launch{background:var(--amber);color:#152329;border-color:var(--amber);padding:17px 23px;font-size:11px;letter-spacing:.16em;font-weight:bold;display:inline-flex;gap:45px;align-items:center}.launch:hover{background:#f6d7b4;border-color:#f6d7b4}.launch .ic{width:18px;height:18px;stroke-width:2}.launch-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.text-button{padding:15px 16px;font-size:11px;color:#b8cdcd;background:#0b212975;letter-spacing:.05em;display:inline-flex;align-items:center;justify-content:center;gap:8px}
-.callsign{display:flex;align-items:center;gap:10px;margin:0 0 10px;max-width:440px}.row-label{font:9px ui-monospace,monospace;letter-spacing:.2em;color:var(--muted);min-width:70px}.callsign input{flex:1;min-width:0;background:#06202ab3;border:1px solid var(--line);border-radius:3px;color:var(--ink);font:13px Arial,Helvetica,sans-serif;padding:10px 12px;letter-spacing:.06em;user-select:text;-webkit-user-select:text}.callsign input:focus{outline:2px solid var(--mint);outline-offset:2px}
+.callsign{display:flex;align-items:center;gap:10px;margin:0 0 10px;max-width:440px}.rank{max-width:440px;margin:0 0 12px;font:9px ui-monospace,monospace;letter-spacing:.14em;color:var(--muted)}.rank b{color:var(--mint);font-weight:400}.rank .xp{display:block;height:3px;background:#94b9af25;margin:6px 0 5px}.rank .xp i{display:block;height:100%;width:0;background:var(--mint);transition:width .4s}.rank small{display:block;font:11px Arial,Helvetica,sans-serif;letter-spacing:.02em;color:#9cbabf;line-height:1.5}.ach-earned span.xp-gain{color:var(--mint);border-color:#a6ead555}.row-label{font:9px ui-monospace,monospace;letter-spacing:.2em;color:var(--muted);min-width:70px}.callsign input{flex:1;min-width:0;background:#06202ab3;border:1px solid var(--line);border-radius:3px;color:var(--ink);font:13px Arial,Helvetica,sans-serif;padding:10px 12px;letter-spacing:.06em;user-select:text;-webkit-user-select:text}.callsign input:focus{outline:2px solid var(--mint);outline-offset:2px}
 .mode-row{display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:10px;color:var(--muted);flex-wrap:wrap}.mode-row button{font-size:10px;padding:7px 10px;background:transparent;color:var(--muted)}.mode-row button[aria-pressed=true],.seg button[aria-pressed=true]{color:var(--mint);border-color:#74ad9b;background:#91d9bd12}
 .vessel-row{display:flex;align-items:center;gap:12px;margin:14px 0 18px;padding:9px 12px;border:1px solid var(--line);background:#06202a80;border-radius:3px;max-width:440px}.vessel-row canvas{width:112px;height:38px;flex:none}.vessel-row div{flex:1;min-width:0}.vessel-row b{display:block;font-size:12px;letter-spacing:.14em;font-weight:600}.vessel-row small{display:block;color:var(--muted);font:9px ui-monospace,monospace;letter-spacing:.1em;margin-top:4px}.vessel-row button{font-size:10px;padding:9px 11px;color:#b4cecc;letter-spacing:.06em;display:inline-flex;gap:7px;align-items:center;flex:none}
 .lb-chip{margin-top:12px;font:9px ui-monospace,monospace;letter-spacing:.12em;color:var(--muted);background:none;border:none;padding:4px 0;display:inline-flex;gap:8px;align-items:center}.lb-chip:hover{background:none;color:var(--mint)}.lb-chip i{width:6px;height:6px;border-radius:50%;background:#5d7579}.lb-chip.on i{background:var(--mint);box-shadow:0 0 8px var(--mint)}.lb-chip.warn i{background:var(--amber)}
@@ -94,6 +94,7 @@
 <header class="topbar"><div class="brand"><svg viewBox="0 0 36 36" fill="none" aria-hidden="true"><circle cx="18" cy="18" r="15" stroke="#b1d6ca" stroke-width=".7"/><path d="M5 18h26M18 3v30" stroke="#b1d6ca" stroke-width=".5"/><path d="m11 22 7-13 7 13-7-4z" stroke="#d8e9dd" fill="#d8e9dd11"/></svg><div>UNDERTOW<small>FLEET SUBMARINE COMMAND</small></div></div><nav class="tools" aria-label="Game settings"><button class="icon" id="music" aria-label="Play music" title="Music (N)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/><path id="musicSlash" d="M3 3l18 18"/></svg></button><button class="icon" id="sound" aria-label="Enable sound" title="Sound (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 9h4l5-4v14l-5-4H4z"/><path id="soundWaves" d="m17 9 5 6m0-6-5 6"/></svg></button><button class="icon" id="fullscreen" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button><button class="icon" id="pause" aria-label="Pause game" title="Pause (P / Esc)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14M16 5v14"/></svg></button></nav></header>
 <section class="view" id="menu"><div class="intro"><div class="eyebrow">FLEET COMMAND / OPERATION DEEP STRIKE</div><h1>UNDERTOW<span class="subhead">DEEP STRIKE</span></h1><p class="lead">Thread the minefields. Outrun the warships hunting from above.<br>Guard your air, guard your hull, and never stop moving.</p>
 <div class="callsign"><label class="row-label" for="callsign">CALLSIGN</label><input id="callsign" maxlength="16" placeholder="Your name for the leaderboard" autocomplete="off" spellcheck="false"></div>
+<div class="rank"><div><b id="rankName">LEVEL 1</b> &nbsp;/&nbsp; <span id="rankXp"></span></div><span class="xp"><i id="xpBar"></i></span><small id="profNote"></small></div>
 <div class="mode-row" id="diffRow"><span class="row-label">LEVEL</span><button data-diff="cadet">Cadet</button><button data-diff="officer">Officer</button><button data-diff="captain">Captain</button><button data-diff="admiral">Admiral</button></div>
 <div class="mode-row"><span class="row-label">MISSION</span><button id="standard" aria-pressed="true">Survival</button><button id="practice" aria-pressed="false">Practice / no damage</button></div>
 <div class="vessel-row"><canvas class="mini" id="thumb" width="224" height="76"></canvas><div><b id="vesselName">VIRGINIA CLASS</b><small id="vesselOrigin">UNITED STATES / 2004</small></div><button id="hangarOpen"><svg class="ic"><use href="#i-sub"/></svg>Change</button></div>
@@ -104,12 +105,12 @@
 <footer class="foot" id="footer"><span>VESSEL <strong id="footVessel">VIRGINIA / SSN-774</strong><span class="desktop"> &nbsp; / &nbsp; ENDLESS PATROL</span></span><span>BEST SCORE <strong id="best">0</strong> &nbsp; / &nbsp; BUILD <strong id="build"></strong></span></footer>
 <div class="hud" id="hud" hidden><div class="metrics"><div class="metric score"><label>SCORE</label><strong id="score">0</strong></div><div class="metric"><label>DISTANCE</label><strong id="distance">0000</strong><small>m</small></div><div class="metric"><label>DEPTH</label><strong id="depth">038</strong><small>m</small></div><div class="metric"><label>SUNK</label><strong id="sunk">0</strong></div></div><div class="status"><i class="dot"></i><span id="sector">01 / CONTINENTAL SHELF</span></div>
 <div class="vitals"><div class="vital"><svg class="ic"><use href="#i-hull"/></svg><span class="vlabel">HULL</span><div class="pips" id="pips"></div></div><div class="vital air" id="airRow"><svg class="ic"><use href="#i-air"/></svg><span class="vlabel">O2</span><div class="o2"><i id="o2bar"></i></div><span class="vval" id="o2val">100%</span></div><div class="effects" id="effects"></div></div>
-<div class="ach-pop" id="achPop" role="status"><svg class="ic"><use href="#i-medal"/></svg><div><small>ACHIEVEMENT UNLOCKED</small><b id="achPopName"></b></div></div><div class="toast" id="toast" role="status"><b id="toastTitle"></b><span id="toastBody"></span></div><div class="hint" id="hint">Hold <b>Space / Up</b> or touch the water to rise. Release to descend.<br><b>F</b> or <b>right-click</b> launches a missile. <b>E</b> triggers your boat’s special ability. Collect glowing air pockets. <b>A / D</b> orbits the camera.</div>
+<div class="ach-pop" id="achPop" role="status"><svg class="ic"><use href="#i-medal"/></svg><div><small id="achPopKind">ACHIEVEMENT UNLOCKED</small><b id="achPopName"></b></div></div><div class="toast" id="toast" role="status"><b id="toastTitle"></b><span id="toastBody"></span></div><div class="hint" id="hint">Hold <b>Space / Up</b> or touch the water to rise. Release to descend.<br><b>F</b> or <b>right-click</b> launches a missile. <b>E</b> triggers your boat’s special ability. Collect glowing air pockets. <b>A / D</b> orbits the camera.</div>
 <div class="lower"><div class="weapons"><div class="sonar-block"><button class="sonar-btn" id="ability" aria-label="Special ability (E)" title="Ability (E)"><svg class="ic"><use href="#i-bolt"/></svg></button><div class="sonar-copy" id="abilityCopy"><strong id="abilityState">ABILITY READY</strong><span id="abilityHint">E / TAP</span></div></div><div class="sonar-block"><button class="sonar-btn" id="fire" aria-label="Launch missile (F or right-click)" title="Missile (F / right-click)"><svg class="ic"><use href="#i-missile"/></svg></button><div class="sonar-copy fire-copy"><strong id="fireState">MISSILE READY</strong><span id="fireHint">F / RIGHT-CLICK</span></div></div></div><button class="thrust" id="thrust" aria-label="Hold to rise"><svg class="ic"><use href="#i-up"/></svg><span>HOLD TO RISE</span></button></div></div>
 <section class="view overlay" id="paused" hidden><div class="panel"><div class="eyebrow">PROPULSION SUSPENDED</div><h2>Holding position.</h2><p>Take a breath. The ocean will wait.</p><button class="launch" id="resume">RESUME PATROL <svg class="ic"><use href="#i-next"/></svg></button><button class="text-button" id="restartPause"><svg class="ic"><use href="#i-refresh"/></svg>Restart dive</button><button class="text-button" id="quit"><svg class="ic"><use href="#i-home"/></svg>Return to surface</button><div class="switches"><button id="motion">Motion effects: on</button><button id="camBtn">Camera: 3D orbit</button></div></div></section>
 <section class="view overlay" id="help" hidden><div class="panel"><div class="eyebrow">UNDERTOW / FIELD MANUAL</div><h2>Know the depths.</h2><div class="instructions"><div><b>01 / CONTROL YOUR BUOYANCY</b>Hold Space, W, Up arrow, the rise button, or touch the water to ascend. Release to descend. Down arrow or S dives faster. Heavier boats answer the helm more slowly. In open water you can rise all the way to the surface and ride it with the snorkel open to refill air, but mine cables reach the surface too.</div><div><b>02 / THREAD THE MINEFIELDS</b>Pass between paired mines. A mine strike costs two hull sections, a tether costs one. Rock is fatal, including the island cliffs above each cavern mouth. On higher levels some mines drift with the current.</div><div><b>03 / WATCH YOUR AIR</b>Oxygen drains the whole dive. Steer through glowing air pockets to refill it. If it runs out, the hull implodes.</div><div><b>04 / HUNTERS ABOVE</b>Once you are deep into the patrol, warships appear on the surface and drop homing missiles. Their seekers start crude and grow sharper the farther you go. Ramming a ship from the surface costs two hull sections. Every hit costs a hull section and knocks out a system: sonar goes dark, a breach leaks air, or the ballast jams. Lose every section and the boat is gone.</div><div><b>05 / RETURN FIRE</b>F, X or right-click launches a missile. It locks onto an incoming missile first, then a warship, then the nearest mine ahead. Reload time depends on your boat, so pick your moment.</div><div><b>06 / SPECIAL ABILITY</b>Every class carries one unique ability: a torpedo salvo, flank speed, silent running, repairs and more. Press E or tap the ability button to trigger it, then wait for it to recharge. When the light fades, sonar pings on its own and reveals mines with returning echoes.</div><div><b>07 / LEVELS AND SCORING</b>Cadet, Officer, Captain and Admiral raise speed, enemy fire and air drain. Score is distance plus mines cleared, ships sunk and missiles intercepted, multiplied by level (0.75x to 1.8x). P / Esc pauses, M toggles sound, N toggles music.</div><div><b>08 / ORBIT CAMERA</b>The camera swings around your boat in 3D. Hold A / D or the left and right arrows to orbit; it eases back when you let go. C switches to the classic flat side view.</div></div><button class="launch" id="helpClose">READY TO DIVE <svg class="ic"><use href="#i-next"/></svg></button></div></section>
 <section class="view overlay" id="hangar" hidden><div class="panel wide"><div class="eyebrow">DRY DOCK / SELECT VESSEL</div><h2>Choose your boat.</h2><p>Each hull is modelled on a real submarine class. Bigger boats carry more armour, air and launch tubes but need a wider gap and turn slowly.</p><div class="subs" id="subList"></div><button class="launch" id="hangarClose">CONFIRM VESSEL <svg class="ic"><use href="#i-check"/></svg></button></div></section>
-<section class="view overlay" id="ach" hidden><div class="panel wide"><div class="eyebrow">SERVICE RECORD</div><h2>Achievements</h2><p>Start at the top and work down. The early ones teach the boat; the last ones take real time at the helm. Unlocks are saved on this computer and posted with your callsign to the shared leaderboard file.</p>
+<section class="view overlay" id="ach" hidden><div class="panel wide"><div class="eyebrow">SERVICE RECORD</div><h2>Achievements</h2><p>Start at the top and work down. The early ones teach the boat; the last ones take real time at the helm. Your achievements, level, best runs, duel history and last settings are saved under your callsign in the profiles folder of the shared drive, so entering your callsign on any PC loads them.</p>
 <div class="seg" id="achSeg"><span class="row-label">VIEW</span><button data-v="path">Career path</button><button data-v="fleet">Fleet rankings</button></div>
 <div id="achPathView"><div class="ach-sum"><strong id="achNum">0 / 0</strong><span id="achWho">YOUR RECORD</span><span class="bar"><i id="achBar"></i></span></div><div class="ach-path" id="achPath"></div></div>
 <div id="achFleetView" hidden><div class="lb-status" id="achFleetNote"></div><div class="table-wrap"><table class="lb fleet"><thead><tr><th>#</th><th>CALLSIGN</th><th>ACHIEVEMENTS</th><th class="hide-sm">LATEST</th></tr></thead><tbody id="achFleet"></tbody></table></div></div>
@@ -150,7 +151,7 @@
    bin.dat.bak is a copy of the last good write. An older plain bin.json is
    imported once, when there is no bin.dat yet. */
 // Shown in the footer and on the Duel screen, so players can tell which copy of the game they are running.
-const BUILD='2026-10-26 / 6';
+const BUILD='2026-10-26 / 7';
 const BOARD_FILE='bin.dat', BACKUP_FILE='bin.dat.bak', LOCK_FILE='bin.dat.lock', LEGACY_FILE='bin.json';
 
 /* ---- Seal ------------------------------------------------------------------
@@ -205,44 +206,63 @@ const TIERS=[['RECRUIT','Learn the boat'],['SEAMAN','First patrols'],['OFFICER',
 const ACHS=[
  ['maiden',0,'Maiden Voyage','Complete your first dive.',1,(R,L)=>L.runs],
  ['breath',0,'Deep Breath','Steer through an air pocket.',1,R=>R.air],
- ['needle',0,'Thread the Needle','Clear 5 minefields in one dive.',5,R=>R.gates],
+ ['needle',0,'Thread the Needle','Clear 10 minefields in one dive.',10,R=>R.gates],
  ['fish',0,'Fish in the Water','Launch a missile.',1,(R,L)=>L.fired],
  ['orders',0,'Special Orders','Use your boat\'s special ability (E).',1,(R,L)=>L.ability],
  ['snorkel',0,'Snorkel Depth','Ride the surface to refill your air.',1,R=>R.surface],
- ['shakedown',0,'Shakedown Cruise','Travel 500 m in one dive.',500,R=>R.dist],
+ ['shakedown',0,'Shakedown Cruise','Travel 750 m in one dive.',750,R=>R.dist],
  ['firstsink',1,'Surface Kill','Sink a warship.',1,R=>R.ships],
  ['hardkill',1,'Hard Kill','Shoot down an incoming missile.',1,R=>R.ints],
- ['sweeper',1,'Minesweeper','Destroy 15 mines with missiles across your career.',15,(R,L)=>L.mines],
+ ['sweeper',1,'Minesweeper','Destroy 40 mines with missiles across your career.',40,(R,L)=>L.mines],
  ['dark',1,'Into the Dark','Dive until night falls on the shelf.',1,R=>R.night],
  ['cathedral',1,'The Cathedral','Navigate an undersea cavern.',1,R=>R.cave],
- ['patrol',1,'Patrol Complete','Travel 1,500 m in one dive.',1500,R=>R.dist],
- ['tour',1,'Shipyard Tour','Dive in 3 different classes.',3,(R,L)=>L.subs],
- ['commission',2,'Commissioned','Score 3,000 in one dive on Officer or above.',3000,R=>R.diff>=1?R.score:0],
- ['wolfpack',2,'Wolfpack','Sink 3 warships in one dive.',3,R=>R.ships],
- ['lungs',2,'Iron Lungs','Collect 10 air pockets in one dive.',10,R=>R.air],
+ ['patrol',1,'Patrol Complete','Travel 2,000 m in one dive.',2000,R=>R.dist],
+ ['tour',1,'Shipyard Tour','Dive in 4 different classes.',4,(R,L)=>L.subs],
+ ['rated',1,'Rated','Reach level 5.',5,(R,L)=>L.lvl],
+ ['duelist',1,'Duelist','Win a 1v1 duel.',1,(R,L)=>L.wins],
+ ['airman',1,'Air Hound','Collect 50 air pockets across your career.',50,(R,L)=>L.air],
+ ['commission',2,'Commissioned','Score 5,000 in one dive on Officer or above.',5000,R=>R.diff>=1?R.score:0],
+ ['wolfpack',2,'Wolfpack','Sink 5 warships in one dive.',5,R=>R.ships],
+ ['lungs',2,'Iron Lungs','Collect 15 air pockets in one dive.',15,R=>R.air],
  ['crush',2,'Crush Depth','Reach a depth of 90 m.',90,R=>R.depth],
- ['threader',2,'Needle Threader','Clear 60 minefields in one dive.',60,R=>R.gates],
- ['clean',2,'Clean Hull','Travel 1,500 m without taking a hit.',1500,R=>R.hits?0:R.dist],
+ ['threader',2,'Needle Threader','Clear 100 minefields in one dive.',100,R=>R.gates],
+ ['clean',2,'Clean Hull','Travel 2,500 m without taking a hit.',2500,R=>R.hits?0:R.dist],
  ['drydock',2,'Full Dry Dock','Dive in every class of boat.',SUBS.length,(R,L)=>L.subs],
- ['longpatrol',3,'Long Patrol','Travel 4,000 m in one dive.',4000,R=>R.dist],
+ ['wardroom',2,'Wardroom','Reach level 10.',10,(R,L)=>L.lvl],
+ ['regular',2,'Regular','Dive on 3 different days.',3,(R,L)=>L.days],
+ ['interceptor',2,'Interceptor','Shoot down 30 incoming missiles across your career.',30,(R,L)=>L.ints],
+ ['rival',2,'Rivalry','Finish 5 duels.',5,(R,L)=>L.duels],
+ ['longpatrol',3,'Long Patrol','Travel 6,000 m in one dive.',6000,R=>R.dist],
  ['arsenal',3,'Master of Arms','Use the special ability of every class.',SUBS.length,(R,L)=>L.abil],
- ['ace',3,'Ace of the Deep','Sink 10 warships in one dive.',10,R=>R.ships],
- ['captlog',3,'Captain\'s Log','Score 8,000 in one dive on Captain or above.',8000,R=>R.diff>=2?R.score:0],
- ['scourge',3,'Scourge of the Surface','Sink 100 warships across your career.',100,(R,L)=>L.ships],
- ['oldsalt',3,'Old Salt','Complete 50 dives.',50,(R,L)=>L.runs],
- ['leagues',3,'Twenty Thousand Leagues','Travel 50,000 m across your career.',50000,(R,L)=>L.dist],
- ['ghost',4,'Ghost','Travel 3,000 m in one dive without launching a missile.',3000,R=>R.fired?0:R.dist],
- ['irondome',4,'Iron Dome','Shoot down 12 incoming missiles in one dive.',12,R=>R.ints],
- ['admiral',4,'Fleet Admiral','Travel 5,000 m in one dive on Admiral.',5000,R=>R.diff>=3?R.dist:0],
- ['flawless',4,'Flawless','Travel 4,000 m on Captain or above without taking a hit.',4000,R=>R.diff>=2&&!R.hits?R.dist:0],
- ['legend',4,'Legend of the Deep','Score 25,000 in one dive.',25000,R=>R.score],
+ ['ace',3,'Ace of the Deep','Sink 15 warships in one dive.',15,R=>R.ships],
+ ['captlog',3,'Captain\'s Log','Score 12,000 in one dive on Captain or above.',12000,R=>R.diff>=2?R.score:0],
+ ['scourge',3,'Scourge of the Surface','Sink 250 warships across your career.',250,(R,L)=>L.ships],
+ ['oldsalt',3,'Old Salt','Complete 150 dives.',150,(R,L)=>L.runs],
+ ['leagues',3,'Twenty Thousand Leagues','Travel 250,000 m across your career.',250000,(R,L)=>L.dist],
+ ['commander',3,'Commander','Reach level 20.',20,(R,L)=>L.lvl],
+ ['devoted',3,'Devoted','Dive on 7 different days.',7,(R,L)=>L.days],
+ ['marathon',3,'Marathon Watch','Spend 180 minutes submerged across your career.',180,(R,L)=>L.time],
+ ['gladiator',3,'Gladiator','Win 10 duels.',10,(R,L)=>L.wins],
+ ['admiralty',3,'The Admiralty','Complete 25 dives on Admiral.',25,(R,L)=>L.adm],
+ ['demolition',3,'Demolition Crew','Destroy 200 mines with missiles across your career.',200,(R,L)=>L.mines],
+ ['ghost',4,'Ghost','Travel 4,000 m in one dive without launching a missile.',4000,R=>R.fired?0:R.dist],
+ ['irondome',4,'Iron Dome','Shoot down 20 incoming missiles in one dive.',20,R=>R.ints],
+ ['admiral',4,'Fleet Admiral','Travel 6,000 m in one dive on Admiral.',6000,R=>R.diff>=3?R.dist:0],
+ ['flawless',4,'Flawless','Travel 5,000 m on Captain or above without taking a hit.',5000,R=>R.diff>=2&&!R.hits?R.dist:0],
+ ['legend',4,'Legend of the Deep','Score 40,000 in one dive.',40000,R=>R.score],
+ ['flagofficer',4,'Flag Officer','Reach level 35.',35,(R,L)=>L.lvl],
+ ['grandfleet',4,'Grand Fleet','Reach level 50.',50,(R,L)=>L.lvl],
+ ['lifer',4,'Lifer','Dive on 20 different days.',20,(R,L)=>L.days],
+ ['million',4,'Millionaire','Score 1,000,000 points across your career.',1000000,(R,L)=>L.score],
+ ['fleetmaster',4,'Master of the Fleet','Travel 3,000 m in one dive with every class.',SUBS.length,(R,L)=>L.fleet],
 ].map(([id,tier,name,desc,goal,v])=>({id,tier,name,desc,goal,v}));
 ACHS.push({id:'undertow',tier:4,name:'Undertow',desc:'Unlock every other achievement.',goal:ACHS.length,v:(R,L)=>L.count});
 const ACH_BY_ID=Object.fromEntries(ACHS.map(a=>[a.id,a]));
 // Records worth cheating on are sealed; settings stay plain. Unsealed records from
 // before sealing existed are converted once, then never accepted again.
 const SEALED=new Set(['undertow.ach.v1','undertow.best.v2','undertow.local.v1','undertow.mine.v1','undertow.pending.v1']);
-const store={get(k,f){try{const v=localStorage.getItem(k);if(v===null)return f;if(!SEALED.has(k))return JSON.parse(v);const t=unseal(v);return t===null?f:JSON.parse(t)}catch(_){return f}},set(k,v){try{const t=JSON.stringify(v);localStorage.setItem(k,SEALED.has(k)?seal(t):t)}catch(_){}}};
+const PROFILE_PREFIX='undertow.p.', sealedKey=k=>SEALED.has(k)||k.startsWith(PROFILE_PREFIX);
+const store={get(k,f){try{const v=localStorage.getItem(k);if(v===null)return f;if(!sealedKey(k))return JSON.parse(v);const t=unseal(v);return t===null?f:JSON.parse(t)}catch(_){return f}},set(k,v){try{const t=JSON.stringify(v);localStorage.setItem(k,sealedKey(k)?seal(t):t)}catch(_){}}};
 try{if(!localStorage.getItem('undertow.sealed')){for(const k of SEALED){const v=localStorage.getItem(k);if(v!==null&&unseal(v)===null)localStorage.setItem(k,seal(v))}localStorage.setItem('undertow.sealed','1')}}catch(_){}
 let W=innerWidth,H=innerHeight,dpr=1,quality=1,scale=1,vw=1,vh=1,camX=0,camY=-10;
 let state='menu', panel=null, practice=false, held=false, down=false, inputKeys=new Set(),pointerLift=false;
@@ -338,25 +358,53 @@ let burst=0;
 function populate(){while(nextGate<sub.x+Math.max(vw,2600)+900){let space=mix(D.space[0],D.space[1],clamp(nextGate/D.ramp,0,1));
  if(burst>0){burst--;space*=grnd(.5,.65)}else if(nextGate>2000&&gateRand()<.12){burst=1+Math.floor(gateRand()*3);space*=grnd(.5,.65)}else if(gateRand()<.1)space*=grnd(1.6,2.2);else space*=grnd(.75,1.35);
  if(nextGate<2000||gateRand()>.06)makeGate(nextGate,space);nextGate+=space;}gates=gates.filter(g=>g.x>sub.x-700);pickups=pickups.filter(p=>p.x>sub.x-700&&!p.taken);}
-const ach=(()=>{const a=store.get('undertow.ach.v1',{})||{};const st=a.st||{};return {un:a.un||{},best:a.best||{},st:{runs:+st.runs||0,ships:+st.ships||0,dist:+st.dist||0,mines:+st.mines||0,fired:+st.fired||0,ability:+st.ability||0,subs:st.subs||{},abil:st.abil||{}}}})();
-let run={hits:0,fired:0,ability:0,committed:false,earned:[]};
-const achSave=()=>store.set('undertow.ach.v1',{un:ach.un,best:ach.best,st:ach.st});
+/* Lifetime totals. Numbers only ever grow, and the maps (classes dived, abilities used,
+   days dived, best distance per class) only gain keys, so two copies of a sailor's
+   record merge by taking the larger of each. */
+const ST_NUM=['runs','ships','dist','mines','fired','ability','ints','air','gates','time','score','duels','wins','adm'],ST_MAP=['subs','abil','days','subDist'];
+function cleanSt(st){st=st&&typeof st==='object'?st:{};const o={};for(const k of ST_NUM)o[k]=Math.max(0,Math.floor(+st[k]||0));
+ for(const k of ST_MAP){o[k]={};const m=st[k];if(m&&typeof m==='object')for(const [id,v] of Object.entries(m))o[k][String(id).slice(0,24)]=k==='subDist'?Math.max(0,Math.floor(+v||0)):1}return o}
+const ach=(()=>{const a=store.get('undertow.ach.v1',{})||{};return {un:a.un||{},best:a.best||{},st:cleanSt(a.st)}})();
+let run={hits:0,fired:0,ability:0,committed:false,earned:[],xp0:0};
+const achSave=()=>profDirty(false);
+// The sailor whose record is loaded (see Profiles). key is the callsign in file-name form.
+const PROFILE_RUNS=25, prof={key:'',name:'Anonymous',pulled:false,scores:[],at:0,timer:0,chain:Promise.resolve(),note:''};
+/* Levels come from everything a sailor has done: distance, minefields, kills, air,
+   dives, time submerged, days played, duels, and achievements by tier. Each level
+   needs more XP than the last. */
+const LEVEL_MAX=99,TIER_XP=[100,250,500,1000,2000];
+const xpFor=L=>Math.round(400*Math.pow(Math.max(0,L-1),1.7));
+function levelOf(x){let L=1;while(L<LEVEL_MAX&&x>=xpFor(L+1))L++;return L}
+const RANKS=[[1,'SEAMAN RECRUIT'],[3,'SEAMAN'],[6,'PETTY OFFICER'],[10,'CHIEF PETTY OFFICER'],[15,'ENSIGN'],[20,'LIEUTENANT'],[27,'LIEUTENANT COMMANDER'],[35,'COMMANDER'],[45,'CAPTAIN'],[55,'COMMODORE'],[65,'REAR ADMIRAL'],[78,'VICE ADMIRAL'],[90,'FLEET ADMIRAL']];
+const rankTitle=L=>RANKS.filter(r=>L>=r[0]).pop()[1];
+function profXp(st=ach.st,un=ach.un){
+ let x=st.dist*.5+st.gates*2+st.ships*60+st.mines*15+st.ints*40+st.air*10+st.runs*25+st.time/4+st.duels*100+st.wins*250+Object.keys(st.days).length*150;
+ for(const id of Object.keys(un))if(ACH_BY_ID[id])x+=TIER_XP[ACH_BY_ID[id].tier];
+ return Math.floor(x);
+}
+const today=()=>new Date().toISOString().slice(0,10);
 function achLife(){const st=ach.st,live=state==='playing'&&!run.committed&&!practice;
- return {runs:st.runs,fired:st.fired,ability:st.ability,ships:st.ships+(live?shipsSunk:0),dist:st.dist+(live?Math.floor(distance):0),mines:st.mines+(live?minesDestroyed:0),subs:Object.keys(st.subs).length,abil:Object.keys(st.abil).length,count:ACHS.filter(a=>a.id!=='undertow'&&ach.un[a.id]).length}}
+ const days={...st.days},subDist={...st.subDist};if(live){days[today()]=1;subDist[subId]=Math.max(subDist[subId]||0,Math.floor(distance))}
+ return {runs:st.runs,fired:st.fired,ability:st.ability,ships:st.ships+(live?shipsSunk:0),dist:st.dist+(live?Math.floor(distance):0),mines:st.mines+(live?minesDestroyed:0),
+  ints:st.ints+(live?intercepts:0),air:st.air+(live?airCollected:0),score:st.score+(live?score():0),time:Math.floor((st.time+(live?t:0))/60),duels:st.duels,wins:st.wins,adm:st.adm,
+  days:Object.keys(days).length,fleet:SUBS.filter(s=>(subDist[s.id]||0)>=3000).length,lvl:levelOf(profXp()),
+  subs:Object.keys(st.subs).length,abil:Object.keys(st.abil).length,count:ACHS.filter(a=>a.id!=='undertow'&&ach.un[a.id]).length}}
 function achRun(){return {dist:Math.floor(distance),ships:shipsSunk,gates:cleared,air:airCollected,ints:intercepts,depth:Math.floor(maxDepth),score:score(),diff:DIFF_RANK[diffId],hits:run.hits,fired:run.fired,surface:announced.surface?1:0,night:announced.night?1:0,cave:announced.cave?1:0}}
 // Checked a few times a second during a dive and once more when it ends. Practice never counts.
 function achCheck(){
- if(practice)return;const R=achRun(),L=achLife(),today=new Date().toISOString().slice(0,10);let dirty=false;
+ if(practice)return;const R=achRun(),L=achLife(),day=today();let dirty=false;
  for(const a of ACHS){const v=Math.max(0,Math.floor(a.v(R,L)||0));if(v>(ach.best[a.id]||0)){ach.best[a.id]=v;dirty=true}
-  if(!ach.un[a.id]&&v>=a.goal){ach.un[a.id]=today;run.earned.push(a.id);dirty=true;achPop(a);if(a.id!=='undertow')return achCheck()}}
+  if(!ach.un[a.id]&&v>=a.goal){ach.un[a.id]=day;run.earned.push(a.id);dirty=true;achPop(a);if(a.id!=='undertow')return achCheck()}}
  if(dirty)achSave();
 }
 let achPopUntil=0,achQueue=[];
 function achPop(a){achQueue.push(a);if(achQueue.length===1)achShow()}
-function achShow(){const a=achQueue[0];if(!a)return;$('achPopName').textContent=a.name.toUpperCase();$('achPop').classList.add('show');tone(660,.2,.05,990);setTimeout(()=>tone(990,.3,.05,1320),140);
+function achShow(){const a=achQueue[0];if(!a)return;$('achPopKind').textContent=a.kind||'ACHIEVEMENT UNLOCKED';$('achPopName').textContent=a.name.toUpperCase();$('achPop').classList.add('show');tone(660,.2,.05,990);setTimeout(()=>tone(990,.3,.05,1320),140);
  setTimeout(()=>{$('achPop').classList.remove('show');setTimeout(()=>{achQueue.shift();achShow()},500)},3200)}
 function achCommit(){
- if(practice||run.committed)return;const st=ach.st;st.runs++;st.ships+=shipsSunk;st.dist+=Math.floor(distance);st.mines+=minesDestroyed;run.committed=true;achCheck();achSave();
+ if(practice||run.committed)return;const st=ach.st;st.runs++;st.ships+=shipsSunk;st.dist+=Math.floor(distance);st.mines+=minesDestroyed;
+ st.ints+=intercepts;st.air+=airCollected;st.gates+=cleared;st.time+=Math.floor(t);st.score+=score();st.days[today()]=1;if(diffId==='admiral')st.adm++;st.subDist[subId]=Math.max(st.subDist[subId]||0,Math.floor(distance));
+ run.committed=true;achCheck();achSave();
 }
 function achCountText(){const n=ACHS.filter(a=>ach.un[a.id]).length;return 'Achievements '+n+'/'+ACHS.length}
 function reset(){
@@ -370,7 +418,7 @@ function reset(){
 function score(){return Math.floor((distance+cleared*10+bonus)*D.score)}
 function show(id,visible){$(id).hidden=!visible}
 function callsign(){return $('callsign').value.replace(/[\u0000-\u001f]/g,'').trim().slice(0,16)||'Anonymous'}
-function start(){initAudio();nextSong();if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));reset();state='playing';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';show('restartPause',true);setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach','duel'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
+function start(){initAudio();nextSong();store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch();if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}reset();run.xp0=profXp();state='playing';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';show('restartPause',true);setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach','duel'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
 function home(){state='menu';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';clearInput();$('hud').classList.remove('ended');['paused','over','hud','pause','help','board','hangar','ach','duel'].forEach(id=>show(id,false));show('menu',true);show('footer',true);reset();updateMenu();}
 function clearInput(){held=false;down=false;pointerLift=false;inputKeys.clear();$('thrust').classList.remove('on')}
 function pause(){if(state!=='playing')return;state='paused';clearInput();show('paused',true);$('resume').focus()}
@@ -699,7 +747,9 @@ async function finish(){
  $('overLabel').textContent=practice?'PRACTICE DIVE ENDED':newBest?'NEW PERSONAL BEST':'PATROL ENDED';$('cause').textContent=deathCause;
  $('endScore').textContent=final.toLocaleString();$('endMeta').textContent=S.name.toUpperCase()+' CLASS / '+D.label.toUpperCase()+' / '+D.score+'x';
  $('endDistance').textContent=metres+' m';$('endShips').textContent=shipsSunk;$('endGates').textContent=cleared;$('endDepth').textContent=Math.floor(maxDepth)+' m';$('endAir').textContent=airCollected;$('endBest').textContent=best.toLocaleString();
- achCommit();renderEarned();$('place').hidden=true;
+ achCommit();
+ if(!practice){const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;if(run.promoted)achPop({kind:'PROMOTED',name:'LEVEL '+l1+' / '+rankTitle(l1)})}
+ renderEarned();$('place').hidden=true;
  show('over',true);overAt=performance.now();$('hud').classList.add('ended');$('again').focus({preventScroll:true});$('saveShared').hidden=true;
  if(duel.run)await duelRoundOver(final).catch(e=>{$('cause').textContent=deathCause+' The duel round could not be posted: '+(e&&e.message||e)});
  if(practice){lastEntry=null;$('saveNote').textContent='Practice dives are not recorded.';return}
@@ -1262,9 +1312,9 @@ function frame(now){let dt=Math.min((now-last)/1000,.08);last=now;
 function updateMenu(){
  document.querySelectorAll('#diffRow button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.diff===diffId)));
  $('vesselName').textContent=S.name.toUpperCase()+' CLASS';$('vesselOrigin').textContent=S.origin.toUpperCase()+' / HULL '+S.hull+' / E: '+S.ability.name;$('footVessel').textContent=S.name.toUpperCase()+' / '+S.mark;$('best').textContent=best.toLocaleString();
- const th=$('thumb');th.width=Math.round(112*dpr);th.height=Math.round(38*dpr);drawPreview(th,S,112,38);renderChip();
+ const th=$('thumb');th.width=Math.round(112*dpr);th.height=Math.round(38*dpr);drawPreview(th,S,112,38);renderChip();renderRank();
 }
-function selectSub(id){subId=id;S=SUB_BY_ID[id];store.set('undertow.sub',id);if(state==='menu')reset();updateMenu();document.querySelectorAll('.sub-card').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.sub===id)))}
+function selectSub(id){subId=id;S=SUB_BY_ID[id];store.set('undertow.sub',id);profDirty(true);if(state==='menu')reset();updateMenu();document.querySelectorAll('.sub-card').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.sub===id)))}
 function statRows(m){return [['SPEED',(m.speed-.88)/.26],['AGILITY',(m.agility-.68)/.56],['HULL',m.hull/6],['AIR',m.o2/125],['FIRE RATE',(6.6-m.reload)/4.2],['SONAR',(1.25-m.sonar)/.65]]}
 function renderHangar(){
  const list=$('subList');list.textContent='';
@@ -1279,7 +1329,7 @@ function renderHangar(){
   b.onclick=()=>selectSub(m.id);list.append(b);drawPreview(cv,m,240,64);
  }
 }
-document.querySelectorAll('#diffRow button').forEach(b=>b.onclick=()=>{diffId=b.dataset.diff;store.set('undertow.diff',diffId);D=DIFFS[diffId];updateMenu()});
+document.querySelectorAll('#diffRow button').forEach(b=>b.onclick=()=>{diffId=b.dataset.diff;store.set('undertow.diff',diffId);D=DIFFS[diffId];profDirty(true);updateMenu()});
 /* ---- Leaderboard ----------------------------------------------------------
    Every run is saved on this computer, then queued for bin.dat. Posting takes a
    short-lived lock file so players write one at a time, re-reads the board,
@@ -1289,12 +1339,12 @@ document.querySelectorAll('#diffRow button').forEach(b=>b.onclick=()=>{diffId=b.
 const BOARD_CAP=5000, sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function cleanEntry(e){if(!e||typeof e!=='object')return null;const s=Math.floor(Number(e.score));if(!Number.isFinite(s)||s<0||s>1e9)return null;return {id:String(e.id||Math.random()).slice(0,40),name:String(e.name||'Anonymous').replace(/[\u0000-\u001f]/g,'').slice(0,16)||'Anonymous',score:s,distance:Math.max(0,Math.floor(Number(e.distance)||0)),sub:SUB_BY_ID[e.sub]?e.sub:'virginia',diff:DIFFS[e.diff]?e.diff:'officer',ships:Math.max(0,Math.floor(Number(e.ships)||0)),date:String(e.date||'').slice(0,10)}}
 function mergeEntries(a,b){const m=new Map();for(const e of [...a,...b])m.set(e.id,e);return [...m.values()].sort((x,y)=>y.score-x.score).slice(0,BOARD_CAP)}
-// Achievements in the shared file: players[lower-case callsign] = {name, ach:{id:date}}. Unions only, never removals.
-function mergePlayer(a,b){if(!a)return b;if(!b)return a;const m={...b.ach};for(const [id,d] of Object.entries(a.ach))if(!m[id]||d<m[id])m[id]=d;return {name:b.name||a.name,ach:m}}
-function cleanPlayers(p){const out={};if(p&&typeof p==='object'&&!Array.isArray(p))for(const v of Object.values(p)){if(!v||typeof v!=='object')continue;const name=String(v.name||'').replace(/[\u0000-\u001f]/g,'').trim().slice(0,16);if(!name)continue;const a={};if(v.ach&&typeof v.ach==='object')for(const [id,d] of Object.entries(v.ach))if(ACH_BY_ID[id])a[id]=String(d||'').slice(0,10);const k=name.toLowerCase();out[k]=mergePlayer(out[k],{name,ach:a})}return out}
+// Achievements in the shared file: players[lower-case callsign] = {name, ach:{id:date}, xp}. Unions and maximums only, never removals.
+function mergePlayer(a,b){if(!a)return b;if(!b)return a;const m={...b.ach};for(const [id,d] of Object.entries(a.ach))if(!m[id]||d<m[id])m[id]=d;return {name:b.name||a.name,ach:m,xp:Math.max(a.xp||0,b.xp||0)}}
+function cleanPlayers(p){const out={};if(p&&typeof p==='object'&&!Array.isArray(p))for(const v of Object.values(p)){if(!v||typeof v!=='object')continue;const name=String(v.name||'').replace(/[\u0000-\u001f]/g,'').trim().slice(0,16);if(!name)continue;const a={};if(v.ach&&typeof v.ach==='object')for(const [id,d] of Object.entries(v.ach))if(ACH_BY_ID[id])a[id]=String(d||'').slice(0,10);const k=name.toLowerCase();out[k]=mergePlayer(out[k],{name,ach:a,xp:Math.max(0,Math.floor(+v.xp||0))})}return out}
 function mergePlayers(a,b){const o={...a};for(const [k,v] of Object.entries(b))o[k]=mergePlayer(o[k],v);return o}
-function myPlayer(){const name=callsign();if(name==='Anonymous'||!Object.keys(ach.un).length)return null;return {name,ach:{...ach.un}}}
-function playerCurrent(players){const me=myPlayer();if(!me)return true;const p=players[me.name.toLowerCase()];return !!p&&Object.keys(me.ach).every(id=>p.ach[id])}
+function myPlayer(){const name=callsign(),xp=profXp();if(name==='Anonymous'||!Object.keys(ach.un).length&&!xp)return null;return {name,ach:{...ach.un},xp}}
+function playerCurrent(players){const me=myPlayer();if(!me)return true;const p=players[me.name.toLowerCase()];return !!p&&Object.keys(me.ach).every(id=>p.ach[id])&&(p.xp||0)>=me.xp}
 const included=(list,e)=>list.some(x=>x.id===e.id)||(list.length>=BOARD_CAP&&e.score<=list[list.length-1].score);
 // Where this page lives, e.g. \\SERVER\Share\Games\ or Z:\Games\, shown so players pick the right folder.
 const PAGE_NAME=(()=>{try{return decodeURIComponent(location.pathname.split('/').pop()||'')}catch(_){return ''}})();
@@ -1358,7 +1408,7 @@ async function syncNow(ask){
  if(!lb.dir){lb.perm='none';renderBoard();return false}
  if(!await lbPermitted(ask)){lb.perm='prompt';renderBoard();return false}
  lb.perm='granted';
- try{const r=await lbRead();lb.shared=r.entries;lb.players=r.players;if(pending().length||!playerCurrent(r.players))await lbFlush();lb.note='';retries=0}
+ try{const r=await lbRead();lb.shared=r.entries;lb.players=r.players;if(pending().length||!playerCurrent(r.players))await lbFlush();lb.note='';retries=0;if(!prof.pulled)profSync()}
  catch(e){lb.note='Could not update '+BOARD_FILE+': '+(e&&e.message||e)+(retries<8?' Retrying shortly.':'');if(retries<8){retries++;clearTimeout(retryTimer);retryTimer=setTimeout(()=>lbSync(false).then(ok=>{if(ok&&state==='over')describeSave('shared')}),1500+Math.random()*2000)}renderBoard();return false}
  renderBoard();return true;
 }
@@ -1374,6 +1424,7 @@ async function lbPick(){
 async function submitScore(entry){
  lb.local=mergeEntries(lb.local,[entry]).slice(0,100);store.set('undertow.local.v1',lb.local);
  lb.mine.add(entry.id);store.set('undertow.mine.v1',[...lb.mine].slice(-300));
+ prof.scores=mergeEntries(prof.scores,[entry]).slice(0,PROFILE_RUNS);profDirty(false);
  if(!lb.supported)return 'local';
  store.set('undertow.pending.v1',[...pending(),entry].slice(-100));
  if(!lb.dir)return 'nohandle';
@@ -1384,7 +1435,9 @@ function describeSave(res){
  const msg={shared:'Posted to the shared leaderboard'+(rank?`: rank ${rank} of ${list.length}.`:'.'),retrying:'Saved on this computer. The shared file is busy; posting again in a moment.',pending:'Saved on this computer. Allow access to post it to the shared leaderboard.',nohandle:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+'. Connect the shared folder from the Leaderboard screen to post scores for everyone.',local:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+'. Use Edge or Chrome for the shared leaderboard.'}[res];
  $('saveNote').textContent=msg;$('saveShared').hidden=res!=='pending';renderPlace(list,res==='shared');
 }
-function renderEarned(){const box=$('achEarned');box.textContent='';for(const id of run.earned){const a=ACH_BY_ID[id],sp=document.createElement('span'),i=document.createElementNS('http://www.w3.org/2000/svg','svg'),u=document.createElementNS('http://www.w3.org/2000/svg','use');i.setAttribute('class','ic');u.setAttribute('href','#i-medal');i.append(u);sp.append(i,a.name.toUpperCase());box.append(sp)}}
+function renderEarned(){const box=$('achEarned');box.textContent='';
+ if(run.gain>0){const sp=document.createElement('span');sp.className='xp-gain';sp.append(svgIcon('i-medal'),'+'+run.gain.toLocaleString()+' XP / '+(run.promoted?'PROMOTED TO LEVEL '+run.promoted:'LEVEL '+levelOf(profXp())));box.append(sp)}
+ for(const id of run.earned){const a=ACH_BY_ID[id],sp=document.createElement('span'),i=document.createElementNS('http://www.w3.org/2000/svg','svg'),u=document.createElementNS('http://www.w3.org/2000/svg','use');i.setAttribute('class','ic');u.setAttribute('href','#i-medal');i.append(u);sp.append(i,a.name.toUpperCase());box.append(sp)}}
 // Game over: your row on the board with up to two runs above and two below.
 function renderPlace(list,shared){
  const box=$('placeRows'),i=lastEntry?list.findIndex(e=>e.id===lastEntry.id):-1;box.textContent='';$('place').hidden=i<0;if(i<0)return;
@@ -1405,7 +1458,7 @@ function renderBoard(){
  const body=$('lbBody');body.textContent='';
  const rows=(useShared?(connected?lb.shared:[]):lb.local).filter(e=>lb.filter==='all'||e.diff===lb.filter).slice(0,50);
  if(!rows.length){const tr=document.createElement('tr');cell(tr,useShared&&!connected?'Connect the shared folder to see everyone\u2019s scores.':'No scores yet. Be the first on the board.','empty');tr.firstChild.colSpan=7;body.append(tr)}
- rows.forEach((e,i)=>{const tr=document.createElement('tr');if(lb.mine.has(e.id))tr.className='me';cell(tr,i+1);cell(tr,e.name,'name');cell(tr,e.score.toLocaleString(),'num');cell(tr,e.distance+' m','num hide-sm');cell(tr,SUB_BY_ID[e.sub].name,'hide-sm');cell(tr,DIFFS[e.diff].label);cell(tr,e.date,'hide-sm');body.append(tr)});
+ rows.forEach((e,i)=>{const tr=document.createElement('tr');if(duelKey(e.name)===prof.key)tr.className='me';cell(tr,i+1);cell(tr,e.name,'name');cell(tr,e.score.toLocaleString(),'num');cell(tr,e.distance+' m','num hide-sm');cell(tr,SUB_BY_ID[e.sub].name,'hide-sm');cell(tr,DIFFS[e.diff].label);cell(tr,e.date,'hide-sm');body.append(tr)});
  renderChip();if(panel==='ach')renderAch();
 }
 // The fleet is everyone in the shared file plus you, ranked by achievements held.
@@ -1416,7 +1469,8 @@ function renderAch(){
  document.querySelectorAll('#achSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)));
  $('achPathView').hidden=v!=='path';$('achFleetView').hidden=v!=='fleet';
  const held=other?other.ach:ach.un,n=ACHS.filter(a=>held[a.id]).length;
- $('achNum').textContent=n+' / '+ACHS.length;$('achWho').textContent=other?other.name.toUpperCase()+'\u2019S RECORD':'YOUR RECORD';$('achBar').style.width=(n/ACHS.length*100)+'%';
+ const lvl=levelOf(other?other.xp||0:profXp());
+ $('achNum').textContent=n+' / '+ACHS.length;$('achWho').textContent=(other?other.name.toUpperCase()+'\u2019S RECORD':'YOUR RECORD')+' / LEVEL '+lvl+' '+rankTitle(lvl);$('achBar').style.width=(n/ACHS.length*100)+'%';
  const path=$('achPath');path.textContent='';
  TIERS.forEach(([tn,sub],ti)=>{const list=ACHS.filter(a=>a.tier===ti),got=list.filter(a=>held[a.id]).length;
   const h=document.createElement('div');h.className='ach-tier';h.textContent=tn;const sm=document.createElement('small');sm.textContent=sub.toUpperCase()+' / '+got+' OF '+list.length;h.append(sm);path.append(h);
@@ -1432,7 +1486,7 @@ function renderAch(){
  $('achFleetNote').textContent=(lb.dir&&lb.perm==='granted'?'Sailors on the shared leaderboard, ranked by achievements. ':'Connect the shared folder from the Leaderboard screen to see other sailors. ')+'Select a callsign to see their record.'+(callsign()==='Anonymous'?' Set a callsign on the home screen to post your own.':'');
  const body=$('achFleet');body.textContent='';
  if(!F.length){const tr=document.createElement('tr');cell(tr,'No achievements posted yet.','empty');tr.firstChild.colSpan=4;body.append(tr)}
- F.forEach((p,i)=>{const tr=document.createElement('tr'),k=p.name.toLowerCase();if(k===meKey)tr.className='me';if(k===lb.achWho)tr.classList.add('sel');cell(tr,i+1);cell(tr,p.name,'name');
+ F.forEach((p,i)=>{const tr=document.createElement('tr'),k=p.name.toLowerCase();if(k===meKey)tr.className='me';if(k===lb.achWho)tr.classList.add('sel');cell(tr,i+1);cell(tr,p.name+(p.xp?' / LV '+levelOf(p.xp):''),'name');
   const td=document.createElement('td'),m=document.createElement('span'),mi=document.createElement('i');m.className='meter';mi.style.width=(p.n/ACHS.length*100)+'%';m.append(mi);td.append(m,p.n+' / '+ACHS.length);tr.append(td);
   const la=p.last?Object.keys(p.ach).find(id=>p.ach[id]===p.last):'';cell(tr,la?ACH_BY_ID[la].name:'','hide-sm');
   tr.onclick=()=>{lb.achWho=k;lb.achView='path';renderAch()};body.append(tr)});
@@ -1578,7 +1632,9 @@ function duelMatchList(){
 function duelRemember(m,result){
  if(duel.history.some(h=>h.id===m.id))return;
  duel.history.unshift({id:m.id,opp:m.opp,result,side:m.side,R:m.R,diff:m.diff,mine:total(m.mine),theirs:total(m.theirs),rounds:m.mine.length||m.theirs.length?duelRounds(m):'',at:Date.now()});
- duel.history=duel.history.slice(0,20);store.set('undertow.duels.v1',duel.history);
+ duel.history=duel.history.slice(0,20);
+ if(result==='won'||result==='lost'||result==='drew'){ach.st.duels++;if(result==='won')ach.st.wins++;if(!practice)achCheck()}
+ profDirty(false);
 }
 async function duelCleanup(){
  for(const m of duel.matches){
@@ -1776,18 +1832,117 @@ function renderDuelChip(){
  $('duelCount').textContent=inc||mine?'Duel (!)':'Duel';
 }
 setInterval(duelTick,POLL_MS);
+/* ---- Profiles -----------------------------------------------------------------
+   Everything a sailor builds up lives under their callsign: achievements and their
+   progress, lifetime totals (and so their level), best score, their own top runs, duel
+   history, and the level, mission, boat and duel settings they last used. It is kept
+   sealed in this browser and in profiles\<callsign>.dat in the shared folder, so
+   entering a callsign on any PC loads that sailor's record. When both copies exist they
+   merge: achievements and runs are unions, totals and bests take the larger value, and
+   settings come from whichever copy changed them last. */
+const PROFILE_DIR='profiles';
+const blankProfile=name=>({name,ach:{un:{},best:{},st:cleanSt({})},best:0,scores:[],duels:[],set:null,at:0});
+function cleanProfile(p,name){
+ if(!p||typeof p!=='object')return blankProfile(name);
+ const a=p.ach&&typeof p.ach==='object'?p.ach:{},un={},bst={},s=p.set&&typeof p.set==='object'?p.set:null;
+ if(a.un&&typeof a.un==='object')for(const [id,d] of Object.entries(a.un))if(ACH_BY_ID[id])un[id]=String(d||'').slice(0,10);
+ if(a.best&&typeof a.best==='object')for(const [id,v] of Object.entries(a.best))if(ACH_BY_ID[id])bst[id]=Math.max(0,Math.floor(+v||0));
+ return {name:String(p.name||name).slice(0,16),ach:{un,best:bst,st:cleanSt(a.st)},best:Math.max(0,Math.floor(+p.best||0)),
+  scores:(Array.isArray(p.scores)?p.scores:[]).map(cleanEntry).filter(Boolean).slice(0,PROFILE_RUNS),
+  duels:(Array.isArray(p.duels)?p.duels:[]).filter(h=>h&&typeof h==='object'&&h.id).slice(0,20),
+  set:s&&{diff:DIFFS[s.diff]?s.diff:'officer',practice:!!s.practice,sub:SUB_BY_ID[s.sub]?s.sub:'virginia',rounds:[1,3,5].includes(+s.rounds)?+s.rounds:3,duelDiff:DIFFS[s.duelDiff]?s.duelDiff:'officer'},
+  at:Math.max(0,+p.at||0)};
+}
+function mergeProfiles(a,b){
+ const un={...a.ach.un};for(const [id,d] of Object.entries(b.ach.un))if(!un[id]||d<un[id])un[id]=d;
+ const bst={...a.ach.best};for(const [id,v] of Object.entries(b.ach.best))bst[id]=Math.max(bst[id]||0,v);
+ const st={};for(const k of ST_NUM)st[k]=Math.max(a.ach.st[k],b.ach.st[k]);
+ for(const k of ST_MAP){st[k]={...a.ach.st[k]};for(const [id,v] of Object.entries(b.ach.st[k]))st[k][id]=Math.max(st[k][id]||0,v)}
+ const newer=b.at>a.at?b:a,duels=[...new Map([...b.duels,...a.duels].map(h=>[h.id,h])).values()].sort((x,y)=>(+y.at||0)-(+x.at||0)).slice(0,20);
+ return {name:newer.name,ach:{un,best:bst,st},best:Math.max(a.best,b.best),scores:mergeEntries(a.scores,b.scores).slice(0,PROFILE_RUNS),duels,set:newer.set||a.set||b.set,at:Math.max(a.at,b.at)};
+}
+function profSnapshot(){return cleanProfile({name:prof.name,ach:{un:ach.un,best:ach.best,st:ach.st},best,scores:prof.scores,duels:duel.history,
+ set:{diff:diffId,practice,sub:subId,rounds:duel.rounds,duelDiff:duel.diff},at:prof.at},prof.name)}
+// Settings only change between dives; mid-dive, only the record is taken in.
+function profApply(p,settings=state==='menu'){
+ ach.un=p.ach.un;ach.best=p.ach.best;ach.st=p.ach.st;best=p.best;prof.scores=p.scores;prof.at=p.at;duel.history=p.duels;
+ if(p.scores.length){lb.local=mergeEntries(lb.local,p.scores).slice(0,100);store.set('undertow.local.v1',lb.local)}
+ if(settings&&p.set){diffId=p.set.diff;subId=p.set.sub;D=DIFFS[diffId];S=SUB_BY_ID[subId];setMission(p.set.practice);duel.rounds=p.set.rounds;duel.diff=p.set.duelDiff;duel.diffSet=true;
+  store.set('undertow.diff',diffId);store.set('undertow.sub',subId)}
+ if(state==='menu'){reset();updateMenu()}else renderRank();
+ if(panel==='duel')renderDuel();if(panel==='ach')renderAch();if(panel==='board')renderBoard();
+}
+const profSaveLocal=()=>store.set(PROFILE_PREFIX+prof.key,profSnapshot());
+// Saved here at once; the shared copy follows a moment later so a burst of changes is one write.
+function profDirty(settings){if(!prof.key)return;if(settings)prof.at=Date.now();profSaveLocal();clearTimeout(prof.timer);prof.timer=setTimeout(()=>profSync(),2500)}
+/* Reads the shared copy, merges it with this one, writes the result back if it differs,
+   then takes in anything new (progress from another PC). Runs one at a time. */
+async function profSync(){
+ const key=prof.key,snap=profSnapshot();
+ if(!key||key==='anonymous'||!lb.dir||lb.perm!=='granted')return false;
+ prof.pulled=true;
+ const job=prof.chain.then(async()=>{
+  const dir=await lb.dir.getDirectoryHandle(PROFILE_DIR,{create:true}),file=key+'.dat';let remote=null;
+  try{const text=unseal(await readText(file,dir));if(text)remote=cleanProfile(JSON.parse(text),snap.name)}catch(e){if(!e||e.name!=='NotFoundError')throw e}
+  const merged=remote?mergeProfiles(snap,remote):snap;
+  if(!remote||JSON.stringify(merged)!==JSON.stringify(remote))for(let i=0;;i++){try{await writeText(file,seal(JSON.stringify(merged)),dir);break}catch(e){if(i>=4)throw e;await sleep(200*(i+1)+Math.random()*200)}}
+  return {merged,found:!!remote};
+ });
+ prof.chain=job.catch(()=>{});
+ try{
+  const {merged,found}=await job;if(prof.key!==key)return true;
+  // Merge again with this copy as it is now, in case it changed while the drive was busy.
+  const now=mergeProfiles(profSnapshot(),merged);profApply(now);profSaveLocal();
+  if(found&&prof.note==='new')prof.note='Loaded '+now.name+'’s profile from the shared folder.';
+  else if(prof.note==='new'||prof.note==='local'||!prof.note)prof.note='Profile saved to the shared folder.';
+  // Runs this sailor posted from a PC that never reached bin.dat.
+  const miss=now.scores.filter(e=>!included(lb.shared,e)&&!pending().some(q=>q.id===e.id));
+  if(miss.length){store.set('undertow.pending.v1',[...pending(),...miss].slice(-100));lbSync(false)}
+  renderRank();return true;
+ }catch(e){if(prof.key===key){prof.pulled=false;prof.note='The shared profile could not be reached ('+(e&&e.message||e)+'). Progress is kept on this computer and syncs later.';renderRank()}return false}
+}
+// Called when the callsign changes: save the old sailor, then load the new one.
+function profSwitch(){
+ const name=callsign(),key=duelKey(name);if(key===prof.key)return false;
+ if(prof.key){clearTimeout(prof.timer);profSaveLocal();profSync()}
+ prof.key=key;prof.name=name;prof.pulled=false;prof.at=0;
+ const local=store.get(PROFILE_PREFIX+key,null);
+ const p=local?cleanProfile(local,name):blankProfile(name);p.name=name;
+ prof.note=key==='anonymous'?'':local?'local':'new';
+ profApply(p);if(!local)profSaveLocal();profSync();renderRank();return true;
+}
+// First load. The first time profiles exist, what this browser already holds belongs to its saved callsign.
+function profInit(){
+ const name=callsign(),key=duelKey(name),local=store.get(PROFILE_PREFIX+key,null);
+ let migrated=false;try{migrated=!!localStorage.getItem('undertow.profiles');localStorage.setItem('undertow.profiles','1')}catch(_){}
+ prof.key=key;prof.name=name;prof.note=key==='anonymous'?'':'local';
+ if(local)profApply(cleanProfile(local,name));
+ else if(!migrated){prof.scores=lb.local.filter(e=>duelKey(e.name)===key).slice(0,PROFILE_RUNS);prof.at=Date.now();profSaveLocal()}
+ else profApply(blankProfile(name));
+}
+function renderRank(){
+ const x=profXp(),L=levelOf(x),lo=xpFor(L),hi=xpFor(L+1),max=L>=LEVEL_MAX;
+ $('rankName').textContent='LEVEL '+L+' / '+rankTitle(L);
+ $('rankXp').textContent=max?x.toLocaleString()+' XP':(x-lo).toLocaleString()+' / '+(hi-lo).toLocaleString()+' XP TO LEVEL '+(L+1);
+ $('xpBar').style.width=(max?100:clamp((x-lo)/(hi-lo),0,1)*100)+'%';
+ const connected=lb.dir&&lb.perm==='granted',n=prof.note;
+ $('profNote').textContent=prof.key==='anonymous'?'Enter a callsign to keep your level, achievements and settings.':
+  n==='new'?(connected?'Looking for '+prof.name+' in the shared folder...':'New callsign. Connect the shared folder to load a saved profile or carry this one to other PCs.'):
+  n==='local'?(connected?'Profile loaded. Syncing with the shared folder...':'Profile loaded from this computer. Connect the shared folder to sync it.'):n;
+}
 /* ---- Input ---- */
 $('launch').onclick=start;$('again').onclick=againOrDuel;$('restartPause').onclick=start;$('home').onclick=home;
 // Leaving a duel dive part-way ends the round with the score so far.
 $('quit').onclick=()=>{if(duel.run){show('paused',false);state='playing';deathCause='The dive was abandoned.';finish()}else home()};
 $('duelOpen').onclick=()=>openPanel('duel');$('duelChip').onclick=()=>openPanel('duel');$('duelClose').onclick=closePanel;$('duelConnect').onclick=()=>lbPick().then(duelTick);$('watchLeave').onclick=duelLeaveWatch;
-document.querySelectorAll('#duelRoundSeg button').forEach(b=>b.onclick=()=>{duel.rounds=+b.dataset.r;renderDuel()});
-document.querySelectorAll('#duelDiffSeg button').forEach(b=>b.onclick=()=>{duel.diff=b.dataset.diff;renderDuel()});$('pause').onclick=pause;$('resume').onclick=resume;$('sound').onclick=toggleSound;$('music').onclick=toggleMusic;
-$('standard').onclick=()=>{practice=false;$('standard').setAttribute('aria-pressed','true');$('practice').setAttribute('aria-pressed','false')};
-$('practice').onclick=()=>{practice=true;$('standard').setAttribute('aria-pressed','false');$('practice').setAttribute('aria-pressed','true')};
+document.querySelectorAll('#duelRoundSeg button').forEach(b=>b.onclick=()=>{duel.rounds=+b.dataset.r;profDirty(true);renderDuel()});
+document.querySelectorAll('#duelDiffSeg button').forEach(b=>b.onclick=()=>{duel.diff=b.dataset.diff;duel.diffSet=true;profDirty(true);renderDuel()});$('pause').onclick=pause;$('resume').onclick=resume;$('sound').onclick=toggleSound;$('music').onclick=toggleMusic;
+function setMission(p){practice=p;$('standard').setAttribute('aria-pressed',String(!p));$('practice').setAttribute('aria-pressed',String(p))}
+$('standard').onclick=()=>{setMission(false);profDirty(true)};
+$('practice').onclick=()=>{setMission(true);profDirty(true)};
 $('helpOpen').onclick=()=>openPanel('help');$('helpClose').onclick=closePanel;$('hangarOpen').onclick=()=>openPanel('hangar');$('hangarClose').onclick=closePanel;
 $('boardOpen').onclick=()=>openPanel('board');$('achOpen').onclick=()=>openPanel('ach');$('overAch').onclick=()=>openPanel('ach');$('achClose').onclick=closePanel;document.querySelectorAll('#achSeg button').forEach(b=>b.onclick=()=>{lb.achView=b.dataset.v;if(b.dataset.v==='path')lb.achWho='';renderAch()});$('lbChip').onclick=()=>openPanel('board');$('overBoard').onclick=()=>openPanel('board');$('boardClose').onclick=closePanel;
-$('callsign').addEventListener('change',()=>store.set('undertow.callsign',$('callsign').value.trim().slice(0,16)));
+$('callsign').addEventListener('change',()=>{store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch()});
 $('motion').onclick=()=>{reduced=!reduced;$('motion').textContent='Motion effects: '+(reduced?'reduced':'on')};
 $('camBtn').onclick=toggleCam;$('camBtn').textContent='Camera: '+(cam3d?'3D orbit':'flat');
 $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else toast('FULLSCREEN UNAVAILABLE','Use your browser’s full-screen view.',3)}catch(_){} };
@@ -1816,7 +1971,7 @@ $('fullscreen').hidden=!document.documentElement.requestFullscreen;$('build').te
 // resume it on the first click, tap or key. A press of the sound/music button while it is still waiting
 // only unlocks audio, so a saved "on" setting is never flipped off by that first click.
 initAudio();['pointerdown','touchstart','keydown'].forEach(ev=>addEventListener(ev,()=>{if(soundOn)initAudio()},{capture:true,passive:true}));
-reset();updateSound();updateMenu();requestAnimationFrame(frame);
+profInit();reset();updateSound();updateMenu();requestAnimationFrame(frame);
 })();
 </script>
 </body>
