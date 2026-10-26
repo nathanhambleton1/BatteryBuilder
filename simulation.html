@@ -123,13 +123,99 @@
 <div class="lb-actions"><button id="lbConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button><button id="lbRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button><button id="lbForget"><svg class="ic"><use href="#i-unlink"/></svg>Disconnect</button></div>
 <p class="path">Leaderboard file: <code id="lbPath"></code></p>
 <button class="launch" id="boardClose">BACK <svg class="ic"><use href="#i-next"/></svg></button></div></section>
-<section class="view overlay" id="duel" hidden><div class="panel wide"><div class="eyebrow">FLEET EXERCISES / 1V1</div><h2>Duel</h2><p>Challenge a sailor who is online. You take turns diving the same course, one round each at a time, and the higher total after every round wins. While your rival dives you can watch their run live.</p>
-<div class="lb-status" id="duelStatus"></div>
-<div class="seg" id="duelRoundSeg"><span class="row-label">ROUNDS</span><button data-r="1">1 round</button><button data-r="3">3 rounds</button><button data-r="5">5 rounds</button></div>
-<div class="seg" id="duelDiffSeg"><span class="row-label">LEVEL</span><button data-diff="cadet">Cadet</button><button data-diff="officer">Officer</button><button data-diff="captain">Captain</button><button data-diff="admiral">Admiral</button></div>
-<h3 class="duel-h">ONLINE NOW</h3><div class="table-wrap"><table class="lb duel-t"><tbody id="duelOnline"></tbody></table></div>
-<h3 class="duel-h">YOUR DUELS</h3><div class="table-wrap"><table class="lb duel-t"><tbody id="duelMatches"></tbody></table></div>
-<div class="lb-actions"><button id="duelConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button></div>
+<style id="duel-mode-css">
+#duel .panel.duel-mode{width:min(980px,100%);padding:28px 30px 22px}
+.duel-mode .dm-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.duel-mode .dm-head h2{margin:8px 0 0}
+.duel-mode .dm-tag{font:9px ui-monospace,monospace;letter-spacing:.2em;color:var(--muted)}
+.duel-mode .dm-me{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right}
+.duel-mode .dm-me b{font-size:16px;font-weight:400;color:var(--ink);letter-spacing:.04em}
+.duel-mode .dm-me .dm-rec{font:10px ui-monospace,monospace;letter-spacing:.14em;color:var(--mint)}
+.duel-mode .dm-line{display:flex;align-items:flex-start;gap:9px;margin:12px 0 4px}
+.duel-mode .dm-line i{flex:none;width:7px;height:7px;margin-top:7px;border-radius:50%;background:#6f8a8e}
+.duel-mode .dm-line.on i{background:var(--mint);box-shadow:0 0 8px var(--mint)}
+.duel-mode .dm-line.warn i{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.duel-mode .dm-line .lb-status{margin:0}
+.duel-mode .dm-flash{margin:8px 0 0;padding:8px 12px;border-left:2px solid var(--amber);background:#ecc69b0f;color:var(--amber);font-size:12px;line-height:1.55}
+.duel-mode .dm-intro{margin:6px 0 0;font-size:12px}
+.duel-mode .dm-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;margin-top:16px;align-items:start}
+.duel-mode .dm-col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.duel-mode .dm-sec{border:1px solid var(--line);background:#06171d80;padding:14px 14px 12px;min-width:0}
+.duel-mode .dm-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px;font:9px ui-monospace,monospace;letter-spacing:.2em;color:var(--mint);font-weight:400}
+.duel-mode .dm-h .dm-n{color:var(--muted);letter-spacing:.14em}
+.duel-mode .dm-sub{font:8px ui-monospace,monospace;letter-spacing:.2em;color:var(--muted);margin:12px 0 4px}
+.duel-mode .dm-h+.dm-sub{margin-top:0}
+.duel-mode .dm-list{display:flex;flex-direction:column}
+.duel-mode .dm-item{display:flex;align-items:center;gap:10px;padding:9px 2px;border-top:1px solid #b5dfd614;min-width:0}
+.duel-mode .dm-item:first-child{border-top:0}
+.duel-mode .dm-item .dm-txt{flex:1;min-width:0}
+.duel-mode .dm-item .dm-t{display:block;font-size:12px;color:#d5e6e2;word-break:break-word}
+.duel-mode .dm-item .dm-d{display:block;font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5}
+.duel-mode .dm-item .dm-acts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;flex:none}
+.duel-mode .dm-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--mint);box-shadow:0 0 8px var(--mint)}
+.duel-mode .dm-dot.busy{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.duel-mode .dm-empty{color:var(--muted);font-size:11px;line-height:1.6;padding:10px 2px}
+.duel-mode .act{font-size:10px;padding:7px 10px;margin:0;color:var(--mint)}
+.duel-mode .act.go{border-color:#74ad9b;background:#91d9bd12}
+.duel-mode .act.warn{color:var(--amber)}
+.duel-mode .act:disabled{color:#6f8a8e;cursor:default}
+.duel-mode .dm-card{border:1px solid #74ad9b66;background:linear-gradient(140deg,#1b3f4a99,#0a1f2699);padding:14px;margin-top:10px}
+.duel-mode .dm-card:first-child{margin-top:0}
+.duel-mode .dm-card.mine{border-color:#a6ead5aa;box-shadow:0 0 22px #a6ead51a}
+.duel-mode .dm-card-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:8px 10px}
+.duel-mode .dm-card-top>div:first-child{flex:1 1 180px;min-width:0}
+.duel-mode .dm-vs{font-size:18px;font-weight:300;color:var(--ink);letter-spacing:.03em;overflow-wrap:break-word}
+.duel-mode .dm-vs span{color:var(--muted);font-size:12px;margin:0 6px}
+.duel-mode .dm-meta{font:9px ui-monospace,monospace;letter-spacing:.16em;color:var(--muted);margin-top:5px}
+.duel-mode .dm-turn{flex:none;font:9px ui-monospace,monospace;letter-spacing:.16em;padding:5px 8px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.duel-mode .dm-turn.mine{color:var(--mint);border-color:#74ad9b}
+.duel-mode .dm-turn.warn{color:var(--amber);border-color:#ecc69b66}
+.duel-mode .dm-score-wrap{overflow-x:auto;margin:12px 0}
+.duel-mode .dm-score{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.duel-mode .dm-score th{font:8px ui-monospace,monospace;letter-spacing:.14em;color:var(--muted);font-weight:400;padding:6px;text-align:right}
+.duel-mode .dm-score th:first-child,.duel-mode .dm-score td:first-child{text-align:left;padding-left:0}
+.duel-mode .dm-score td{padding:7px 6px;border-top:1px solid #b5dfd614;text-align:right;color:#d5e6e2;white-space:nowrap}
+.duel-mode .dm-score td:first-child{max-width:110px;overflow:hidden;text-overflow:ellipsis}
+.duel-mode .dm-score .cur{background:#a6ead50d}
+.duel-mode .dm-score th.cur{color:var(--mint)}
+.duel-mode .dm-score .tot{color:var(--ink);font-weight:600;border-left:1px solid var(--line)}
+.duel-mode .dm-score .lead{color:var(--mint)}
+.duel-mode .dm-score .pend{color:#5d777b}
+.duel-mode .dm-card-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.duel-mode .dm-card-acts .act.big{flex:1;padding:11px 12px;font-size:11px;letter-spacing:.08em}
+.duel-mode .dm-settings{border:1px dashed var(--line);padding:8px 10px 4px;margin-bottom:10px}
+.duel-mode .dm-settings .seg{margin:6px 0}
+.duel-mode .dm-settings .dm-sub{margin:0 0 2px}
+.duel-mode .dm-badge{flex:none;width:26px;height:26px;display:grid;place-items:center;font:10px ui-monospace,monospace;font-weight:700;border:1px solid var(--line);color:var(--muted)}
+.duel-mode .dm-badge.won{color:var(--mint);border-color:#74ad9b;background:#91d9bd14}
+.duel-mode .dm-badge.lost{color:var(--red);border-color:#e3785f66;background:#e3785f10}
+.duel-mode .dm-badge.drew{color:var(--amber);border-color:#ecc69b66}
+.duel-mode .dm-pts{flex:none;font:11px ui-monospace,monospace;color:#d5e6e2;font-variant-numeric:tabular-nums;text-align:right}
+.duel-mode .dm-scroll{max-height:42vh;overflow-y:auto}
+.duel-mode .dm-foot{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font:10px/1.6 ui-monospace,monospace;letter-spacing:.04em;color:#6f8a8e}
+.duel-mode .dm-foot .lb-actions{margin:8px 0 0}
+@media(max-width:640px){#duel .panel.duel-mode{padding:20px 16px 16px}.duel-mode .dm-grid{grid-template-columns:1fr;gap:14px}.duel-mode .dm-col{gap:14px}.duel-mode .dm-me{align-items:flex-start;text-align:left}.duel-mode .dm-sec{padding:12px 10px}.duel-mode .dm-item{flex-wrap:wrap}.duel-mode .dm-item .dm-txt{flex:1 1 140px}.duel-mode .dm-scroll{max-height:none}}
+</style>
+<section class="view overlay" id="duel" hidden><div class="panel wide duel-mode">
+<header class="dm-head"><div><div class="eyebrow">FLEET EXERCISES / 1V1</div><h2>Duel mode</h2></div><div class="dm-me"><span class="dm-tag">YOUR CALLSIGN</span><b id="duelMe"></b><span class="dm-rec" id="duelRecordTop"></span></div></header>
+<div class="dm-line" id="duelLine"><i></i><div class="lb-status" id="duelStatus"></div></div>
+<div class="dm-flash" id="duelFlash" hidden></div>
+<p class="dm-intro">Take turns diving the same seeded course, one round each. The higher total after every round wins. While your rival dives you can watch their run live.</p>
+<div class="dm-grid">
+<div class="dm-col">
+<section class="dm-sec" aria-labelledby="dmCurH"><h3 class="dm-h" id="dmCurH">YOUR MATCH<span class="dm-n" id="duelCurN"></span></h3><div id="duelCurrent"></div></section>
+<section class="dm-sec" aria-labelledby="dmChH"><h3 class="dm-h" id="dmChH">CHALLENGES<span class="dm-n" id="duelChN"></span></h3><div class="dm-sub">INCOMING</div><div class="dm-list" id="duelIncoming"></div><div class="dm-sub">SENT</div><div class="dm-list" id="duelSent"></div></section>
+</div>
+<div class="dm-col">
+<section class="dm-sec" aria-labelledby="dmOnH"><h3 class="dm-h" id="dmOnH">SAILORS ONLINE<span class="dm-n" id="duelOnN"></span></h3>
+<div class="dm-settings"><div class="dm-sub">CHALLENGE SETTINGS</div>
+<div class="seg" id="duelRoundSeg"><span class="row-label">ROUNDS</span><button data-r="1">1</button><button data-r="3">3</button><button data-r="5">5</button></div>
+<div class="seg" id="duelDiffSeg"><span class="row-label">LEVEL</span><button data-diff="cadet">Cadet</button><button data-diff="officer">Officer</button><button data-diff="captain">Captain</button><button data-diff="admiral">Admiral</button></div></div>
+<div class="dm-list dm-scroll" id="duelPeople"></div></section>
+<section class="dm-sec" aria-labelledby="dmHiH"><h3 class="dm-h" id="dmHiH">HISTORY<span class="dm-n" id="duelRecord"></span></h3><div class="dm-list dm-scroll" id="duelHistory"></div></section>
+</div>
+</div>
+<footer class="dm-foot"><div id="duelFoot"></div><div class="lb-actions"><button id="duelConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button></div></footer>
 <button class="launch" id="duelClose">BACK <svg class="ic"><use href="#i-next"/></svg></button></div></section>
 <section class="view overlay" id="askBox" hidden role="dialog" aria-modal="true" aria-labelledby="askTitle"><div class="panel ask"><div class="eyebrow">CONFIRM</div><h2 id="askTitle"></h2><p id="askBody"></p><div class="ask-row"><button class="launch" id="askYes">Yes</button><button class="text-button" id="askNo">Cancel</button></div></div></section>
 <div class="watch-bar" id="watchBar" hidden><span id="watchText">WATCHING</span><button id="watchLeave">Leave</button></div>
@@ -1780,47 +1866,82 @@ function askBox(title,body,yes='Yes'){
 }
 $('askYes').onclick=()=>askDone&&askDone(true);$('askNo').onclick=()=>askDone&&askDone(false);$('askBox').onclick=e=>{if(e.target.id==='askBox'&&askDone)askDone(false)};
 function duelButton(label,fn,cls){const b=document.createElement('button');b.className='act'+(cls?' '+cls:'');b.textContent=label;if(fn)b.onclick=fn;else b.disabled=true;return b}
-function duelRow(body,title,detail,buttons){
- const tr=document.createElement('tr'),td=document.createElement('td');td.className='name';td.textContent=title;
- if(detail){const s=document.createElement('span');s.className='sub';s.textContent=detail;td.append(s)}
- const act=document.createElement('td');act.className='acts';act.append(...buttons);tr.append(td,act);body.append(tr);
+function duelEl(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+// One line in a duel list: optional lead (dot or badge), title and detail, optional tail, then buttons.
+function duelRow(box,title,detail,buttons,lead,tail){
+ const it=duelEl('div','dm-item'),tx=duelEl('div','dm-txt');tx.append(duelEl('span','dm-t',title));if(detail)tx.append(duelEl('span','dm-d',detail));
+ if(lead)it.append(lead);it.append(tx);if(tail)it.append(tail);
+ if(buttons&&buttons.length){const a=duelEl('div','dm-acts');a.append(...buttons);it.append(a)}
+ box.append(it);
 }
-function duelEmpty(body,text){const tr=document.createElement('tr');cell(tr,text,'empty');tr.firstChild.colSpan=2;body.append(tr)}
+function duelEmpty(box,text){box.append(duelEl('div','dm-empty',text))}
 function duelRounds(m){const n=Math.max(m.mine.length,m.theirs.length),v=(a,i)=>i<a.length?fmt(a[i]):'–';return Array.from({length:n},(_,i)=>'R'+(i+1)+' '+v(m.mine,i)+':'+v(m.theirs,i)).join(' · ')}
+const duelHead=m=>(DIFFS[m.diff]||DIFFS.officer).label+' / '+m.R+' round'+(m.R>1?'s':'');
+function duelRecord(){const r={won:0,lost:0,drew:0};for(const h of duel.history)if(h.result in r)r[h.result]++;return r}
+// The big card for a match under way: who, level, round, per-round scores, and what to do next.
+function duelCard(m){
+ const mineTurn=m.turn===m.side,opp=duel.online.find(p=>p.key===duelKey(m.opp)),live=opp&&opp.online&&opp.status==='in a duel';
+ const card=duelEl('div','dm-card'+(mineTurn?' mine':'')),top=duelEl('div','dm-card-top'),who=duelEl('div'),vs=duelEl('div','dm-vs');
+ vs.append(callsign(),duelEl('span',null,'vs'),m.opp);
+ who.append(vs,duelEl('div','dm-meta',(duelHead(m)+' / round '+(m.round+1)+' of '+m.R).toUpperCase()));
+ top.append(who,duelEl('div','dm-turn'+(m.abandoned?' warn':mineTurn?' mine':''),m.abandoned?'UNFINISHED':mineTurn?'YOUR TURN':live?m.opp.toUpperCase()+' DIVING':m.opp.toUpperCase()+'’S TURN'));
+ const wrap=duelEl('div','dm-score-wrap'),tb=duelEl('table','dm-score'),thead=duelEl('thead'),tbody=duelEl('tbody'),hr=duelEl('tr');
+ hr.append(duelEl('th',null,''));for(let i=0;i<m.R;i++)hr.append(duelEl('th',i===m.round?'cur':null,'R'+(i+1)));hr.append(duelEl('th','tot','TOTAL'));
+ const T1=total(m.mine),T2=total(m.theirs);
+ const row=(name,arr,T,lead)=>{const tr=duelEl('tr');tr.append(duelEl('td',null,name));
+  for(let i=0;i<m.R;i++)tr.append(duelEl('td',((i===m.round?'cur ':'')+(i<arr.length?'':'pend')).trim()||null,i<arr.length?fmt(arr[i]):'–'));
+  tr.append(duelEl('td','tot'+(lead?' lead':''),fmt(T)));return tr};
+ thead.append(hr);tbody.append(row('You',m.mine,T1,T1>T2),row(m.opp,m.theirs,T2,T2>T1));tb.append(thead,tbody);wrap.append(tb);
+ const acts=duelEl('div','dm-card-acts');
+ acts.append(mineTurn?(m.abandoned?duelButton('Score round '+(m.round+1)+' as 0',()=>duelDive(m),'warn big'):duelButton('Dive round '+(m.round+1),()=>duelDive(m),'go big'))
+  :live?duelButton('Watch live',()=>duelWatch(m),'go big'):duelButton(opp&&opp.online?'Their turn, waiting for them to dive':'Waiting for '+m.opp,null,'off big'));
+ acts.append(duelButton('Forfeit',async()=>{if(await askBox('Forfeit this duel?','Your duel with '+m.opp+' ends now and counts as a loss.','Forfeit'))duelPatch(m,{forfeit:true})},'warn'));
+ card.append(top,wrap);
+ if(m.abandoned)card.append(duelEl('p','dm-empty','Round '+(m.round+1)+' was started but not finished, so it counts as 0.'));
+ card.append(acts);return card;
+}
 function renderDuel(){
  renderDuelChip();if(panel!=='duel')return;
- const connected=lb.dir&&lb.perm==='granted';
- let msg=!lb.supported?'Duels go through the shared folder, so they need Microsoft Edge or Google Chrome.':!connected?'Connect the shared folder first. Duels are kept in a data folder next to '+BOARD_FILE+'.':callsign()==='Anonymous'?'Set a callsign on the home screen so other sailors can find and challenge you.':'You are online as '+callsign()+'.';
- if(Date.now()<duel.flashUntil)msg+=' '+duel.flash;
+ const connected=lb.dir&&lb.perm==='granted',ready=duelReady(),here=duel.online.filter(p=>p.online);
+ $('duelStatus').textContent=!lb.supported?'Duels go through the shared folder, so they need Microsoft Edge or Google Chrome.':!connected?'Connect the shared folder first. Duels are kept in a data folder next to '+BOARD_FILE+'.':callsign()==='Anonymous'?'Set a callsign on the home screen so other sailors can find and challenge you.':'You are online as '+callsign()+'. '+(here.length?here.length+' other sailor'+(here.length>1?'s':'')+' online.':'No one else is online yet.');
+ const warns=[];if(Date.now()<duel.flashUntil)warns.push(duel.flash);
+ if(duel.dupe)warns.push('Another game is online with the callsign '+callsign()+'. Each player needs their own callsign to see each other.');if(duel.note)warns.push(duel.note);
+ $('duelLine').className='dm-line'+(ready&&!warns.length?' on':connected?' warn':'');
+ const fl=$('duelFlash');fl.hidden=!warns.length;fl.textContent=warns.join(' ');
  const bad=duel.check&&Object.entries(duel.check).filter(([,v])=>v!=='ok');
- if(bad&&bad.length)msg+=' Drive check: '+bad.map(([k,v])=>k+' failed ('+v+')').join('; ')+'.'+(duel.swap?' Saves will delete and rewrite files instead.':'');
- msg+=' Build '+BUILD+'.';
- if(duel.dupe)msg+=' Another game is online with the callsign '+callsign()+'. Each player needs their own callsign to see each other.';if(duel.note)msg+=' '+duel.note;$('duelStatus').textContent=msg;show('duelConnect',lb.supported&&!connected);
+ $('duelFoot').textContent=(bad&&bad.length?'Drive check: '+bad.map(([k,v])=>k+' failed ('+v+')').join('; ')+'.'+(duel.swap?' Saves will delete and rewrite files instead.':'')+' ':'')+'Build '+BUILD+'.';
+ show('duelConnect',lb.supported&&!connected);
  document.querySelectorAll('#duelRoundSeg button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.r===duel.rounds)));
  document.querySelectorAll('#duelDiffSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.diff===duel.diff)));
+ const rec=duelRecord(),recText='W '+rec.won+' · L '+rec.lost+' · D '+rec.drew;
+ $('duelMe').textContent=callsign();$('duelRecordTop').textContent='RECORD '+recText;$('duelRecord').textContent=recText;
+ // Your matches under way, your turn first.
+ const active=duel.matches.filter(m=>m.status==='active').sort((x,y)=>(y.turn===y.side)-(x.turn===x.side)).slice(0,12);
+ const cur=$('duelCurrent');cur.textContent='';for(const m of active)cur.append(duelCard(m));
+ $('duelCurN').textContent=active.length>1?active.length+' UNDER WAY':'';
+ if(!active.length)duelEmpty(cur,ready?'No duel under way. Challenge someone from Sailors online, or accept an incoming challenge, and your match shows up here.':'Your matches show up here once you are connected with a callsign.');
+ // Challenges, kept apart from matches.
+ const pend=duel.matches.filter(m=>m.status==='pending'),inc=pend.filter(m=>m.side==='b').slice(0,12),sent=pend.filter(m=>m.side!=='b').slice(0,12);
+ const ib=$('duelIncoming'),sb=$('duelSent');ib.textContent='';sb.textContent='';
+ for(const m of inc)duelRow(ib,m.opp+' challenges you',duelHead(m),[duelButton('Accept',()=>duelReply(m,true),'go'),duelButton('Decline',()=>duelReply(m,false),'warn')],duelEl('i','dm-dot busy'));
+ if(!inc.length)duelEmpty(ib,'No challenges waiting for you.');
+ for(const m of sent)duelRow(sb,'To '+m.opp,duelHead(m)+' / waiting for a reply',[duelButton('Cancel',()=>duelCancel(m),'warn')]);
+ if(!sent.length)duelEmpty(sb,'Nothing sent. Use Challenge next to a sailor who is online.');
+ $('duelChN').textContent=inc.length?inc.length+' NEW':'';
+ // Sailors online.
  const busyWith=new Set(duel.matches.filter(m=>m.status==='active'||m.status==='pending').map(m=>duelKey(m.opp)));
- const on=$('duelOnline');on.textContent='';const here=duel.online.filter(p=>p.online);
- for(const p of here)duelRow(on,p.name,p.status.toUpperCase(),[busyWith.has(p.key)?duelButton('In a duel',null,'off'):duelButton('Challenge',()=>duelChallenge(p.name))]);
- if(!here.length)duelEmpty(on,duelReady()?'No one else is online right now. Anyone who opens the game with the shared folder connected shows up here.':'Online sailors appear here once you are connected.');
- const ms=$('duelMatches');ms.textContent='';let shown=0;
- for(const m of duel.matches){
-  if(m.status!=='active'&&m.status!=='pending')continue;if(++shown>12)break;
-  const head=DIFFS[m.diff].label+' / '+m.R+' round'+(m.R>1?'s':''),score='You '+fmt(total(m.mine))+' / '+m.opp+' '+fmt(total(m.theirs));
-  if(m.status==='pending'&&m.side==='b')duelRow(ms,m.opp+' challenges you',head,[duelButton('Accept',()=>duelReply(m,true)),duelButton('Decline',()=>duelReply(m,false),'warn')]);
-  else if(m.status==='pending')duelRow(ms,'Challenge sent to '+m.opp,head+' / waiting for a reply',[duelButton('Cancel',()=>duelCancel(m),'warn')]);
-  else if(m.status==='active'){
-   const mineTurn=m.turn===m.side,opp=duel.online.find(p=>p.key===duelKey(m.opp)),live=opp&&opp.online&&opp.status==='in a duel';
-   const b=mineTurn?[m.abandoned?duelButton('Score round '+(m.round+1)+' as 0',()=>duelDive(m),'warn'):duelButton('Dive round '+(m.round+1),()=>duelDive(m),'go')]:[live?duelButton('Watch live',()=>duelWatch(m),'go'):duelButton(opp&&opp.online?'Their turn':'Waiting',null,'off')];
-   b.push(duelButton('Forfeit',async()=>{if(await askBox('Forfeit this duel?','Your duel with '+m.opp+' ends now and counts as a loss.','Forfeit'))duelPatch(m,{forfeit:true})},'warn'));
-   duelRow(ms,'You vs '+m.opp+(m.abandoned?' / round '+(m.round+1)+' left unfinished':mineTurn?' / your turn':' / '+m.opp+'’s turn'),head+' / round '+(m.round+1)+' of '+m.R+' / '+score+(m.sa.length?' / '+duelRounds(m):''),b);
-  }
- }
- for(const h of duel.history.slice(0,8)){
-  const head=(DIFFS[h.diff]||DIFFS.officer).label+' / '+h.R+' round'+(h.R>1?'s':''),a=h.side==='a';
+ const on=$('duelPeople');on.textContent='';$('duelOnN').textContent=here.length?here.length+' ONLINE':'';
+ for(const p of here){const vsMe=busyWith.has(p.key),busy=vsMe||p.status!=='in port';
+  duelRow(on,p.name,(p.status||'online').toUpperCase()+(vsMe?' / DUELING YOU':''),[vsMe?duelButton('In a duel',null,'off'):duelButton('Challenge',()=>duelChallenge(p.name),'go')],duelEl('i','dm-dot'+(busy?' busy':'')))}
+ if(!here.length)duelEmpty(on,ready?'No one else is online right now. Anyone who opens the game with the shared folder connected shows up here.':'Online sailors appear here once you are connected.');
+ // Finished duels, kept on this computer.
+ const hb=$('duelHistory');hb.textContent='';
+ for(const h of duel.history){
+  const a=h.side==='a',scored=h.result==='won'||h.result==='lost'||h.result==='drew';
   const title={won:'Won vs '+h.opp,lost:'Lost vs '+h.opp,drew:'Drew with '+h.opp,declined:a?h.opp+' declined your challenge':'You declined '+h.opp+'’s challenge',expired:'Your challenge to '+h.opp+' expired'}[h.result]||h.opp;
-  duelRow(ms,title,head+(h.result==='won'||h.result==='lost'||h.result==='drew'?' / You '+fmt(h.mine)+' / '+h.opp+' '+fmt(h.theirs)+(h.rounds?' / '+h.rounds:''):''),[]);shown++;
+  duelRow(hb,title,duelHead(h)+(scored&&h.rounds?' / '+h.rounds:''),null,duelEl('span','dm-badge '+h.result,{won:'W',lost:'L',drew:'D'}[h.result]||'–'),scored?duelEl('span','dm-pts',fmt(h.mine)+' : '+fmt(h.theirs)):null);
  }
- if(!shown)duelEmpty(ms,'No duels yet. Pick the rounds and level above, then challenge someone who is online.');
+ if(!duel.history.length)duelEmpty(hb,'No finished duels yet. Results are kept on this computer.');
 }
 function renderDuelChip(){
  const ch=$('duelChip');ch.hidden=!lb.supported;if(ch.hidden)return;
