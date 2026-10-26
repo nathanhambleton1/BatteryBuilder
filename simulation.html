@@ -55,6 +55,13 @@
 @media(max-height:560px){.view{padding:66px 34px 36px}h1{font-size:44px;margin:8px 0}h1 .subhead{font-size:14px;margin-top:4px}.foot{bottom:12px}.launch{padding:12px 20px}.topbar{top:13px}.status{top:74px}.vitals{top:94px}.metrics{top:19px}.metric strong{font-size:18px}.lower{bottom:18px}.toast{top:25%}.panel{padding:20px;max-height:85vh}.panel h2{font-size:24px;margin:8px 0}.results{margin:10px 0;padding:12px 0;gap:10px}.hint{bottom:95px}.brand small{display:none}.sonar-copy{display:none}}
 @media(max-width:400px){.eyebrow{font-size:8px;letter-spacing:.18em}.launch-row .launch{padding:16px 14px;gap:14px;font-size:9px;flex:1;justify-content:space-between}.launch-row .text-button{font-size:10px;padding:14px 10px}.mode-row{gap:5px}.mode-row button{font-size:9px;padding:7px}.row-label{min-width:56px}.metrics{gap:12px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.duel-h{font:9px ui-monospace,monospace;letter-spacing:.16em;color:var(--muted);font-weight:400;margin:20px 0 4px}
+.duel-t td{vertical-align:middle}.duel-t td.acts{text-align:right;white-space:nowrap}.duel-t .sub{display:block;font-size:10px;color:var(--muted);margin-top:4px;line-height:1.5}
+.duel-t .act{font-size:10px;padding:7px 10px;margin:2px 0 2px 6px;color:var(--mint)}.duel-t .act.go{border-color:#74ad9b;background:#91d9bd12}.duel-t .act.warn{color:var(--amber)}.duel-t .act:disabled{color:#6f8a8e;cursor:default}
+.lb-chip{display:flex}.lb-chip.alert{color:var(--amber)}.lb-chip.alert i{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.watch-bar{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);display:flex;gap:14px;align-items:center;padding:10px 12px 10px 16px;background:#0b2129e0;border:1px solid var(--line);font:10px ui-monospace,monospace;letter-spacing:.12em;color:var(--ink);z-index:6;max-width:calc(100% - 32px)}
+.watch-bar button{font-size:10px;padding:7px 12px}
+.hud.watching .lower,.hud.watching .hint{display:none}
 </style>
 </head>
 <body>
@@ -78,6 +85,7 @@
 <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5"/></symbol>
 <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
 <symbol id="i-shield-off" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6zM9 9l6 6M15 9l-6 6"/></symbol>
+<symbol id="i-duel" viewBox="0 0 24 24"><path d="M4 4l10 10M20 4 10 14M6 16l-2 2 2 2 2-2M18 16l2 2-2 2-2-2"/></symbol>
 <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 17a8 8 0 1 1 16 0M12 17l4-5"/></symbol>
 </defs></svg>
 <canvas id="world" aria-label="Side-scrolling submarine combat game. Hold Space, Up arrow, or the rise button to ascend; release to descend. F or right-click fires a missile."></canvas>
@@ -88,8 +96,9 @@
 <div class="mode-row" id="diffRow"><span class="row-label">LEVEL</span><button data-diff="cadet">Cadet</button><button data-diff="officer">Officer</button><button data-diff="captain">Captain</button><button data-diff="admiral">Admiral</button></div>
 <div class="mode-row"><span class="row-label">MISSION</span><button id="standard" aria-pressed="true">Survival</button><button id="practice" aria-pressed="false">Practice / no damage</button></div>
 <div class="vessel-row"><canvas class="mini" id="thumb" width="224" height="76"></canvas><div><b id="vesselName">VIRGINIA CLASS</b><small id="vesselOrigin">UNITED STATES / 2004</small></div><button id="hangarOpen"><svg class="ic"><use href="#i-sub"/></svg>Change</button></div>
-<div class="launch-row"><button class="launch" id="launch">BEGIN DESCENT <svg class="ic"><use href="#i-go"/></svg></button><button class="text-button" id="helpOpen"><svg class="ic"><use href="#i-book"/></svg>Briefing</button><button class="text-button" id="boardOpen"><svg class="ic"><use href="#i-trophy"/></svg>Leaderboard</button><button class="text-button" id="achOpen"><svg class="ic"><use href="#i-medal"/></svg><span id="achCount">Achievements</span></button></div>
+<div class="launch-row"><button class="launch" id="launch">BEGIN DESCENT <svg class="ic"><use href="#i-go"/></svg></button><button class="text-button" id="helpOpen"><svg class="ic"><use href="#i-book"/></svg>Briefing</button><button class="text-button" id="boardOpen"><svg class="ic"><use href="#i-trophy"/></svg>Leaderboard</button><button class="text-button" id="achOpen"><svg class="ic"><use href="#i-medal"/></svg><span id="achCount">Achievements</span></button><button class="text-button" id="duelOpen"><svg class="ic"><use href="#i-duel"/></svg><span id="duelCount">Duel</span></button></div>
 <button class="lb-chip" id="lbChip"><i></i><span>SHARED LEADERBOARD NOT CONNECTED</span></button>
+<button class="lb-chip" id="duelChip" hidden><i></i><span>1V1 DUELS</span></button>
 <div class="legend"><div><b><span class="key">SPACE</span> HOLD TO RISE</b>Release to descend</div><div><b><span class="key">E</span> SPECIAL ABILITY</b>Unique to each boat</div><div><b><span class="key">F</span> / RIGHT-CLICK</b>Launch a missile</div><div><b><span class="key">A</span><span class="key">D</span> ORBIT</b>C toggles 3D camera</div></div></div></section>
 <footer class="foot" id="footer"><span>VESSEL <strong id="footVessel">VIRGINIA / SSN-774</strong><span class="desktop"> &nbsp; / &nbsp; ENDLESS PATROL</span></span><span>BEST SCORE <strong id="best">0</strong></span></footer>
 <div class="hud" id="hud" hidden><div class="metrics"><div class="metric score"><label>SCORE</label><strong id="score">0</strong></div><div class="metric"><label>DISTANCE</label><strong id="distance">0000</strong><small>m</small></div><div class="metric"><label>DEPTH</label><strong id="depth">038</strong><small>m</small></div><div class="metric"><label>SUNK</label><strong id="sunk">0</strong></div></div><div class="status"><i class="dot"></i><span id="sector">01 / CONTINENTAL SHELF</span></div>
@@ -112,6 +121,15 @@
 <div class="lb-actions"><button id="lbConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button><button id="lbRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button><button id="lbForget"><svg class="ic"><use href="#i-unlink"/></svg>Disconnect</button></div>
 <p class="path">Leaderboard file: <code id="lbPath"></code></p>
 <button class="launch" id="boardClose">BACK <svg class="ic"><use href="#i-next"/></svg></button></div></section>
+<section class="view overlay" id="duel" hidden><div class="panel wide"><div class="eyebrow">FLEET EXERCISES / 1V1</div><h2>Duel</h2><p>Challenge a sailor who is online. You take turns diving the same course, one round each at a time, and the higher total after every round wins. While your rival dives you can watch their run live.</p>
+<div class="lb-status" id="duelStatus"></div>
+<div class="seg" id="duelRoundSeg"><span class="row-label">ROUNDS</span><button data-r="1">1 round</button><button data-r="3">3 rounds</button><button data-r="5">5 rounds</button></div>
+<div class="seg" id="duelDiffSeg"><span class="row-label">LEVEL</span><button data-diff="cadet">Cadet</button><button data-diff="officer">Officer</button><button data-diff="captain">Captain</button><button data-diff="admiral">Admiral</button></div>
+<h3 class="duel-h">ONLINE NOW</h3><div class="table-wrap"><table class="lb duel-t"><tbody id="duelOnline"></tbody></table></div>
+<h3 class="duel-h">YOUR DUELS</h3><div class="table-wrap"><table class="lb duel-t"><tbody id="duelMatches"></tbody></table></div>
+<div class="lb-actions"><button id="duelConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button></div>
+<button class="launch" id="duelClose">BACK <svg class="ic"><use href="#i-next"/></svg></button></div></section>
+<div class="watch-bar" id="watchBar" hidden><span id="watchText">WATCHING</span><button id="watchLeave">Leave</button></div>
 <section class="wreck-ui" id="over" hidden><div class="wr-left"><div class="eyebrow" id="overLabel">PATROL ENDED</div><h2>Signal lost.</h2><p id="cause">Hull integrity compromised.</p><div class="final"><label>FINAL SCORE</label><strong id="endScore">0</strong><span id="endMeta"></span></div><div class="results"><div><label>DISTANCE</label><strong id="endDistance">0 m</strong></div><div><label>SHIPS SUNK</label><strong id="endShips">0</strong></div><div><label>MINEFIELDS</label><strong id="endGates">0</strong></div><div><label>DEEPEST POINT</label><strong id="endDepth">0 m</strong></div><div><label>AIR POCKETS</label><strong id="endAir">0</strong></div><div><label>BEST SCORE</label><strong id="endBest">0</strong></div></div><div class="save-note"><svg class="ic"><use href="#i-trophy"/></svg><span id="saveNote"></span></div><div class="ach-earned" id="achEarned"></div><button class="text-button" id="saveShared" hidden><svg class="ic"><use href="#i-file"/></svg>Post to shared leaderboard</button></div>
 <div class="wr-right"><button class="again" id="again"><span class="again-ring"><svg class="ic"><use href="#i-refresh"/></svg></span>DIVE AGAIN</button><span class="again-hint">CLICK ANYWHERE / SPACE / W</span><div class="wr-links"><button class="text-button" id="overBoard"><svg class="ic"><use href="#i-trophy"/></svg>Leaderboard</button><button class="text-button" id="overAch"><svg class="ic"><use href="#i-medal"/></svg>Achievements</button><button class="text-button" id="home"><svg class="ic"><use href="#i-home"/></svg>Surface</button></div><div class="place" id="place" hidden><label id="placeLabel">YOUR PLACE</label><div id="placeRows"></div></div></div></section>
 <div id="error" hidden></div>
@@ -244,12 +262,18 @@ addEventListener('resize',()=>{resize();updateMenu()});resize();
    caverns, basins, trenches) blended with C1-continuous ramps so there are no
    vertical steps, plus run-specific ripples in the seabed and in the mine line. */
 const rnd=(a,b)=>a+Math.random()*(b-a);
+/* The course (terrain, minefields, air pockets) draws from two random streams of its
+   own. In a duel both are seeded, so both players and anyone watching get the same
+   course; one stream per part keeps them in step however far ahead a screen draws. */
+const mulberry=a=>()=>{a=a+0x6D2B79F5|0;let x=Math.imul(a^a>>>15,1|a);x=x+Math.imul(x^x>>>7,61|x)^x;return((x^x>>>14)>>>0)/4294967296};
+let courseSeed=null,worldRand=Math.random,gateRand=Math.random;
+const wrnd=(a,b)=>a+worldRand()*(b-a), grnd=(a,b)=>a+gateRand()*(b-a);
 const BIOMES={
- open:  {w:3,len:[2200,4200],v:()=>({cave:0,basin:0,lift:rnd(-30,40),tight:0,rough:rnd(.6,1.4)})},
- shoal: {w:2,len:[1800,3000],v:()=>({cave:0,basin:0,lift:rnd(90,140),tight:0,rough:rnd(1.2,1.8)})},
- cave:  {w:3,len:[2600,4800],v:()=>({cave:1,basin:0,lift:0,tight:rnd(0,45),rough:rnd(.6,1.2)})},
- basin: {w:2,len:[2400,4200],v:()=>({cave:0,basin:rnd(.7,1.2),lift:0,tight:0,rough:rnd(.7,1.3)})},
- trench:{w:1,len:[1600,2600],v:()=>({cave:0,basin:rnd(1.3,1.7),lift:0,tight:0,rough:rnd(1.6,2.2)})}
+ open:  {w:3,len:[2200,4200],v:()=>({cave:0,basin:0,lift:wrnd(-30,40),tight:0,rough:wrnd(.6,1.4)})},
+ shoal: {w:2,len:[1800,3000],v:()=>({cave:0,basin:0,lift:wrnd(90,140),tight:0,rough:wrnd(1.2,1.8)})},
+ cave:  {w:3,len:[2600,4800],v:()=>({cave:1,basin:0,lift:0,tight:wrnd(0,45),rough:wrnd(.6,1.2)})},
+ basin: {w:2,len:[2400,4200],v:()=>({cave:0,basin:wrnd(.7,1.2),lift:0,tight:0,rough:wrnd(.7,1.3)})},
+ trench:{w:1,len:[1600,2600],v:()=>({cave:0,basin:wrnd(1.3,1.7),lift:0,tight:0,rough:wrnd(1.6,2.2)})}
 };
 let SEG=[],TP={};
 // terrain() runs thousands of times a frame, mostly at the same grid points, so
@@ -257,16 +281,16 @@ let SEG=[],TP={};
 const terrainCache=new Map();
 function newWorld(){
  terrainCache.clear();
- TP={a1:rnd(35,70),w1:rnd(700,1100),p1:rnd(0,TAU),a2:rnd(15,40),w2:rnd(300,500),p2:rnd(0,TAU),p3:rnd(0,TAU),p4:rnd(0,TAU),
-  r1:rnd(30,60),rw1:rnd(380,700),rp1:rnd(0,TAU),r2:rnd(10,25),rw2:rnd(800,1300),rp2:rnd(0,TAU),night:rnd(2400,4200),sd:rnd(0,999)};
- SEG=[{x0:0,len:rnd(2400,3300),r:1,kind:'open',v:{cave:0,basin:0,lift:0,tight:0,rough:1}}];
+ TP={a1:wrnd(35,70),w1:wrnd(700,1100),p1:wrnd(0,TAU),a2:wrnd(15,40),w2:wrnd(300,500),p2:wrnd(0,TAU),p3:wrnd(0,TAU),p4:wrnd(0,TAU),
+  r1:wrnd(30,60),rw1:wrnd(380,700),rp1:wrnd(0,TAU),r2:wrnd(10,25),rw2:wrnd(800,1300),rp2:wrnd(0,TAU),night:wrnd(2400,4200),sd:wrnd(0,999)};
+ SEG=[{x0:0,len:wrnd(2400,3300),r:1,kind:'open',v:{cave:0,basin:0,lift:0,tight:0,rough:1}}];
 }
 function extendWorld(q){
  while(SEG[SEG.length-1].x0+SEG[SEG.length-1].len<=q){
   const prev=SEG[SEG.length-1],opts=Object.keys(BIOMES).filter(k=>k!==prev.kind);
-  let pick=Math.random()*opts.reduce((n,k)=>n+BIOMES[k].w,0),kind=opts[0];
+  let pick=worldRand()*opts.reduce((n,k)=>n+BIOMES[k].w,0),kind=opts[0];
   for(const k of opts){pick-=BIOMES[k].w;if(pick<=0){kind=k;break}}
-  const b=BIOMES[kind];SEG.push({x0:prev.x0+prev.len,len:rnd(...b.len),r:rnd(1000,1300),kind,v:b.v()});
+  const b=BIOMES[kind];SEG.push({x0:prev.x0+prev.len,len:wrnd(...b.len),r:wrnd(1000,1300),kind,v:b.v()});
  }
 }
 function feature(q){
@@ -292,24 +316,24 @@ function caveNear(a,b){for(let x=a;x<=b+1;x+=Math.max(1,(b-a)/8))if(terrain(x).c
 function route(x){const z=terrain(x);return z.centre+TP.r1*Math.sin(x/TP.rw1+TP.rp1)+TP.r2*Math.sin(x/TP.rw2+TP.rp2);}
 function mineY(g,k){return (k?g.bottom:g.top)+(g.amp?g.amp*Math.sin(t*1.3+g.phase):0)}
 function makeGate(x,space){
- const d=clamp(x/D.ramp,0,1), z=terrain(x), gap=mix(D.gap[0],D.gap[1],d)*rnd(.9,1.12);
+ const d=clamp(x/D.ramp,0,1), z=terrain(x), gap=mix(D.gap[0],D.gap[1],d)*grnd(.9,1.12);
  // The opening can only move as far as a boat can climb before it arrives.
  const shift=clamp(space/mix(D.speed[0],D.speed[1],d)*125,60,104);
- let amp=d>D.drift&&Math.random()<.55?12+Math.random()*20:0;
+ let amp=d>D.drift&&gateRand()<.55?12+gateRand()*20:0;
  amp=Math.min(amp,Math.max(0,(z.bottom-z.top-gap-2*R-72)/2));
- const desired=route(x)+(Math.random()-.5)*gap*.9, reach=lastCenter===null?desired:clamp(desired,lastCenter-shift,lastCenter+shift);
+ const desired=route(x)+(gateRand()-.5)*gap*.9, reach=lastCenter===null?desired:clamp(desired,lastCenter-shift,lastCenter+shift);
  const centre=clamp(reach,z.top+R+gap/2+36+amp,z.bottom-R-gap/2-36-amp);
- gates.push({x,centre,gap,top:centre-gap/2-R,bottom:centre+gap/2+R,amp,phase:Math.random()*TAU,passed:false,echo:[-100,-100],dead:[false,false]});
+ gates.push({x,centre,gap,top:centre-gap/2-R,bottom:centre+gap/2+R,amp,phase:gateRand()*TAU,passed:false,echo:[-100,-100],dead:[false,false]});
  // Some minefields are one-sided: a lone moored mine on the seabed or one hanging from above.
- if(x>1800&&Math.random()<.18)gates[gates.length-1].dead[Math.random()<.5?0:1]=true;
+ if(x>1800&&gateRand()<.18)gates[gates.length-1].dead[gateRand()<.5?0:1]=true;
  lastCenter=centre;
  // Air pockets sit midway between minefields, near the line a boat will take.
- if(x>1500&&Math.random()<D.air){const px=x+space*.5,pz=terrain(px),py=clamp(mix(centre,route(px),.5)+(Math.random()-.5)*gap*.8,pz.top+55,pz.bottom-55);pickups.push({x:px,y:py,cy:py,phase:Math.random()*TAU,taken:false});}
+ if(x>1500&&gateRand()<D.air){const px=x+space*.5,pz=terrain(px),py=clamp(mix(centre,route(px),.5)+(gateRand()-.5)*gap*.8,pz.top+55,pz.bottom-55);pickups.push({x:px,y:py,cy:py,phase:gateRand()*TAU,taken:false});}
 }
 let burst=0;
 function populate(){while(nextGate<sub.x+Math.max(vw,2600)+900){let space=mix(D.space[0],D.space[1],clamp(nextGate/D.ramp,0,1));
- if(burst>0){burst--;space*=rnd(.5,.65)}else if(nextGate>2000&&Math.random()<.12){burst=1+Math.floor(Math.random()*3);space*=rnd(.5,.65)}else if(Math.random()<.1)space*=rnd(1.6,2.2);else space*=rnd(.75,1.35);
- if(nextGate<2000||Math.random()>.06)makeGate(nextGate,space);nextGate+=space;}gates=gates.filter(g=>g.x>sub.x-700);pickups=pickups.filter(p=>p.x>sub.x-700&&!p.taken);}
+ if(burst>0){burst--;space*=grnd(.5,.65)}else if(nextGate>2000&&gateRand()<.12){burst=1+Math.floor(gateRand()*3);space*=grnd(.5,.65)}else if(gateRand()<.1)space*=grnd(1.6,2.2);else space*=grnd(.75,1.35);
+ if(nextGate<2000||gateRand()>.06)makeGate(nextGate,space);nextGate+=space;}gates=gates.filter(g=>g.x>sub.x-700);pickups=pickups.filter(p=>p.x>sub.x-700&&!p.taken);}
 const ach=(()=>{const a=store.get('undertow.ach.v1',{})||{};const st=a.st||{};return {un:a.un||{},best:a.best||{},st:{runs:+st.runs||0,ships:+st.ships||0,dist:+st.dist||0,mines:+st.mines||0,fired:+st.fired||0,ability:+st.ability||0,subs:st.subs||{},abil:st.abil||{}}}})();
 let run={hits:0,fired:0,ability:0,committed:false,earned:[]};
 const achSave=()=>store.set('undertow.ach.v1',{un:ach.un,best:ach.best,st:ach.st});
@@ -333,7 +357,7 @@ function achCommit(){
 function achCountText(){const n=ACHS.filter(a=>ach.un[a.id]).length;return 'Achievements '+n+'/'+ACHS.length}
 function reset(){
  D=DIFFS[diffId];S=SUB_BY_ID[subId];
- t=0;distance=0;difficulty=0;speed=D.speed[0];night=0;runSeed=Math.random()*1000;newWorld();burst=0;firstShip=D.ships*rnd(.7,1.3);sub={x:0,y:route(0),v:0};gates=[];nextGate=900;lastCenter=null;
+ t=0;distance=0;difficulty=0;speed=D.speed[0];night=0;runSeed=Math.random()*1000;if(courseSeed===null)worldRand=gateRand=Math.random;else{worldRand=mulberry(courseSeed);gateRand=mulberry(courseSeed^0x9E3779B9)}newWorld();burst=0;firstShip=D.ships*rnd(.7,1.3);sub={x:0,y:route(0),v:0};gates=[];nextGate=900;lastCenter=null;
  pings=[];echoes=[];bubbles=[];debris=[];ships=[];enemyMissiles=[];missiles=[];booms=[];pickups=[];spray=[];ripples=[];surfaced=false;surfacedAt=-9;tilt=0;lastDrip=0;
  cleared=0;maxDepth=0;lastPing=-10;lastBubble=0;shake=0;flash=0;airFx=hullFx=crackFx=0;wreck=null;camLead=.24;
  hull=S.hull;o2=S.o2;invulnUntil=0;lastHitAt=-9;sonarDownUntil=0;leakUntil=0;ballastUntil=0;lastFire=-99;nextShipAt=0;shipsSunk=0;minesDestroyed=0;intercepts=0;airCollected=0;bonus=0;lastAlarm=0;lowO2Warned=false;abilityAt=-99;abilityUntil=0;
@@ -342,13 +366,13 @@ function reset(){
 function score(){return Math.floor((distance+cleared*10+bonus)*D.score)}
 function show(id,visible){$(id).hidden=!visible}
 function callsign(){return $('callsign').value.replace(/[\u0000-\u001f]/g,'').trim().slice(0,16)||'Anonymous'}
-function start(){initAudio();nextSong();if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));reset();state='playing';panel=null;setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
-function home(){state='menu';panel=null;clearInput();$('hud').classList.remove('ended');['paused','over','hud','pause','help','board','hangar','ach'].forEach(id=>show(id,false));show('menu',true);show('footer',true);reset();updateMenu();}
+function start(){initAudio();nextSong();if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));reset();state='playing';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';show('restartPause',true);setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach','duel'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
+function home(){state='menu';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';clearInput();$('hud').classList.remove('ended');['paused','over','hud','pause','help','board','hangar','ach','duel'].forEach(id=>show(id,false));show('menu',true);show('footer',true);reset();updateMenu();}
 function clearInput(){held=false;down=false;pointerLift=false;inputKeys.clear();$('thrust').classList.remove('on')}
 function pause(){if(state!=='playing')return;state='paused';clearInput();show('paused',true);$('resume').focus()}
 function resume(){if(state!=='paused')return;state='playing';show('paused',false);last=performance.now();acc=0;}
 function toast(title,body,seconds=4,bad=false){$('toastTitle').textContent=title;$('toastBody').textContent=body;toastUntil=t+seconds;$('toast').classList.add('show');$('toast').classList.toggle('bad',bad);}
-function openPanel(id){if(panel)show(panel,false);panel=id;if(state==='over')show('over',false);show(id,true);if(id==='board'){renderBoard();lbSync(false)}if(id==='hangar')renderHangar();if(id==='ach'){lb.achWho='';renderAch();lbSync(false)}const f=$(id).querySelector('.launch');if(f)f.focus({preventScroll:true})}
+function openPanel(id){if(panel)show(panel,false);panel=id;if(state==='over')show('over',false);show(id,true);if(id==='board'){renderBoard();lbSync(false)}if(id==='hangar')renderHangar();if(id==='duel'){if(!duel.diffSet){duel.diff=diffId;duel.diffSet=true}renderDuel();duelTick()}if(id==='ach'){lb.achWho='';renderAch();lbSync(false)}const f=$(id).querySelector('.launch');if(f)f.focus({preventScroll:true})}
 function closePanel(){if(!panel)return;show(panel,false);panel=null;if(state==='over'){show('over',true);$('again').focus()}}
 /* ---- Audio: everything is synthesized at runtime, so the file stays self-contained ----
    Buses: sfx and music feed a master gain and a compressor; a generated dark reverb is shared. */
@@ -521,7 +545,7 @@ function toggleMusic(){if(musicOn&&soundOn&&!audible()&&!unlockTried){unlockTrie
    ahead at any level or boost. Echoes fade a little before the next ping lands. */
 const sonarGap=()=>2.15*S.sonar*clamp(300/Math.max(speed,1),.6,1);
 const sonarGlow=()=>Math.max(1.65,sonarGap()*.85);
-function ping(){if(state!=='playing'||t<sonarDownUntil||t-lastPing<sonarGap())return false;lastPing=t;pings.push({x:sub.x,y:sub.y,born:t,r:0,c:SOUND_SPEED+2.5*speed,range:SONAR_RANGE+1.6*speed,hit:new Set()});sfx.ping();return true;}
+function ping(){if((state!=='playing'&&state!=='watching')||t<sonarDownUntil||t-lastPing<sonarGap())return false;lastPing=t;pings.push({x:sub.x,y:sub.y,born:t,r:0,c:SOUND_SPEED+2.5*speed,range:SONAR_RANGE+1.6*speed,hit:new Set()});sfx.ping();return true;}
 function updateSonar(dt){
  if(night>.06&&t-lastPing>=sonarGap())ping();
  for(const p of pings){p.r=(t-p.born)*p.c;for(const g of gates)for(let k=0;k<2;k++){if(g.dead[k])continue;const key=g.x+':'+k, my=mineY(g,k),dist=Math.hypot(g.x-p.x,my-p.y);if(dist<=p.range&&dist<=p.r&&!p.hit.has(key)){p.hit.add(key);echoes.push({x:g.x,y:my,ox:g.x,oy:my,g,k,c:p.c,born:t});}}}
@@ -673,6 +697,7 @@ async function finish(){
  $('endDistance').textContent=metres+' m';$('endShips').textContent=shipsSunk;$('endGates').textContent=cleared;$('endDepth').textContent=Math.floor(maxDepth)+' m';$('endAir').textContent=airCollected;$('endBest').textContent=best.toLocaleString();
  achCommit();renderEarned();$('place').hidden=true;
  show('over',true);overAt=performance.now();$('hud').classList.add('ended');$('again').focus({preventScroll:true});$('saveShared').hidden=true;
+ if(duel.run)await duelRoundOver(final).catch(e=>{$('cause').textContent=deathCause+' The duel round could not be posted: '+(e&&e.message||e)});
  if(practice){lastEntry=null;$('saveNote').textContent='Practice dives are not recorded.';return}
  lastEntry={id:Date.now().toString(36)+Math.random().toString(36).slice(2,8),name:callsign(),score:final,distance:metres,sub:S.id,diff:diffId,ships:shipsSunk,date:new Date().toISOString().slice(0,10)};
  $('saveNote').textContent='Saving score...';describeSave(await submitScore(lastEntry));
@@ -1221,7 +1246,8 @@ function frame(now){let dt=Math.min((now-last)/1000,.08);last=now;
  // On a machine that keeps missing 40 fps mid-dive, draw at a lower resolution (down to 60%).
  if(state==='playing'){slowFor=dt>1/40?slowFor+dt:Math.max(0,slowFor-dt*.5);if(slowFor>1.5&&quality>.6){quality=Math.max(.6,quality*.8);slowFor=0;resize()}}
  if(state!=='paused'){ambient+=dt;}
- if(state==='playing'){acc+=dt;let steps=0;while(acc>=STEP&&steps<12&&state==='playing'){physics(STEP);acc-=STEP;steps++;}}else acc=0;
+ if(state==='playing'){acc+=dt;let steps=0;while(acc>=STEP&&steps<12&&state==='playing'){physics(STEP);acc-=STEP;steps++;}if(duel.run&&state==='playing')duelSample()}else acc=0;
+ if(state==='watching')duelWatchStep(dt);
  if(state==='dying'||state==='over'){updateDebris(dt);updateWreck(dt)}
  if(state==='dying'&&((wreck&&wreck.settled&&ambient-wreck.settledAt>.6)||ambient-crashAt>5))finish();
  shake*=Math.exp(-dt*5);flash*=Math.exp(-dt*5);if(state!=='paused')updateCamera(dt);updateDistress(dt);
@@ -1275,8 +1301,8 @@ $('lbPath').textContent=(GAME_DIR||'the game\u2019s folder \\ ')+BOARD_FILE;
 function idb(mode,fn){return new Promise((res,rej)=>{let open;try{open=indexedDB.open('undertow',1)}catch(e){rej(e);return}open.onupgradeneeded=()=>open.result.createObjectStore('kv');open.onerror=()=>rej(open.error);open.onsuccess=()=>{const db=open.result;let tx,req;try{tx=db.transaction('kv',mode);req=fn(tx.objectStore('kv'))}catch(e){db.close();rej(e);return}tx.oncomplete=()=>{db.close();res(req.result)};tx.onerror=tx.onabort=()=>{db.close();rej(tx.error)}}})}
 const idbGet=k=>idb('readonly',s=>s.get(k)), idbSet=(k,v)=>idb('readwrite',s=>s.put(v,k)), idbDel=k=>idb('readwrite',s=>s.delete(k));
 const pending=()=>(store.get('undertow.pending.v1',[])||[]).map(cleanEntry).filter(Boolean);
-async function readText(name){return (await (await lb.dir.getFileHandle(name)).getFile()).text()}
-async function writeText(name,text){const w=await (await lb.dir.getFileHandle(name,{create:true})).createWritable();try{await w.write(text);await w.close()}catch(e){try{await w.abort()}catch(_){}throw e}}
+async function readText(name,dir=lb.dir){return (await (await dir.getFileHandle(name)).getFile()).text()}
+async function writeText(name,text,dir=lb.dir){const w=await (await dir.getFileHandle(name,{create:true})).createWritable();try{await w.write(text);await w.close()}catch(e){try{await w.abort()}catch(_){}throw e}}
 async function lbPermitted(ask){if(!lb.dir)return false;const o={mode:'readwrite'};try{if(await lb.dir.queryPermission(o)==='granted')return true;if(ask&&await lb.dir.requestPermission(o)==='granted')return true}catch(_){}return false}
 async function lbRead(){
  for(let i=0;;i++){
@@ -1416,8 +1442,233 @@ document.querySelectorAll('#filterSeg button').forEach(b=>b.onclick=()=>{lb.filt
 $('saveShared').onclick=async()=>describeSave(await lbSync(true)?'shared':lb.perm==='granted'?'retrying':'pending');
 setInterval(()=>{if((panel==='board'||panel==='ach')&&lb.perm==='granted')lbSync(false)},10000);
 if(lb.supported)(async()=>{try{lb.dir=await idbGet('folder')||null;idbDel('board').catch(()=>{})}catch(_){}await lbSync(false)})();
+/* ---- 1v1 duels ---------------------------------------------------------------
+   Duels live in a duel folder next to bin.dat, one file per writer so no player
+   ever overwrites another's:
+     p-<callsign>.dat   presence: a heartbeat every few seconds while the game is open
+     m-<id>-a.dat       the challenge and the challenger's round scores
+     m-<id>-b.dat       the reply and the opponent's round scores
+     l-<id>-a|b.dat     the diver's live track, twice a second, for anyone watching
+   Each round both players dive the same seeded course, taking turns (challenger
+   first). The higher total over 1, 3 or 5 rounds wins. A player counts as online
+   while their heartbeat keeps changing, so clocks on different PCs never matter. */
+const DUEL_DIR='duel',BEAT_MS=4000,POLL_MS=2500,ONLINE_MS=25000,DAY=864e5;
+const duel={root:null,dir:null,beat:0,lastBeat:0,files:new Map(),seen:new Map(),online:[],matches:[],rounds:3,diff:'officer',run:null,after:null,watch:null,saved:null,busy:false,note:''};
+const duelKey=n=>String(n||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,24)||'x';
+const duelSeed=(m,round)=>(m.a.seed+Math.imul(round+1,7919))>>>0;
+const total=a=>a.reduce((n,v)=>n+v,0), fmt=n=>Math.round(n).toLocaleString();
+const duelWrite=(name,obj)=>writeText(name,seal(JSON.stringify(obj)),duel.dir);
+async function duelReadLive(name){try{return JSON.parse(unseal(await readText(name,duel.dir))||'null')}catch(_){return null}}
+const duelReady=()=>!!(lb.dir&&lb.perm==='granted'&&callsign()!=='Anonymous');
+async function duelFolder(){
+ if(lb.dir!==duel.root){duel.root=lb.dir;duel.dir=null;duel.files=new Map();duel.seen.clear()}
+ if(!duelReady())return null;
+ if(!duel.dir)try{duel.dir=await lb.dir.getDirectoryHandle(DUEL_DIR,{create:true})}catch(_){return null}
+ return duel.dir;
+}
+// Reads every presence and match file, skipping any unchanged since the last look.
+async function duelScan(){
+ const out=new Map();
+ for await (const [name,h] of duel.dir.entries()){
+  if(h.kind!=='file'||!/^[pm]-[a-z0-9_-]+\.dat$/.test(name))continue;
+  const old=duel.files.get(name);
+  try{const f=await h.getFile();if(old&&old.mod===f.lastModified&&old.size===f.size){out.set(name,old);continue}
+   const data=JSON.parse(unseal(await f.text())||'null');out.set(name,data?{mod:f.lastModified,size:f.size,data}:old||{mod:0,size:0,data:null})}
+  catch(_){if(old)out.set(name,old)}
+ }
+ duel.files=out;
+}
+const duelStatusWord=()=>state==='watching'?'watching a duel':state==='playing'||state==='paused'?(duel.run?'in a duel':'diving'):'in port';
+async function duelBeat(){
+ if(Date.now()-duel.lastBeat<BEAT_MS)return;duel.lastBeat=Date.now();duel.beat++;
+ await duelWrite('p-'+duelKey(callsign())+'.dat',{name:callsign(),beat:duel.beat,at:Date.now(),status:duelStatusWord()});
+}
+function duelPeople(){
+ const me=duelKey(callsign()),now=Date.now(),list=[];
+ for(const [name,f] of duel.files){
+  if(!name.startsWith('p-')||!f.data)continue;const p=f.data,k=duelKey(p.name);if(k===me)continue;
+  // First sighting trusts the file's clock; after that only a changing heartbeat counts.
+  const s=duel.seen.get(k);if(!s||s.beat!==p.beat)duel.seen.set(k,{beat:p.beat,since:s?now:now-clamp(now-(+p.at||0),0,ONLINE_MS)});
+  list.push({name:String(p.name).slice(0,16),key:k,status:String(p.status||'').slice(0,20),online:now-duel.seen.get(k).since<ONLINE_MS});
+ }
+ return list.sort((a,b)=>b.online-a.online||a.name.localeCompare(b.name));
+}
+function duelMatchList(){
+ const me=duelKey(callsign()),by=new Map(),list=[],now=Date.now();
+ for(const [name,f] of duel.files){const m=/^m-([a-z0-9]+)-([ab])\.dat$/.exec(name);if(!m||!f.data)continue;const e=by.get(m[1])||{};e[m[2]]=f.data;by.set(m[1],e)}
+ for(const [id,{a,b}] of by){
+  if(!a||!a.a||!a.b)continue;const side=duelKey(a.a)===me?'a':duelKey(a.b)===me?'b':null;if(!side)continue;
+  const R=[1,3,5].includes(a.rounds)?a.rounds:3,num=v=>Array.isArray(v)?v.slice(0,R).map(x=>Math.max(0,Math.floor(+x)||0)):[];
+  const sa=num(a.scores),sb=num(b&&b.scores),updated=Math.max(+a.created||0,+a.at||0,+(b&&b.at)||0);
+  const status=a.cancelled?'cancelled':!b?(now-updated>DAY?'expired':'pending'):b.declined?'declined':a.forfeit||b.forfeit?'forfeit':sa.length>=R&&sb.length>=R?'done':'active';
+  const turn=status==='active'?(sa.length===sb.length?'a':'b'):null,mine=side==='a'?sa:sb,theirs=side==='a'?sb:sa;
+  const result=status==='done'?(total(mine)>total(theirs)?'won':total(mine)<total(theirs)?'lost':'drew'):status==='forfeit'?((side==='a'?a:b).forfeit?'lost':'won'):null;
+  const round=turn==='a'?sa.length:sb.length,own=side==='a'?a:b,abandoned=turn===side&&!!own&&own.began===round&&!(duel.run&&duel.run.id===id);
+  list.push({id,side,a,b,R,sa,sb,mine,theirs,turn,round,abandoned,status,result,opp:String(side==='a'?a.b:a.a).slice(0,16),diff:DIFFS[a.diff]?a.diff:'officer',updated});
+ }
+ return list.sort((x,y)=>y.updated-x.updated);
+}
+// Finished duels are cleared from the folder after a week; each player removes only their own files.
+async function duelTidy(){
+ for(const m of duel.matches)if(!['active','pending'].includes(m.status)&&Date.now()-m.updated>7*DAY)
+  for(const n of ['m-','l-'])try{await duel.dir.removeEntry(n+m.id+'-'+m.side+'.dat')}catch(_){}
+}
+async function duelTick(){
+ if(duel.busy)return;duel.busy=true;
+ try{
+  if(!await duelFolder()){duel.online=[];duel.matches=[];return}
+  await duelBeat();await duelScan();duel.online=duelPeople();duel.matches=duelMatchList();duel.note='';
+  if(Math.random()<.05)await duelTidy();
+ }catch(e){duel.note='The duel folder could not be read: '+(e&&e.message||e)}
+ finally{duel.busy=false;renderDuel()}
+}
+async function duelAct(fn){
+ if(!await duelFolder())return;
+ try{await fn()}catch(e){duel.note='The duel folder is busy, try again: '+(e&&e.message||e)}
+ duel.lastBeat=0;while(duel.busy)await sleep(50);await duelTick();
+}
+const myMatchFile=m=>'m-'+m.id+'-'+m.side+'.dat', mySide=m=>m.side==='a'?m.a:m.b;
+function duelChallenge(name){const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);return duelAct(()=>duelWrite('m-'+id+'-a.dat',{id,a:callsign(),b:name,rounds:duel.rounds,diff:duel.diff,seed:Math.floor(Math.random()*2**31),created:Date.now(),at:Date.now(),scores:[]}))}
+const duelReply=(m,yes)=>duelAct(()=>duelWrite('m-'+m.id+'-b.dat',{id:m.id,accepted:yes,declined:!yes,at:Date.now(),scores:[]}));
+const duelPatch=(m,patch)=>duelAct(()=>duelWrite(myMatchFile(m),{...mySide(m),...patch,at:Date.now()}));
+
+/* Your round: the seeded course, with your track sent out for spectators. */
+// A round is marked as begun before the dive starts, so closing the game part-way
+// cannot be used to try a round again: an unfinished round counts as 0.
+async function duelDive(m){
+ if(m.status!=='active'||m.turn!==m.side||duel.run)return;
+ if(m.abandoned){await duelPatch(m,{scores:[...m.mine,0]});duel.note='Round '+(m.round+1)+' was left unfinished, so it counts as 0.';renderDuel();return}
+ await duelPatch(m,{began:m.round});
+ const now=duel.matches.find(x=>x.id===m.id);if(!now||now.status!=='active'||now.turn!==now.side||mySide(now).began!==m.round){duel.note='Could not start the round: the duel folder did not save. Try again.';renderDuel();return}
+ duel.saved={diffId,practice};duel.run={id:m.id,side:m.side,round:m.round,R:m.R,opp:m.opp,samples:[],seq:0,lastSample:-1,timer:0,writing:false};
+ courseSeed=duelSeed(m,m.round);diffId=m.diff;practice=false;start();courseSeed=null;show('restartPause',false);
+ toast('DUEL / ROUND '+(m.round+1)+' OF '+m.R,'Against '+m.opp+', on the same course '+(m.side==='a'?'they will dive next':'they just dived')+'. Highest total wins.',4);
+ duel.run.timer=setInterval(()=>duelLive(duel.run,false),500);
+}
+function duelSample(r=duel.run){
+ if(t-r.lastSample<.1)return;r.lastSample=t;
+ r.samples.push([+t.toFixed(2),Math.round(sub.x),Math.round(sub.y),Math.round(sub.v),score(),hull,+(o2/S.o2).toFixed(2)]);
+ if(r.samples.length>40)r.samples.splice(0,r.samples.length-40);
+}
+async function duelLive(r,over){
+ if(!r||!duel.dir||(r.writing&&!over))return;r.writing=true;
+ const dead=gates.filter(g=>g.dead[0]||g.dead[1]).map(g=>[Math.round(g.x),+g.dead[0],+g.dead[1]]);
+ try{await duelWrite('l-'+r.id+'-'+r.side+'.dat',{id:r.id,round:r.round,seq:++r.seq,sub:subId,samples:r.samples.slice(-20),dead,over,score:score(),cause:over?deathCause:''})}catch(_){}
+ r.writing=false;
+}
+// Called from finish(): posts the round score and points the wreck screen back to the duel.
+async function duelRoundOver(final){
+ const r=duel.run;duel.run=null;clearInterval(r.timer);duel.after=r;
+ if(duel.saved){diffId=duel.saved.diffId;practice=duel.saved.practice;duel.saved=null}
+ $('overLabel').textContent='DUEL / ROUND '+(r.round+1)+' OF '+r.R;$('again').lastChild.textContent='BACK TO DUEL';
+ r.lastSample=-1;duelSample(r);await duelLive(r,true);
+ const m=duel.matches.find(x=>x.id===r.id);
+ if(m&&m.mine.length===r.round){await duelPatch(m,{scores:[...m.mine,final]});
+  const now=duel.matches.find(x=>x.id===r.id);
+  $('cause').textContent=deathCause+(now&&now.mine.length>r.round?' Round '+(r.round+1)+' score posted to your duel with '+r.opp+'.':' The round score could not be saved to the duel folder.')}
+ else $('cause').textContent=deathCause+' This round could not be posted: the duel has changed. Check the Duel screen.';
+}
+function againOrDuel(){if(duel.after){home();openPanel('duel')}else start()}
+
+/* Watching: rebuild the same course and replay the rival's track about a second behind. */
+function duelWatch(m){
+ const side=m.side==='a'?'b':'a';if(m.status!=='active'||m.turn!==side||duel.run)return;
+ const w={id:m.id,side,round:m.round,R:m.R,name:m.opp,buf:[],pt:null,seq:-1,over:false,endAt:0,score:0,shown:0,dead:[],cause:'',timer:0,reading:false};
+ duel.saved={diffId,practice};duel.watch=w;
+ courseSeed=duelSeed(m,m.round);diffId=m.diff;practice=false;reset();courseSeed=null;
+ state='watching';panel=null;['menu','footer','paused','help','over','board','hangar','ach','duel'].forEach(id=>show(id,false));
+ show('hud',true);$('hud').classList.add('watching');$('hud').classList.remove('ended');show('watchBar',true);$('hint').style.opacity='0';
+ duelWatchText();w.timer=setInterval(duelWatchPoll,600);duelWatchPoll();last=performance.now();
+}
+async function duelWatchPoll(){
+ const w=duel.watch;if(!w||w.reading||!duel.dir)return;w.reading=true;
+ const d=await duelReadLive('l-'+w.id+'-'+w.side+'.dat');w.reading=false;
+ if(duel.watch!==w||!d||d.id!==w.id||d.round!==w.round||d.seq<=w.seq)return;
+ w.seq=d.seq;if(SUB_BY_ID[d.sub]&&S.id!==d.sub){S=SUB_BY_ID[d.sub];buildPips()}
+ const lastT=w.buf.length?w.buf[w.buf.length-1][0]:-1;
+ for(const s of Array.isArray(d.samples)?d.samples:[])if(Array.isArray(s)&&s.length>=7&&s.every(Number.isFinite)&&s[0]>lastT)w.buf.push(s);
+ if(w.buf.length>300)w.buf.splice(0,w.buf.length-300);
+ w.dead=Array.isArray(d.dead)?d.dead:[];w.score=+d.score||0;if(d.over){w.over=true;w.cause=String(d.cause||'')}
+ duelWatchText();
+}
+function duelWatchText(){const w=duel.watch;if(w)$('watchText').textContent='WATCHING '+w.name.toUpperCase()+' / ROUND '+(w.round+1)+' OF '+w.R+(w.buf.length?'':' / WAITING FOR THEM TO DIVE')}
+function duelWatchStep(dt){
+ const w=duel.watch;if(!w)return;const B=w.buf;
+ if(B.length){
+  const end=B[B.length-1][0];if(w.pt===null||end-w.pt>4)w.pt=Math.max(B[0][0],end-1.2);w.pt=Math.min(w.pt+dt,end);
+  let i=0;while(i<B.length-2&&B[i+1][0]<=w.pt)i++;
+  const a=B[i],b=B[Math.min(i+1,B.length-1)],k=b[0]>a[0]?clamp((w.pt-a[0])/(b[0]-a[0]),0,1):1;
+  if(b[0]>a[0])speed=(b[1]-a[1])/(b[0]-a[0]);
+  sub.x=mix(a[1],b[1],k);sub.y=mix(a[2],b[2],k);sub.v=mix(a[3],b[3],k);t=w.pt;hull=a[5];o2=a[6]*S.o2;w.shown=mix(a[4],b[4],k);
+ }
+ distance=sub.x*.1;difficulty=clamp(sub.x/D.ramp,0,1);night=smooth(TP.night,TP.night+3500,sub.x);populate();
+ for(const [x,d0,d1] of w.dead){const g=gates.find(g=>Math.round(g.x)===x);if(g){if(d0)g.dead[0]=true;if(d1)g.dead[1]=true}}
+ updateSonar(dt);const z=terrain(sub.x);camY=mix(camY,Math.max(-130,mix(z.centre,sub.y,.35)-vh*.53),1-Math.exp(-dt*2));
+ if(t>toastUntil)$('toast').classList.remove('show');
+ if(ambient-lastHud>.15){lastHud=ambient;updateHUD(z);$('score').textContent=fmt(w.shown)}
+ if(w.over&&!w.endAt&&(!B.length||w.pt>=B[B.length-1][0])){w.endAt=ambient;toast(w.name.toUpperCase()+' SURFACED','Round '+(w.round+1)+' score: '+fmt(w.score)+'. '+w.cause,4)}
+ if(w.endAt&&ambient-w.endAt>4)duelLeaveWatch();
+}
+function duelLeaveWatch(){
+ const w=duel.watch;if(!w)return;clearInterval(w.timer);duel.watch=null;
+ if(duel.saved){diffId=duel.saved.diffId;practice=duel.saved.practice;duel.saved=null}
+ $('hud').classList.remove('watching');show('watchBar',false);home();openPanel('duel');
+}
+
+/* ---- Duel screen ---- */
+function duelButton(label,fn,cls){const b=document.createElement('button');b.className='act'+(cls?' '+cls:'');b.textContent=label;if(fn)b.onclick=fn;else b.disabled=true;return b}
+function duelRow(body,title,detail,buttons){
+ const tr=document.createElement('tr'),td=document.createElement('td');td.className='name';td.textContent=title;
+ if(detail){const s=document.createElement('span');s.className='sub';s.textContent=detail;td.append(s)}
+ const act=document.createElement('td');act.className='acts';act.append(...buttons);tr.append(td,act);body.append(tr);
+}
+function duelEmpty(body,text){const tr=document.createElement('tr');cell(tr,text,'empty');tr.firstChild.colSpan=2;body.append(tr)}
+function duelRounds(m){const n=Math.max(m.mine.length,m.theirs.length),v=(a,i)=>i<a.length?fmt(a[i]):'–';return Array.from({length:n},(_,i)=>'R'+(i+1)+' '+v(m.mine,i)+':'+v(m.theirs,i)).join(' · ')}
+function renderDuel(){
+ renderDuelChip();if(panel!=='duel')return;
+ const connected=lb.dir&&lb.perm==='granted';
+ let msg=!lb.supported?'Duels go through the shared folder, so they need Microsoft Edge or Google Chrome.':!connected?'Connect the shared folder first. Duels are kept in a duel folder next to '+BOARD_FILE+'.':callsign()==='Anonymous'?'Set a callsign on the home screen so other sailors can find and challenge you.':'You are online as '+callsign()+'.';
+ if(duel.note)msg+=' '+duel.note;$('duelStatus').textContent=msg;show('duelConnect',lb.supported&&!connected);
+ document.querySelectorAll('#duelRoundSeg button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.r===duel.rounds)));
+ document.querySelectorAll('#duelDiffSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.diff===duel.diff)));
+ const busyWith=new Set(duel.matches.filter(m=>m.status==='active'||m.status==='pending').map(m=>duelKey(m.opp)));
+ const on=$('duelOnline');on.textContent='';const here=duel.online.filter(p=>p.online);
+ for(const p of here)duelRow(on,p.name,p.status.toUpperCase(),[busyWith.has(p.key)?duelButton('In a duel',null,'off'):duelButton('Challenge',()=>duelChallenge(p.name))]);
+ if(!here.length)duelEmpty(on,duelReady()?'No one else is online right now. Anyone who opens the game with the shared folder connected shows up here.':'Online sailors appear here once you are connected.');
+ const ms=$('duelMatches');ms.textContent='';let shown=0;
+ for(const m of duel.matches){
+  if(m.status!=='active'&&m.status!=='pending'&&Date.now()-m.updated>3*DAY)continue;if(++shown>12)break;
+  const head=DIFFS[m.diff].label+' / '+m.R+' round'+(m.R>1?'s':''),score='You '+fmt(total(m.mine))+' / '+m.opp+' '+fmt(total(m.theirs));
+  if(m.status==='pending'&&m.side==='b')duelRow(ms,m.opp+' challenges you',head,[duelButton('Accept',()=>duelReply(m,true)),duelButton('Decline',()=>duelReply(m,false),'warn')]);
+  else if(m.status==='pending')duelRow(ms,'Challenge sent to '+m.opp,head+' / waiting for a reply',[duelButton('Cancel',()=>duelPatch(m,{cancelled:true}),'warn')]);
+  else if(m.status==='active'){
+   const mineTurn=m.turn===m.side,opp=duel.online.find(p=>p.key===duelKey(m.opp)),live=opp&&opp.online&&opp.status==='in a duel';
+   const b=mineTurn?[m.abandoned?duelButton('Score round '+(m.round+1)+' as 0',()=>duelDive(m),'warn'):duelButton('Dive round '+(m.round+1),()=>duelDive(m),'go')]:[live?duelButton('Watch live',()=>duelWatch(m),'go'):duelButton(opp&&opp.online?'Their turn':'Waiting',null,'off')];
+   b.push(duelButton('Forfeit',()=>{if(confirm('Forfeit your duel with '+m.opp+'?'))duelPatch(m,{forfeit:true})},'warn'));
+   duelRow(ms,'You vs '+m.opp+(m.abandoned?' / round '+(m.round+1)+' left unfinished':mineTurn?' / your turn':' / '+m.opp+'’s turn'),head+' / round '+(m.round+1)+' of '+m.R+' / '+score+(m.sa.length?' / '+duelRounds(m):''),b);
+  }
+  else{const word={won:'Won',lost:'Lost',drew:'Drew'}[m.result],a=m.side==='a',what={declined:a?m.opp+' declined your challenge':'You declined '+m.opp+'’s challenge',cancelled:a?'You cancelled your challenge to '+m.opp:m.opp+' cancelled their challenge',expired:a?'Your challenge to '+m.opp+' expired':m.opp+'’s challenge expired'}[m.status];
+   duelRow(ms,what||word+' vs '+m.opp+(m.status==='forfeit'?' by forfeit':''),what?head:head+' / '+score+(m.sa.length?' / '+duelRounds(m):''),[])}
+ }
+ if(!shown)duelEmpty(ms,'No duels yet. Pick the rounds and level above, then challenge someone who is online.');
+}
+function renderDuelChip(){
+ const ch=$('duelChip');ch.hidden=!lb.supported;if(ch.hidden)return;
+ const inc=duel.matches.find(m=>m.status==='pending'&&m.side==='b'),mine=duel.matches.find(m=>m.status==='active'&&m.turn===m.side);
+ const diving=duel.matches.find(m=>m.status==='active'&&m.turn!==m.side&&duel.online.some(p=>p.online&&p.key===duelKey(m.opp)&&p.status==='in a duel'));
+ const n=duel.online.filter(p=>p.online).length;
+ ch.querySelector('span').textContent=!duelReady()?'1V1 DUELS / CONNECT TO PLAY':inc?'1V1 / '+inc.opp.toUpperCase()+' CHALLENGED YOU':mine?'1V1 / YOUR TURN VS '+mine.opp.toUpperCase():diving?'1V1 / '+diving.opp.toUpperCase()+' IS DIVING / WATCH':'1V1 DUELS / '+n+' ONLINE';
+ ch.classList.toggle('alert',!!(inc||mine));ch.classList.toggle('on',duelReady()&&!inc&&!mine);
+ $('duelCount').textContent=inc||mine?'Duel (!)':'Duel';
+}
+setInterval(duelTick,POLL_MS);
 /* ---- Input ---- */
-$('launch').onclick=start;$('again').onclick=start;$('restartPause').onclick=start;$('home').onclick=home;$('quit').onclick=home;$('pause').onclick=pause;$('resume').onclick=resume;$('sound').onclick=toggleSound;$('music').onclick=toggleMusic;
+$('launch').onclick=start;$('again').onclick=againOrDuel;$('restartPause').onclick=start;$('home').onclick=home;
+// Leaving a duel dive part-way ends the round with the score so far.
+$('quit').onclick=()=>{if(duel.run){show('paused',false);state='playing';deathCause='The dive was abandoned.';finish()}else home()};
+$('duelOpen').onclick=()=>openPanel('duel');$('duelChip').onclick=()=>openPanel('duel');$('duelClose').onclick=closePanel;$('duelConnect').onclick=()=>lbPick().then(duelTick);$('watchLeave').onclick=duelLeaveWatch;
+document.querySelectorAll('#duelRoundSeg button').forEach(b=>b.onclick=()=>{duel.rounds=+b.dataset.r;renderDuel()});
+document.querySelectorAll('#duelDiffSeg button').forEach(b=>b.onclick=()=>{duel.diff=b.dataset.diff;renderDuel()});$('pause').onclick=pause;$('resume').onclick=resume;$('sound').onclick=toggleSound;$('music').onclick=toggleMusic;
 $('standard').onclick=()=>{practice=false;$('standard').setAttribute('aria-pressed','true');$('practice').setAttribute('aria-pressed','false')};
 $('practice').onclick=()=>{practice=true;$('standard').setAttribute('aria-pressed','false');$('practice').setAttribute('aria-pressed','true')};
 $('helpOpen').onclick=()=>openPanel('help');$('helpClose').onclick=closePanel;$('hangarOpen').onclick=()=>openPanel('hangar');$('hangarClose').onclick=closePanel;
@@ -1427,7 +1678,7 @@ $('motion').onclick=()=>{reduced=!reduced;$('motion').textContent='Motion effect
 $('camBtn').onclick=toggleCam;$('camBtn').textContent='Camera: '+(cam3d?'3D orbit':'flat');
 $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else toast('FULLSCREEN UNAVAILABLE','Use your browser’s full-screen view.',3)}catch(_){} };
 $('ability').onclick=()=>{initAudio();useAbility()};$('fire').onclick=()=>{initAudio();fire()};
-function pointerStart(e){if(state==='over'&&!panel){if(performance.now()-overAt>700){e.preventDefault();start()}return}if(state!=='playing')return;e.preventDefault();initAudio();if(e.button===2){fire();return}pointerLift=true;try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){} }
+function pointerStart(e){if(state==='over'&&!panel){if(performance.now()-overAt>700){e.preventDefault();againOrDuel()}return}if(state!=='playing')return;e.preventDefault();initAudio();if(e.button===2){fire();return}pointerLift=true;try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){} }
 for(const el of [canvas,$('thrust')]){el.addEventListener('pointerdown',pointerStart);el.addEventListener('pointerup',e=>{if(e.button!==2)pointerLift=false});el.addEventListener('pointercancel',()=>pointerLift=false);el.addEventListener('lostpointercapture',()=>pointerLift=false)}
 // A right press while the left button is already held arrives as a chorded pointermove.
 canvas.addEventListener('pointermove',e=>{if(state==='playing'&&e.button===2&&(e.buttons&2))fire()});
@@ -1439,10 +1690,10 @@ addEventListener('keydown',e=>{
  if(e.code==='KeyN'&&!e.repeat){toggleMusic();return}
  if(e.code==='KeyC'&&!e.repeat){toggleCam();return}
  if(['KeyA','KeyD','ArrowLeft','ArrowRight'].includes(e.code)){if(!panel&&state!=='paused'){e.preventDefault();inputKeys.add(e.code)}return}
- if((e.code==='KeyP'||e.code==='Escape')&&!e.repeat){e.preventDefault();if(panel)closePanel();else if(state==='playing')pause();else if(state==='paused')resume();return}
+ if((e.code==='KeyP'||e.code==='Escape')&&!e.repeat){e.preventDefault();if(panel)closePanel();else if(state==='playing')pause();else if(state==='paused')resume();else if(state==='watching')duelLeaveWatch();return}
  if(state==='playing'){e.preventDefault();if(e.code==='KeyE'&&!e.repeat)useAbility();if((e.code==='KeyF'||e.code==='KeyX')&&!e.repeat)fire();inputKeys.add(e.code)}
  // After a wreck, any dive key starts again (a short delay ignores keys still held from the crash).
- else if(state==='over'&&!panel&&!e.repeat&&['KeyR','Space','KeyW','ArrowUp','Enter'].includes(e.code)&&!(e.target instanceof HTMLButtonElement&&e.target.id!=='again')&&performance.now()-overAt>700){e.preventDefault();start()}
+ else if(state==='over'&&!panel&&!e.repeat&&['KeyR','Space','KeyW','ArrowUp','Enter'].includes(e.code)&&!(e.target instanceof HTMLButtonElement&&e.target.id!=='again')&&performance.now()-overAt>700){e.preventDefault();againOrDuel()}
 });addEventListener('keyup',e=>inputKeys.delete(e.code));
 addEventListener('blur',()=>{clearInput();if(state==='playing')pause()});document.addEventListener('visibilitychange',()=>{if(document.hidden){clearInput();if(state==='playing')pause()}});
 addEventListener('error',e=>{$('error').textContent='The dive was interrupted. Reload the file to restart. '+(e.message||'');show('error',true)});
