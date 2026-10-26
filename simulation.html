@@ -222,7 +222,7 @@ const ACH_BY_ID=Object.fromEntries(ACHS.map(a=>[a.id,a]));
 const SEALED=new Set(['undertow.ach.v1','undertow.best.v2','undertow.local.v1','undertow.mine.v1','undertow.pending.v1']);
 const store={get(k,f){try{const v=localStorage.getItem(k);if(v===null)return f;if(!SEALED.has(k))return JSON.parse(v);const t=unseal(v);return t===null?f:JSON.parse(t)}catch(_){return f}},set(k,v){try{const t=JSON.stringify(v);localStorage.setItem(k,SEALED.has(k)?seal(t):t)}catch(_){}}};
 try{if(!localStorage.getItem('undertow.sealed')){for(const k of SEALED){const v=localStorage.getItem(k);if(v!==null&&unseal(v)===null)localStorage.setItem(k,seal(v))}localStorage.setItem('undertow.sealed','1')}}catch(_){}
-let W=innerWidth,H=innerHeight,dpr=1,scale=1,vw=1,vh=1,camX=0,camY=-10;
+let W=innerWidth,H=innerHeight,dpr=1,quality=1,scale=1,vw=1,vh=1,camX=0,camY=-10;
 let state='menu', panel=null, practice=false, held=false, down=false, inputKeys=new Set(),pointerLift=false;
 let diffId=store.get('undertow.diff','officer'), subId=store.get('undertow.sub','virginia');
 if(!DIFFS[diffId])diffId='officer';if(!SUB_BY_ID[subId])subId='virginia';
@@ -238,7 +238,7 @@ let reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, soundOn=!!st
 let lastHud=-1;
 $('motion').textContent='Motion effects: '+(reduced?'reduced':'on');
 $('callsign').value=String(store.get('undertow.callsign','')).slice(0,16);
-function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);scale=Math.min(clamp(H/820,.3,1.22),W/650);vw=W/scale;vh=H/scale;}
+function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,1.5)*quality;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);scale=Math.min(clamp(H/820,.3,1.22),W/650);vw=W/scale;vh=H/scale;}
 addEventListener('resize',()=>{resize();updateMenu()});resize();
 /* Each run builds its own world: a random chain of biomes (open shelf, shoals,
    caverns, basins, trenches) blended with C1-continuous ramps so there are no
@@ -252,7 +252,11 @@ const BIOMES={
  trench:{w:1,len:[1600,2600],v:()=>({cave:0,basin:rnd(1.3,1.7),lift:0,tight:0,rough:rnd(1.6,2.2)})}
 };
 let SEG=[],TP={};
+// terrain() runs thousands of times a frame, mostly at the same grid points, so
+// whole-number positions are remembered until the next world is built.
+const terrainCache=new Map();
 function newWorld(){
+ terrainCache.clear();
  TP={a1:rnd(35,70),w1:rnd(700,1100),p1:rnd(0,TAU),a2:rnd(15,40),w2:rnd(300,500),p2:rnd(0,TAU),p3:rnd(0,TAU),p4:rnd(0,TAU),
   r1:rnd(30,60),rw1:rnd(380,700),rp1:rnd(0,TAU),r2:rnd(10,25),rw2:rnd(800,1300),rp2:rnd(0,TAU),night:rnd(2400,4200),sd:rnd(0,999)};
  SEG=[{x0:0,len:rnd(2400,3300),r:1,kind:'open',v:{cave:0,basin:0,lift:0,tight:0,rough:1}}];
@@ -274,12 +278,15 @@ function feature(q){
 }
 newWorld();
 function terrain(x){
+ const hit=terrainCache.get(x);if(hit)return hit;
  const q=Math.max(0,x), f=feature(q), cave=f.cave, basin=f.basin;
  const centre=423+TP.a1*Math.sin(q/TP.w1+TP.p1)+TP.a2*Math.sin(q/TP.w2+TP.p2)+cave*270+basin*250-f.lift;
  const half=257-50*cave+f.tight*cave+14*Math.sin(q/650+TP.p3);
  const top=mix(68,centre-half,cave);
  const bottom=centre+half+f.rough*(13*Math.sin(q/137+TP.p4)+6*Math.sin(q/57));
- return {top,bottom,cave,centre:(top+bottom)/2,basin,lift:f.lift,rough:f.rough};
+ const z={top,bottom,cave,centre:(top+bottom)/2,basin,lift:f.lift,rough:f.rough};
+ if(Number.isInteger(x)){if(terrainCache.size>40000)terrainCache.clear();terrainCache.set(x,z)}
+ return z;
 }
 function caveNear(a,b){for(let x=a;x<=b+1;x+=Math.max(1,(b-a)/8))if(terrain(x).cave>=.01)return true;return false}
 function route(x){const z=terrain(x);return z.centre+TP.r1*Math.sin(x/TP.rw1+TP.rp1)+TP.r2*Math.sin(x/TP.rw2+TP.rp2);}
@@ -510,11 +517,11 @@ let unlockTried=false;
 function toggleSound(){if(soundOn&&!audible()&&!unlockTried){unlockTried=true;initAudio();updateSound();return}soundOn=!soundOn;store.set('undertow.sound',soundOn);initAudio();updateSound();if(soundOn)tone(450,.12,.035,600)}
 function toggleMusic(){if(musicOn&&soundOn&&!audible()&&!unlockTried){unlockTried=true;initAudio();updateSound();return}musicOn=!musicOn;store.set('undertow.music',musicOn);if(musicOn&&!soundOn){soundOn=true;store.set('undertow.sound',true);initAudio()}updateSound()}
 /* Sonar keeps pace with the boat: the faster it runs, the more often it pings and
-   the further and faster each ping travels, so mines still show up about two
-   seconds ahead at any level or boost. Echoes stay lit until the next ping lands. */
-const sonarGap=()=>2.15*S.sonar*clamp(300/Math.max(speed,1),.4,1);
-const sonarGlow=()=>Math.max(1.65,sonarGap()+.6);
-function ping(){if(state!=='playing'||t<sonarDownUntil||t-lastPing<sonarGap())return false;lastPing=t;pings.push({x:sub.x,y:sub.y,born:t,r:0,c:SOUND_SPEED+4*speed,range:SONAR_RANGE+2.4*speed,hit:new Set()});sfx.ping();return true;}
+   the further and faster each ping travels, so mines show up one to two seconds
+   ahead at any level or boost. Echoes fade a little before the next ping lands. */
+const sonarGap=()=>2.15*S.sonar*clamp(300/Math.max(speed,1),.6,1);
+const sonarGlow=()=>Math.max(1.65,sonarGap()*.85);
+function ping(){if(state!=='playing'||t<sonarDownUntil||t-lastPing<sonarGap())return false;lastPing=t;pings.push({x:sub.x,y:sub.y,born:t,r:0,c:SOUND_SPEED+2.5*speed,range:SONAR_RANGE+1.6*speed,hit:new Set()});sfx.ping();return true;}
 function updateSonar(dt){
  if(night>.06&&t-lastPing>=sonarGap())ping();
  for(const p of pings){p.r=(t-p.born)*p.c;for(const g of gates)for(let k=0;k<2;k++){if(g.dead[k])continue;const key=g.x+':'+k, my=mineY(g,k),dist=Math.hypot(g.x-p.x,my-p.y);if(dist<=p.range&&dist<=p.r&&!p.hit.has(key)){p.hit.add(key);echoes.push({x:g.x,y:my,ox:g.x,oy:my,g,k,c:p.c,born:t});}}}
@@ -1162,7 +1169,7 @@ function distort(beat){
  if(reduced)return;const hitK=hitFx(),amt=clamp(airFx*.35+hullFx*beat*.4+hitK*.8,0,1.2);if(amt<.02)return;
  if(!fxBuf||fxBuf.width!==canvas.width||fxBuf.height!==canvas.height){fxBuf=document.createElement('canvas');fxBuf.width=canvas.width;fxBuf.height=canvas.height;fxCtx=fxBuf.getContext('2d')}
  fxCtx.drawImage(canvas,0,0);
- const cw=canvas.width,ch=canvas.height,n=40,sh=Math.ceil(ch/n),roll=airFx*.002*Math.sin(ambient*.7)+hitK*.008*Math.sin(ambient*40),over=1+amt*.05+Math.abs(roll)*1.3;
+ const cw=canvas.width,ch=canvas.height,n=20,sh=Math.ceil(ch/n),roll=airFx*.002*Math.sin(ambient*.7)+hitK*.008*Math.sin(ambient*40),over=1+amt*.05+Math.abs(roll)*1.3;
  c.setTransform(1,0,0,1,0,0);c.globalAlpha=1;c.globalCompositeOperation='source-over';c.save();c.translate(cw/2,ch/2);c.rotate(roll);c.scale(over,over);c.translate(-cw/2,-ch/2);
  for(let i=0;i<n;i++){const y=i*sh,edge=Math.max(0,(Math.abs((i+.5)/n*2-1)-.35)/.65)**1.5,off=(Math.sin(i*.5+ambient*2.6)*10+Math.sin(i*1.9-ambient*6.3)*4)*amt*edge*dpr;c.drawImage(fxBuf,0,y,cw,sh+1,off,y,cw,sh+1)}
  const ghost=clamp(hullFx*beat*.03+hitK*.22,0,.2);if(ghost>.02){c.globalAlpha=ghost;c.drawImage(fxBuf,(6*beat*hullFx+9*hitK+5*airFx*Math.sin(ambient*1.1))*dpr,0)}
@@ -1209,8 +1216,10 @@ function draw(){
  drawDistress(beat);scale=baseScale;
  $('flash').style.opacity=String(flash);
 }
-let last=performance.now(),acc=0;
+let last=performance.now(),acc=0,slowFor=0;
 function frame(now){let dt=Math.min((now-last)/1000,.08);last=now;
+ // On a machine that keeps missing 40 fps mid-dive, draw at a lower resolution (down to 60%).
+ if(state==='playing'){slowFor=dt>1/40?slowFor+dt:Math.max(0,slowFor-dt*.5);if(slowFor>1.5&&quality>.6){quality=Math.max(.6,quality*.8);slowFor=0;resize()}}
  if(state!=='paused'){ambient+=dt;}
  if(state==='playing'){acc+=dt;let steps=0;while(acc>=STEP&&steps<12&&state==='playing'){physics(STEP);acc-=STEP;steps++;}}else acc=0;
  if(state==='dying'||state==='over'){updateDebris(dt);updateWreck(dt)}
