@@ -92,16 +92,83 @@
 <canvas id="world" aria-label="Side-scrolling submarine combat game. Hold Space, Up arrow, or the rise button to ascend; release to descend. F or right-click fires a missile."></canvas>
 <div id="grain"></div><div id="vignette"></div><div id="flash"></div>
 <header class="topbar"><div class="brand"><svg viewBox="0 0 36 36" fill="none" aria-hidden="true"><circle cx="18" cy="18" r="15" stroke="#b1d6ca" stroke-width=".7"/><path d="M5 18h26M18 3v30" stroke="#b1d6ca" stroke-width=".5"/><path d="m11 22 7-13 7 13-7-4z" stroke="#d8e9dd" fill="#d8e9dd11"/></svg><div>UNDERTOW<small>FLEET SUBMARINE COMMAND</small></div></div><nav class="tools" aria-label="Game settings"><button class="icon" id="music" aria-label="Play music" title="Music (N)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/><path id="musicSlash" d="M3 3l18 18"/></svg></button><button class="icon" id="sound" aria-label="Enable sound" title="Sound (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 9h4l5-4v14l-5-4H4z"/><path id="soundWaves" d="m17 9 5 6m0-6-5 6"/></svg></button><button class="icon" id="fullscreen" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button><button class="icon" id="pause" aria-label="Pause game" title="Pause (P / Esc)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14M16 5v14"/></svg></button></nav></header>
+<style id="home-css">
+/* Home screen: setup column on the left, operations dock on the right. */
+#menu{justify-content:space-between;align-items:center;gap:clamp(24px,4vw,72px)}
+#menu .intro{width:min(590px,100%);flex:0 1 590px;min-width:0}
+#menu h1{margin:16px 0 6px}#menu p.lead{margin:10px 0 18px;max-width:440px}
+.home-card{max-width:460px;padding:14px 16px;border:1px solid var(--line);border-radius:3px;background:linear-gradient(140deg,#0d2a33c4,#06192099)}
+.home-card+.home-card{margin-top:10px}
+.home-card .callsign{margin:0;max-width:none}.home-card .rank{margin:12px 0 0;max-width:none}
+.home-card .mode-row:first-child{margin-top:0}.home-card .vessel-row{margin:12px 0 0;max-width:none;background:#03141b80}
+.cs-msg{display:flex;align-items:center;gap:7px;margin:8px 0 0 80px;font:9px ui-monospace,monospace;letter-spacing:.14em;color:var(--amber)}
+.cs-msg .ic{width:13px;height:13px}
+.callsign input.err{border-color:var(--amber);background:#2a221880;animation:cs-shake .32s}
+@keyframes cs-shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+#menu .launch-row{margin-top:14px;max-width:460px}
+#menu .launch{width:100%;justify-content:space-between;padding:18px 24px;font-size:12px}
+#menu .launch.locked{background:#ecc69b2e;border-color:#ecc69b55;color:#ecc69bb0;box-shadow:none}
+#menu .launch.locked:hover{background:#ecc69b3d}
+/* The dock sits low on the right, under the menu submarine (drawn at ~63% width, mid-height). */
+.dock{flex:0 2 540px;min-width:0;align-self:flex-end;max-height:100%;overflow-y:auto;overflow-x:hidden;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:end;gap:8px;padding:2px;scrollbar-width:thin}
+.dock-h,.dock .legend{grid-column:1/-1}
+.tile{display:flex;flex-direction:column}.tile-btn{flex:1}
+.dock-h{font:9px ui-monospace,monospace;letter-spacing:.24em;color:var(--muted);display:flex;align-items:center;gap:10px;margin:0 0 2px}
+.dock-h:after{content:'';flex:1;height:1px;background:var(--line)}
+.tile{border:1px solid var(--line);border-radius:3px;background:linear-gradient(140deg,#14313bd9,#071920e6);transition:border-color .2s}
+.tile:hover{border-color:#8bb9b2}
+.tile-btn{width:100%;display:flex;align-items:center;gap:14px;padding:13px 14px;text-align:left;background:none;border:none;border-radius:3px}
+.tile-btn:hover{background:#a6ead50d}
+.tile-btn>.ic{width:22px;height:22px;color:var(--mint)}
+.tile-btn .tile-t{flex:1;min-width:0}
+.tile-btn b{display:block;font-size:12px;letter-spacing:.08em;font-weight:600;text-transform:uppercase;color:var(--ink)}
+.tile-btn small{display:block;margin-top:3px;font-size:11px;color:var(--muted);line-height:1.4}
+.tile-btn .go{width:14px;height:14px;color:var(--muted)}
+.tile .lb-chip{display:flex;width:100%;margin:0;padding:8px 14px;border-top:1px solid #b5dfd61c;border-radius:0 0 3px 3px;font-size:8.5px;text-align:left;overflow:hidden}
+.tile .lb-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tile .lb-chip i{flex:none}
+.tile .lb-chip.alert{color:var(--amber)}.tile .lb-chip.alert i{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.tile.duel-tile .tile-btn>.ic{color:var(--amber)}
+.dock .legend{margin:6px 0 0;padding:10px 2px 0;gap:6px 14px;max-width:none;opacity:.75}
+.dock .legend div{font-size:9px;line-height:1.5}.dock .legend b{display:inline;font-size:9px;margin-right:4px}
+.dock .legend div small{display:none}
+@media(max-height:900px){#menu .intro .lead{display:none}}
+@media(max-height:860px){.dock .legend{display:none}}
+@media(max-height:700px){.dock .legend{display:none}.tile-btn{padding:10px 12px}.tile-btn small{display:none}}
+/* Narrow screens: one scrolling column, operations as a 2x2 grid under the setup. */
+@media(max-width:980px){
+ #menu{flex-direction:column;align-items:stretch;justify-content:flex-start;gap:18px;overflow-y:auto;overflow-x:hidden}
+ #menu .intro{flex:none;width:100%;max-width:560px;max-height:none;overflow:visible}
+ .dock{flex:none;align-self:stretch;max-width:560px;max-height:none;overflow:visible;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .dock-h,.dock .legend{grid-column:1/-1}
+ .tile{display:flex;flex-direction:column}.tile-btn{flex:1}
+}
+@media(max-width:640px){
+ #menu{padding-bottom:96px}
+ #menu:not([hidden])~.foot{left:0;right:0;bottom:0;padding:10px 20px max(10px,env(safe-area-inset-bottom));background:#04141df0;border-top:1px solid var(--line)}
+ .home-card{padding:12px}.cs-msg{margin-left:0}
+ .dock{gap:6px}
+ .tile-btn{gap:10px;padding:11px 10px}.tile-btn .go{display:none}.tile-btn small{font-size:10px}
+ .tile .lb-chip{padding:7px 10px;font-size:8px;letter-spacing:.08em}
+ .dock .legend{display:none}
+ #menu .launch{padding:16px 18px}
+}
+@media(max-width:360px){.dock{grid-template-columns:1fr}}
+</style>
 <section class="view" id="menu"><div class="intro"><div class="eyebrow">FLEET COMMAND / OPERATION DEEP STRIKE</div><h1>UNDERTOW<span class="subhead">DEEP STRIKE</span></h1><p class="lead">Thread the minefields. Outrun the warships hunting from above.<br>Guard your air, guard your hull, and never stop moving.</p>
-<div class="callsign"><label class="row-label" for="callsign">CALLSIGN</label><input id="callsign" maxlength="16" placeholder="Your name for the leaderboard" autocomplete="off" spellcheck="false"></div>
-<div class="rank"><div><b id="rankName">LEVEL 1</b> &nbsp;/&nbsp; <span id="rankXp"></span></div><span class="xp"><i id="xpBar"></i></span><small id="profNote"></small></div>
-<div class="mode-row" id="diffRow"><span class="row-label">LEVEL</span><button data-diff="cadet">Cadet</button><button data-diff="officer">Officer</button><button data-diff="captain">Captain</button><button data-diff="admiral">Admiral</button></div>
+<div class="home-card id-card"><div class="callsign"><label class="row-label" for="callsign">CALLSIGN</label><input id="callsign" maxlength="16" placeholder="Your name for the leaderboard" autocomplete="off" spellcheck="false" aria-describedby="callsignMsg" required></div>
+<div class="cs-msg" id="callsignMsg" role="alert" hidden><svg class="ic"><use href="#i-warn"/></svg><span>ENTER A CALLSIGN TO DIVE</span></div>
+<div class="rank"><div><b id="rankName">LEVEL 1</b> &nbsp;/&nbsp; <span id="rankXp"></span></div><span class="xp"><i id="xpBar"></i></span><small id="profNote"></small></div></div>
+<div class="home-card setup-card"><div class="mode-row" id="diffRow"><span class="row-label">LEVEL</span><button data-diff="cadet">Cadet</button><button data-diff="officer">Officer</button><button data-diff="captain">Captain</button><button data-diff="admiral">Admiral</button></div>
 <div class="mode-row"><span class="row-label">MISSION</span><button id="standard" aria-pressed="true">Survival</button><button id="practice" aria-pressed="false">Practice / no damage</button></div>
-<div class="vessel-row"><canvas class="mini" id="thumb" width="224" height="76"></canvas><div><b id="vesselName">VIRGINIA CLASS</b><small id="vesselOrigin">UNITED STATES / 2004</small></div><button id="hangarOpen"><svg class="ic"><use href="#i-sub"/></svg>Change</button></div>
-<div class="launch-row"><button class="launch" id="launch">BEGIN DESCENT <svg class="ic"><use href="#i-go"/></svg></button><button class="text-button" id="helpOpen"><svg class="ic"><use href="#i-book"/></svg>Briefing</button><button class="text-button" id="boardOpen"><svg class="ic"><use href="#i-trophy"/></svg>Leaderboard</button><button class="text-button" id="achOpen"><svg class="ic"><use href="#i-medal"/></svg><span id="achCount">Achievements</span></button><button class="text-button" id="duelOpen"><svg class="ic"><use href="#i-duel"/></svg><span id="duelCount">Duel</span></button></div>
-<button class="lb-chip" id="lbChip"><i></i><span>SHARED LEADERBOARD NOT CONNECTED</span></button>
-<button class="lb-chip" id="duelChip" hidden><i></i><span>1V1 DUELS</span></button>
-<div class="legend"><div><b><span class="key">SPACE</span> HOLD TO RISE</b>Release to descend</div><div><b><span class="key">E</span> SPECIAL ABILITY</b>Unique to each boat</div><div><b><span class="key">F</span> / RIGHT-CLICK</b>Launch a missile</div><div><b><span class="key">A</span><span class="key">D</span> ORBIT</b>C toggles 3D camera</div></div></div></section>
+<div class="vessel-row"><canvas class="mini" id="thumb" width="224" height="76"></canvas><div><b id="vesselName">VIRGINIA CLASS</b><small id="vesselOrigin">UNITED STATES / 2004</small></div><button id="hangarOpen"><svg class="ic"><use href="#i-sub"/></svg>Change</button></div></div>
+<div class="launch-row"><button class="launch" id="launch">BEGIN DESCENT <svg class="ic"><use href="#i-go"/></svg></button></div></div>
+<aside class="dock" aria-label="Operations"><div class="dock-h">OPERATIONS</div>
+<div class="tile duel-tile"><button class="tile-btn" id="duelOpen"><svg class="ic"><use href="#i-duel"/></svg><span class="tile-t"><b id="duelCount">Duel</b><small>1v1 against other sailors</small></span><svg class="ic go"><use href="#i-next"/></svg></button><button class="lb-chip" id="duelChip" hidden><i></i><span>1V1 DUELS</span></button></div>
+<div class="tile"><button class="tile-btn" id="boardOpen"><svg class="ic"><use href="#i-trophy"/></svg><span class="tile-t"><b>Leaderboard</b><small>Top scores across the fleet</small></span><svg class="ic go"><use href="#i-next"/></svg></button><button class="lb-chip" id="lbChip"><i></i><span>SHARED LEADERBOARD NOT CONNECTED</span></button></div>
+<div class="tile"><button class="tile-btn" id="achOpen"><svg class="ic"><use href="#i-medal"/></svg><span class="tile-t"><b id="achCount">Achievements</b><small>Medals and your level path</small></span><svg class="ic go"><use href="#i-next"/></svg></button></div>
+<div class="tile"><button class="tile-btn" id="helpOpen"><svg class="ic"><use href="#i-book"/></svg><span class="tile-t"><b>Briefing</b><small>Controls, boats and tactics</small></span><svg class="ic go"><use href="#i-next"/></svg></button></div>
+<div class="legend"><div><b><span class="key">SPACE</span> RISE</b><small>Release to descend</small></div><div><b><span class="key">E</span> ABILITY</b></div><div><b><span class="key">F</span> MISSILE</b></div><div><b><span class="key">A</span><span class="key">D</span> ORBIT</b></div><div><b><span class="key">C</span> 3D CAM</b></div></div></aside></section>
 <footer class="foot" id="footer"><span>VESSEL <strong id="footVessel">VIRGINIA / SSN-774</strong><span class="desktop"> &nbsp; / &nbsp; ENDLESS PATROL</span></span><span>BEST SCORE <strong id="best">0</strong> &nbsp; / &nbsp; BUILD <strong id="build"></strong></span></footer>
 <div class="hud" id="hud" hidden><div class="metrics"><div class="metric score"><label>SCORE</label><strong id="score">0</strong></div><div class="metric"><label>DISTANCE</label><strong id="distance">0000</strong><small>m</small></div><div class="metric"><label>DEPTH</label><strong id="depth">038</strong><small>m</small></div><div class="metric"><label>SUNK</label><strong id="sunk">0</strong></div></div><div class="status"><i class="dot"></i><span id="sector">01 / CONTINENTAL SHELF</span></div>
 <div class="vitals"><div class="vital"><svg class="ic"><use href="#i-hull"/></svg><span class="vlabel">HULL</span><div class="pips" id="pips"></div></div><div class="vital air" id="airRow"><svg class="ic"><use href="#i-air"/></svg><span class="vlabel">O2</span><div class="o2"><i id="o2bar"></i></div><span class="vval" id="o2val">100%</span></div><div class="effects" id="effects"></div></div>
@@ -418,6 +485,11 @@ function reset(){
 function score(){return Math.floor((distance+cleared*10+bonus)*D.score)}
 function show(id,visible){$(id).hidden=!visible}
 function callsign(){return $('callsign').value.replace(/[\u0000-\u001f]/g,'').trim().slice(0,16)||'Anonymous'}
+// A dive from the home screen needs a callsign. BEGIN DESCENT looks disabled until one is typed; a press without
+// one focuses the field and shows the inline message instead of starting.
+function callsignSet(){return callsign().toLowerCase()!=='anonymous'}
+function callsignState(){const ok=callsignSet(),l=$('launch');l.classList.toggle('locked',!ok);l.setAttribute('aria-disabled',String(!ok));if(ok){$('callsignMsg').hidden=true;$('callsign').classList.remove('err')}}
+function launchDive(){if(callsignSet())return start();const i=$('callsign');i.classList.remove('err');void i.offsetWidth;i.classList.add('err');$('callsignMsg').hidden=false;i.focus();callsignState()}
 function start(){initAudio();nextSong();store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch();if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}reset();run.xp0=profXp();state='playing';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';show('restartPause',true);setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach','duel'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
 function home(){state='menu';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';clearInput();$('hud').classList.remove('ended');['paused','over','hud','pause','help','board','hangar','ach','duel'].forEach(id=>show(id,false));show('menu',true);show('footer',true);reset();updateMenu();}
 function clearInput(){held=false;down=false;pointerLift=false;inputKeys.clear();$('thrust').classList.remove('on')}
@@ -1931,7 +2003,7 @@ function renderRank(){
   n==='local'?(connected?'Profile loaded. Syncing with the shared folder...':'Profile loaded from this computer. Connect the shared folder to sync it.'):n;
 }
 /* ---- Input ---- */
-$('launch').onclick=start;$('again').onclick=againOrDuel;$('restartPause').onclick=start;$('home').onclick=home;
+$('launch').onclick=launchDive;$('again').onclick=againOrDuel;$('restartPause').onclick=start;$('home').onclick=home;
 // Leaving a duel dive part-way ends the round with the score so far.
 $('quit').onclick=()=>{if(duel.run){show('paused',false);state='playing';deathCause='The dive was abandoned.';finish()}else home()};
 $('duelOpen').onclick=()=>openPanel('duel');$('duelChip').onclick=()=>openPanel('duel');$('duelClose').onclick=closePanel;$('duelConnect').onclick=()=>lbPick().then(duelTick);$('watchLeave').onclick=duelLeaveWatch;
@@ -1943,6 +2015,7 @@ $('practice').onclick=()=>{setMission(true);profDirty(true)};
 $('helpOpen').onclick=()=>openPanel('help');$('helpClose').onclick=closePanel;$('hangarOpen').onclick=()=>openPanel('hangar');$('hangarClose').onclick=closePanel;
 $('boardOpen').onclick=()=>openPanel('board');$('achOpen').onclick=()=>openPanel('ach');$('overAch').onclick=()=>openPanel('ach');$('achClose').onclick=closePanel;document.querySelectorAll('#achSeg button').forEach(b=>b.onclick=()=>{lb.achView=b.dataset.v;if(b.dataset.v==='path')lb.achWho='';renderAch()});$('lbChip').onclick=()=>openPanel('board');$('overBoard').onclick=()=>openPanel('board');$('boardClose').onclick=closePanel;
 $('callsign').addEventListener('change',()=>{store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch()});
+$('callsign').addEventListener('input',callsignState);callsignState();
 $('motion').onclick=()=>{reduced=!reduced;$('motion').textContent='Motion effects: '+(reduced?'reduced':'on')};
 $('camBtn').onclick=toggleCam;$('camBtn').textContent='Camera: '+(cam3d?'3D orbit':'flat');
 $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else toast('FULLSCREEN UNAVAILABLE','Use your browser’s full-screen view.',3)}catch(_){} };
