@@ -49,7 +49,7 @@ async function profSync(){
  const key=prof.key,snap=profSnapshot();
  if(!key||key==='anonymous'||!lb.dir||lb.perm!=='granted')return false;
  if(prof.syncJob&&prof.syncKey===key)return prof.syncJob.then(()=>true,()=>false);
- prof.pulled=true;saveStatus('profile','busy','Profile saved locally · Syncing shared profile…');
+ prof.pulled=true;saveStatus('profile','busy','Saving progress to the shared drive…');
  const job=prof.chain.then(async()=>{
   const dir=await lb.dir.getDirectoryHandle(PROFILE_DIR,{create:true}),file=key+'.dat';let remote=null;
   try{const text=unseal(await readText(file,dir));if(text)remote=cleanProfile(JSON.parse(text),snap.name)}catch(e){if(!e||e.name!=='NotFoundError')throw e}
@@ -67,8 +67,8 @@ async function profSync(){
   // Runs this sailor posted from a PC that never reached bin.dat.
   const miss=now.scores.filter(e=>!lb.admin.entries[e.id]&&!included(lb.shared,e)&&!pending().some(q=>q.id===e.id));
   if(miss.length){for(const e of miss)journalWrite(e);lbSync(false)}
-  saveStatus('profile','done','Profile saved locally and synced');renderRank();return true;
- }catch(e){saveStatus('profile','queued','Profile saved locally · Shared drive retry pending');if(prof.key===key){prof.pulled=false;prof.note='The shared profile could not be reached ('+(e&&e.message||e)+'). Progress is kept on this computer and syncs later.';renderRank()}return false}finally{if(prof.syncJob===job)prof.syncJob=null}
+  saveStatus('profile','done','Progress saved to the shared drive');renderRank();return true;
+ }catch(e){saveStatus('profile','queued','Progress upload pending · Retrying automatically · Backup safe');if(prof.key===key){prof.pulled=false;prof.note='The shared profile could not be reached ('+(e&&e.message||e)+'). Progress is kept on this computer and syncs later.';renderRank()}return false}finally{if(prof.syncJob===job)prof.syncJob=null}
 }
 // Called when the callsign changes: save the old sailor, then load the new one.
 function profSwitch(){

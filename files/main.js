@@ -30,7 +30,7 @@ addEventListener('keydown',e=>{
  if(e.code==='KeyC'&&!e.repeat){toggleCam();return}
  if(['KeyA','KeyD','ArrowLeft','ArrowRight'].includes(e.code)){if(!panel&&state!=='paused'){e.preventDefault();inputKeys.add(e.code)}return}
  if((e.code==='KeyP'||e.code==='Escape')&&!e.repeat){e.preventDefault();if(askDone)askDone(false);else if(panel)closePanel();else if(state==='playing')pause();else if(state==='paused')resume();else if(state==='watching')duelLeaveWatch();return}
- if(state==='playing'){e.preventDefault();if(e.code==='KeyR'&&!e.repeat){reloadRack();return}if(e.code==='KeyE'&&!e.repeat)useAbility();if((e.code==='KeyF'||e.code==='KeyX')&&!e.repeat)fire();inputKeys.add(e.code)}
+ if(state==='playing'){e.preventDefault();if(e.code==='KeyE'&&!e.repeat)useAbility();if((e.code==='KeyF'||e.code==='KeyX')&&!e.repeat)fire();inputKeys.add(e.code)}
  // After a wreck, any dive key starts again (a short delay ignores keys still held from the crash).
  else if(state==='over'&&!panel&&!e.repeat&&['KeyR','Space','KeyW','ArrowUp','Enter'].includes(e.code)&&!(e.target instanceof HTMLButtonElement&&e.target.id!=='again')&&performance.now()-overAt>700){e.preventDefault();againOrDuel()}
 });addEventListener('keyup',e=>inputKeys.delete(e.code));

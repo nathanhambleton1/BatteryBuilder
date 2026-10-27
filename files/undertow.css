@@ -288,6 +288,21 @@
 
 .cp-beta-notice{margin:12px 0;padding:10px 14px;border-left:3px solid var(--amber);background:#ecc69b0d;color:#b8cecb;font-size:12px;line-height:1.6}.cp-beta-notice strong{color:var(--amber)}
 
-#saveStatus{position:fixed;left:16px;bottom:15px;z-index:100;display:flex;align-items:center;gap:9px;max-width:min(340px,calc(100vw - 32px));padding:9px 12px;border:1px solid #6d9c9877;border-radius:7px;background:#071b25ed;color:#b8e2d4;font:11px/1.5 monospace;pointer-events:none}#saveStatus[data-stage=error]{color:#ffad91;border-color:#bc6b54}#saveStatus .save-spinner{flex:0 0 12px;width:12px;height:12px;border:2px solid #5b7c78;border-top-color:#b8f1db;border-radius:50%;display:none}#saveStatus[data-stage=busy] .save-spinner{display:block;animation:save-spin .8s linear infinite}@keyframes save-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){#saveStatus .save-spinner{animation:none!important}}@media(max-width:650px){#saveStatus{bottom:auto;top:64px;left:8px;max-width:240px;font-size:10px;padding:6px 8px}}
 
-#reloadRack{position:fixed;right:24px;bottom:155px;z-index:7;border:1px solid #80b8aa;background:#0b2833e8;color:#ccebdc;border-radius:7px;padding:12px;font:11px monospace;min-height:44px}#reloadRack:disabled{opacity:.6}.sub-card.locked{opacity:.55;cursor:not-allowed}@media(max-width:650px){#reloadRack{right:12px;bottom:135px;padding:9px}}
+
+.sub-card.locked{opacity:.55;cursor:not-allowed}
+
+/* Shared-drive status lives beside the sound controls. */
+#saveStatus{position:relative;display:flex;pointer-events:auto;color:#b8e2d4}
+#saveStatusButton{color:inherit}
+#saveStatus[data-stage=error]{color:#ffad91}
+#saveStatus[data-stage=busy]{color:#ecc69b}
+.save-symbol{display:grid;place-items:center}
+.save-spinner{display:block;width:17px;height:17px;border:2px solid #587c76;border-top-color:currentColor;border-radius:50%;animation:save-spin .8s linear infinite}
+@keyframes save-spin{to{transform:rotate(360deg)}}
+#saveStatusDetails{display:none;position:absolute;top:calc(100% + 10px);right:0;width:280px;max-width:calc(100vw - 24px);padding:12px;border:1px solid #6d9c9877;border-radius:6px;background:#071b25fa;color:#d3e7df;font:11px/1.5 monospace;box-shadow:0 8px 24px #0008;z-index:110;pointer-events:none}
+#saveStatusDetails strong,#saveStatusDetails span{display:block}#saveStatusDetails span{margin-top:6px;color:#b0c9c5}
+#saveStatus:hover #saveStatusDetails,#saveStatus:focus-within #saveStatusDetails,#saveStatus.open #saveStatusDetails{display:block}
+.topbar:has(#saveStatus:hover),.topbar:has(#saveStatus:focus-within),.topbar:has(#saveStatus.open){z-index:110}
+@media(max-width:700px){#saveStatusDetails{position:fixed;top:66px;right:12px}.topbar{gap:8px}.brand small{display:none}.brand{font-size:9px;gap:5px}.brand svg{width:22px;height:22px}.tools{gap:4px}}
+@media(prefers-reduced-motion:reduce){.save-spinner{animation:none}}

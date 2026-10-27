@@ -62,7 +62,7 @@ const SUBS=[
  {id:'ohio',name:'Ohio',origin:'United States / 1981',mark:'SSBN-726',desc:'Ballistic missile carrier. Rapid launches, slow to answer the helm.',speed:.98,agility:.86,hull:5,o2:100,reload:2.6,sonar:1,hx:56,hy:18,ability:{id:'strike',name:'TRIDENT STRIKE',desc:'Vertical launch: one missile for every warship hit and incoming seeker in range.',cd:18},look:{pal:'us',sail:'planes',prop:'screw',deck:'hump'}},
  {id:'typhoon',name:'Typhoon',origin:'Soviet Union / 1981',mark:'TK-208',desc:'The largest submarine ever built. Enormous, armoured and ponderous.',speed:.95,agility:.78,hull:6,o2:125,reload:3,sonar:1.1,hx:60,hy:22,ability:{id:'shield',name:'ICE-BREAKER HULL',desc:'Reinforced plating shrugs off all damage for 5 seconds. Rock is still fatal.',cd:15,dur:5},look:{pal:'ru',sail:'aft',prop:'twin',deck:'fore'}},
 ];
-SUBS.push({id:'turtle',name:'Turtle',origin:'Wooden fleet / experimental',mark:'ONE MAN. BIG BOOM.',desc:'A tiny hand-cranked wooden menace. Slow, fragile, and carrying a deeply unreasonable bomb.',speed:.88,agility:1.15,hull:2,o2:55,reload:5.5,sonar:1.15,hx:20,hy:22,ability:{id:'wipe',name:'ABSOLUTELY EVERYONE',desc:'Detonates a screen-clearing bomb. Every visible hostile is destroyed. Recharge: 30 seconds.',cd:30},look:{pal:'wood',sail:'small',prop:'screw',turtle:true}});
+SUBS.push({id:'turtle',name:'Turtle',origin:'Wooden fleet / experimental',mark:'ONE MAN. BIG BOOM.',desc:'A tiny hand-cranked wooden menace. Slow, fragile, and carrying a deeply unreasonable bomb. No sonar: its sweeping lantern reveals only the mines it lights.',speed:.88,agility:1.15,hull:2,o2:55,reload:5.5,sonar:1.15,hx:20,hy:22,ability:{id:'wipe',name:'ABSOLUTELY EVERYONE',desc:'Detonates a screen-clearing bomb. Every visible hostile is destroyed. Recharge: 30 seconds.',cd:30},look:{pal:'wood',sail:'small',prop:'screw',turtle:true}});
 PALS.wood=['#c8a36a','#ab834c','#88663b','#654c2d','#453520','#241e15','#a59361'];
 const SUB_BY_ID=Object.fromEntries(SUBS.map(s=>[s.id,s]));
 /* Achievements run from easy lessons to long-haul goals. Each has a value and a goal:
@@ -299,7 +299,7 @@ function reset(){
  cleared=0;maxDepth=0;lastPing=-10;lastBubble=0;shake=0;flash=0;airFx=hullFx=crackFx=0;wreck=null;camLead=.24;
  hull=S.hull;o2=S.o2;invulnUntil=0;lastHitAt=-9;sonarDownUntil=0;leakUntil=0;ballastUntil=0;lastFire=-99;nextShipAt=0;shipsSunk=0;minesDestroyed=0;intercepts=0;airCollected=0;bonus=0;lastAlarm=0;lowO2Warned=false;abilityAt=-99;abilityUntil=0;
  announced={};run={hits:0,fired:0,ability:0,committed:false,earned:[]};practiceHit=-9;lastHud=-1;toastUntil=0;camY=Math.max(-130,terrain(0).centre-vh*.53);clearInput();populate();buildPips();
- resetRack();if(cm)campReset();
+ screenBombAt=-99;if(cm)campReset();
 }
 function score(){return Math.floor((distance+cleared*10+bonus)*D.score)}
 function show(id,visible){$(id).hidden=!visible}

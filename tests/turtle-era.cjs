@@ -1,0 +1,12 @@
+const {chromium}=require('playwright'),path=require('path'),os=require('os'),fs=require('fs');
+(async()=>{const b=await chromium.launch({channel:'msedge',headless:true});try{const p=await b.newPage({viewport:{width:1440,height:900}}),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto('file:///'+path.resolve(__dirname,'../undertow.html').replaceAll('\\','/'));await p.waitForFunction(()=>lb.gate.ready||!lb.supported);const r=await p.evaluate(async()=>{
+ soundOn=musicOn=false;cm=null;cr=null;subId='turtle';reset();state='playing';panel=null;['menu','sfGate','footer','paused'].forEach(x=>show(x,false));lb.gate.offline=true;t=0;sub.x=200;sub.y=300;speed=250;night=.8;camY=0;
+ const checks=[],check=(s,v)=>{if(!v)throw Error(s);checks.push(s)};
+ check('Turtle sonar refused',ping()===false);pings.push({});echoes.push({});updateSonar(.1);check('No sonar echoes',!pings.length&&!echoes.length);
+ check('Forward mine lit',turtleLightAt(sub.x+200,sub.y)>0);check('Rear mine hidden',turtleLightAt(sub.x-80,sub.y)===0);check('Outside cone hidden',turtleLightAt(sub.x+60,sub.y+200)===0);
+ const a=turtleLamp().angle;t=1;check('Lamp sweeps',turtleLamp().angle!==a);
+ gates=[];ships=[{x:650,hp:2,max:3,sinking:0,hitAt:-99}];draw();mine(500,300,1,1);mine(400,600,1,1);
+ subId='virginia';S=SUB_BY_ID.virginia;lastPing=-99;check('Modern sonar retained',ping());subId='turtle';S=SUB_BY_ID.turtle;draw();mine(500,300,1,1);
+ const original=lb.dir;let requested=0;lb.dir={queryPermission:async()=> 'prompt',requestPermission:async()=>{requested++;return 'granted'}};check('Remembered handle requests access',await lbPermitted(true)&&requested===1);lb.dir.requestPermission=async()=>{throw new DOMException('Click required','SecurityError')};lb.gate.repick=false;await lbPick();check('Gesture requirement keeps saved folder',!lb.gate.repick&&!!lb.dir);lb.dir=original;lb.gate.offline=true;sfRender();
+ return {checks:checks.length};});const out=fs.mkdtempSync(path.join(os.tmpdir(),'turtle-era-'));await p.evaluate(()=>{state='paused';panel=null;show('paused',false);sub.x=200;sub.y=220;sub.v=0;t=0;night=.6;camY=-110;ships=[{x:620,hp:2,max:3,sinking:0,hitAt:-99}];gates=[{x:520,top:240,bottom:430,amp:0,dead:[false,false],echo:[-99,-99]}];draw()});await p.screenshot({path:path.join(out,'turtle.png')});console.log({...r,errors,out});if(errors.length)process.exitCode=1;
+}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});

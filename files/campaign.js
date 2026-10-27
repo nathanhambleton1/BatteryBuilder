@@ -203,7 +203,7 @@ function campFinish(){
  $('endScore').textContent=score().toLocaleString();$('endMeta').textContent=S.name.toUpperCase()+' CLASS / CAMPAIGN MISSION '+(m.i+1);
  $('endDistance').textContent=Math.floor(distance)+' m';$('endShips').textContent=shipsSunk;$('endGates').textContent=cleared;$('endDepth').textContent=Math.floor(maxDepth)+' m';$('endAir').textContent=airCollected;
  $('endBest').previousElementSibling.textContent='CHECKPOINT';$('endBest').textContent=R.cp+' / '+m.cps.length;
- renderEarned();$('place').hidden=true;$('saveShared').hidden=true;
+ renderEarned();$('place').hidden=true;
  $('saveNote').textContent=R.cp?'Progress saved at checkpoint '+R.cp+'. Retry from there, or surface and come back later.':'Retry from the start of the mission.';
  $('again').lastChild.textContent=R.cp?'RETRY FROM CHECKPOINT '+R.cp:'RETRY MISSION';
  show('over',true);overAt=performance.now();$('hud').classList.add('ended');$('again').focus({preventScroll:true});show('pause',false);
@@ -417,7 +417,7 @@ function bossHit(b,x,y){
 // Missile targeting hooks (game.js): drifting mines close ahead first, then the boss.
 function campAcquire(skip){
  if(!cr)return null;let best=null,bd=Infinity;
- for(const h of cr.hz){if(h.k!=='fmine'||skip.includes(h))continue;const dx=h.x-sub.x;if(dx<S.hx||dx>650||Math.abs(h.y-sub.y)>110)continue;const d=dx+Math.abs(h.y-sub.y)*2;if(d<bd){bd=d;best={camp:h}}}
+ for(const h of cr.hz){if(h.k!=='fmine'||skip.includes(h)||turtleEra()&&!turtleLightAt(h.x,h.y+Math.sin(ambient*1.2+h.ph)*6))continue;const dx=h.x-sub.x;if(dx<S.hx||dx>650||Math.abs(h.y-sub.y)>110)continue;const d=dx+Math.abs(h.y-sub.y)*2;if(d<bd){bd=d;best={camp:h}}}
  if(best)return best;
  for(const f of cr.foes){if(f.dead||!FOES[f.k].pts||skip.includes(f)||f.rel>vw*.85)continue;const d=Math.abs(f.rel);if(d<bd){bd=d;best={camp:f,foe:true}}}
  if(best)return best;

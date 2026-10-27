@@ -30,8 +30,8 @@ async function persistScore(entry){
  // This happens synchronously, before the first shared-drive await.
  const stored=journalWrite(e);lb.local=mergeEntries(lb.local,[e]);store.set('undertow.local.v1',lb.local);
  lb.mine.add(e.id);store.set('undertow.mine.v1',[...lb.mine]);prof.scores=mergeEntries(prof.scores,[e]).slice(0,PROFILE_RUNS);profDirty(false);
- if(!stored){saveStatus('scores','busy','Saving score on this computer…');try{await idbSet(SCORE_PREFIX+e.id,{entry:e,uploaded:false})}catch(_){saveStatus('scores','error','Local storage is full or unavailable. Score is only held in this open game.');return 'storage-error'}}
- saveStatus('scores','queued','Saved locally · '+pending().length+' score(s) waiting to upload');
+ if(!stored){saveStatus('scores','busy','Securing score backup before upload…');try{await idbSet(SCORE_PREFIX+e.id,{entry:e,uploaded:false})}catch(_){saveStatus('scores','error','Local storage is full or unavailable. Score is only held in this open game.');return 'storage-error'}}
+ saveStatus('scores','queued','Shared drive: '+pending().length+' upload(s) pending · Backup safe');
  void lbSync(false);return lb.supported?(lb.dir?'pending':'nohandle'):'local';
 }
 let syncActive=null;
@@ -42,7 +42,7 @@ function queueBoardSync(ask){
 function backgroundSaveTick(){
  if(lb.gate.busy)return;
  if(lb.dir)void lbSync(false);
- else if(pending().length)saveStatus('scores','queued','Saved locally · Connect the shared drive to upload '+pending().length+' score(s)');
+ else if(pending().length)saveStatus('scores','queued','Shared drive not connected · '+pending().length+' upload(s) pending · Backup safe');
  if(lb.perm==='granted'&&prof.key&&!prof.syncJob)void profSync();
 }
 setInterval(backgroundSaveTick,15000);

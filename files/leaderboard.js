@@ -81,11 +81,11 @@ async function lbFlush(){
 let lbChain=Promise.resolve(),retryTimer=0,retries=0;
 function lbSync(ask){return queueBoardSync(ask)}
 async function syncNow(ask){
- if(!lb.dir){lb.perm='none';if(pending().length)saveStatus('scores','queued','Saved locally · Connect the shared drive to upload');renderBoard();return false}
- if(!await lbPermitted(ask)){lb.perm='prompt';saveStatus('scores','queued','Saved locally · Allow shared-drive access to upload');renderBoard();return false}
- lb.perm='granted';saveStatus('scores','busy','Saved locally · Checking the shared drive…');
- try{const r=await lbRead();journalReconcile(r);lb.shared=r.entries;lb.players=r.players;lb.admin=cleanBoardAdmin(r.admin);if(pending().length||!playerCurrent(r.players))await lbFlush();lb.note='';retries=0;if(!prof.pulled)profSync();saveStatus('scores','done',pending().length?'Saved locally · More scores queued':'Scores saved locally and synced to the shared drive')}
- catch(e){retries++;lb.note='Could not update '+BOARD_FILE+': '+(e&&e.message||e)+'. Local scores will retry automatically.';clearTimeout(retryTimer);retryTimer=setTimeout(()=>lbSync(false),Math.min(30000,1500*Math.pow(2,Math.min(retries,5))));saveStatus('scores','queued','Saved locally · Shared drive unavailable; retrying automatically');renderBoard();return false}
+ if(!lb.dir){lb.perm='none';if(pending().length)saveStatus('scores','queued','Shared drive not connected · Backup safe');renderBoard();return false}
+ if(!await lbPermitted(ask)){lb.perm='prompt';saveStatus('scores','queued','Shared drive needs access · Backup safe');renderBoard();return false}
+ lb.perm='granted';saveStatus('scores','busy','Checking the shared drive…');
+ try{const r=await lbRead();journalReconcile(r);lb.shared=r.entries;lb.players=r.players;lb.admin=cleanBoardAdmin(r.admin);if(pending().length||!playerCurrent(r.players))await lbFlush();lb.note='';retries=0;if(!prof.pulled)profSync();saveStatus('scores',pending().length?'queued':'done',pending().length?'Shared-drive uploads pending · Retrying automatically':'Scores saved to the shared drive')}
+ catch(e){retries++;lb.note='Could not update '+BOARD_FILE+': '+(e&&e.message||e)+'. Local scores will retry automatically.';clearTimeout(retryTimer);retryTimer=setTimeout(()=>lbSync(false),Math.min(30000,1500*Math.pow(2,Math.min(retries,5))));saveStatus('scores','queued','Shared drive unavailable · Retrying automatically · Backup safe');renderBoard();return false}
  renderBoard();return true;
 }
 /* Shared-folder gate. Called from a click (needs a user gesture): with a stored handle it asks for
@@ -97,7 +97,7 @@ async function lbPick(repick){
   if(lb.dir&&!g.repick){
    let st='denied';
    try{st=await lb.dir.requestPermission({mode:'readwrite'})}
-   catch(e){g.repick=true;g.msg=`The saved link to ${SHARED_NAME} no longer works (${e&&e.message||e}). Select the button to pick the folder again.`;return false}
+   catch(e){g.msg='Your folder is remembered. Click Allow access to reopen the browser permission prompt. You do not need to choose the folder again.';return false}
    if(st!=='granted'){g.msg='Access was not allowed. Select Allow access again and choose Allow (or Allow on every visit) in the browser prompt. If the browser no longer asks, use Pick the folder again below.';return false}
   }else if(!await sfPick())return false;
   g.repick=false;g.msg='';lb.source='shared';lb.note='';
@@ -138,9 +138,9 @@ async function sfCheck(){
 }
 async function submitScore(entry){return persistScore(entry)}
 function describeSave(res){
- if(!lastEntry)return;const list=res==='shared'?lb.shared:lb.local,rank=list.findIndex(e=>e.id===lastEntry.id)+1;
- const msg={'storage-error':'Local storage is unavailable. Keep this game open while saving is retried.',shared:'Posted to the shared leaderboard'+(rank?`: rank ${rank} of ${list.length}.`:'.'),retrying:'Saved on this computer. The shared file is busy; posting again in a moment.',pending:'Saved on this computer. Allow access to post it to the shared leaderboard.',nohandle:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+`. Select Allow access on the Leaderboard screen to connect ${SHARED_NAME} and post it for everyone.`,local:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+'. Use Edge or Chrome for the shared leaderboard.'}[res];
- $('saveNote').textContent=msg;$('saveShared').hidden=res!=='pending';renderPlace(list,res==='shared');
+ if(!lastEntry)return;if(res!=='storage-error'&&lb.shared.some(e=>e.id===lastEntry.id)&&!pending().some(e=>e.id===lastEntry.id))res='shared';const list=res==='shared'?lb.shared:lb.local,rank=list.findIndex(e=>e.id===lastEntry.id)+1;
+ const msg={'storage-error':'Shared-drive save not confirmed; backup unavailable. Keep the game open.',shared:'Saved to the shared leaderboard'+(rank?`: rank ${rank} of ${list.length}.`:'.'),retrying:'Shared drive unavailable — retrying automatically. Backup safe.',pending:lb.perm==='granted'?'Uploading to the shared drive automatically. Backup safe.':'Not on the shared drive yet — allow folder access for automatic uploads. Backup safe.',nohandle:'Not on the shared drive yet — connect the folder to enable automatic uploads. Backup safe.',local:'Shared drive unsupported in this browser. Backup saved on this computer.'}[res];
+ $('saveNote').textContent=msg;renderPlace(list,res==='shared');
 }
 function renderEarned(){const box=$('achEarned');box.textContent='';
  if(run.gain>0){const sp=document.createElement('span');sp.className='xp-gain';sp.append(svgIcon('i-medal'),'+'+run.gain.toLocaleString()+' XP / '+(run.promoted?'PROMOTED TO LEVEL '+run.promoted:'LEVEL '+levelOf(profXp())));box.append(sp)}
@@ -154,6 +154,7 @@ function renderPlace(list,shared){
 }
 function cell(tr,text,cls){const td=document.createElement('td');td.textContent=text;if(cls)td.className=cls;tr.append(td)}
 function renderBoard(){
+ if(state==='over'&&lastEntry)describeSave(!lb.supported?'local':!lb.dir?'nohandle':lb.perm!=='granted'?'pending':lb.note?'retrying':'pending');
  const connected=lb.dir&&lb.perm==='granted',useShared=lb.source==='shared';
  let msg=!lb.supported?'This browser cannot use shared folders. Use Microsoft Edge or Google Chrome for the shared leaderboard. Scores are kept on this computer.':lb.perm!=='granted'?`Not connected to ${SHARED_NAME} (${SHARED_DIR}). Select Allow access to post and see everyone’s scores; until then they are kept on this computer.`:`Connected to ${lb.dir.name} / ${BOARD_FILE} / ${lb.shared.length} records.`;
  const queued=lb.supported?pending().length:0;if(queued)msg+=` ${queued} score${queued>1?'s':''} waiting to post.`;if(lb.warn)msg+=' '+lb.warn;if(lb.note)msg+=' '+lb.note;
@@ -210,10 +211,12 @@ for(const ev of ['pointerdown','pointerup','mousedown','mouseup','touchstart','t
 addEventListener('focus',()=>sfCheck());document.addEventListener('visibilitychange',()=>{if(!document.hidden)sfCheck()});
 document.querySelectorAll('#srcSeg button').forEach(b=>b.onclick=()=>{lb.source=b.dataset.src;renderBoard()});
 document.querySelectorAll('#filterSeg button').forEach(b=>b.onclick=()=>{lb.filter=b.dataset.filter;renderBoard()});
-$('saveShared').onclick=async()=>describeSave(await lbSync(true)?'shared':lb.perm==='granted'?'retrying':'pending');
 // Background synchronization runs throughout gameplay, not only on the board screen.
 // On load: connect silently if the stored folder is still allowed, otherwise put the gate up right away.
 // A folder linked before there was one fixed folder may be the wrong one: ask for the right one instead.
 async function initializeSharedScores(){await journalRestore();if(!lb.supported){renderBoard();return}try{lb.dir=await idbGet('folder')||null;idbDel('board').catch(()=>{})}catch(_){}
  if(lb.dir&&String(lb.dir.name).toLowerCase()!==SHARED_NAME.toLowerCase()){lb.gate.startIn=lb.dir;lb.gate.msg=`This browser was linked to the "${lb.dir.name}" folder. The team now uses ${SHARED_NAME} only, so please pick it.`;lb.dir=null}
+ // Try the remembered handle directly. Browsers requiring a user gesture fall
+ // back to one Allow access click, never a new folder selection.
+ if(lb.dir)await lbPermitted(true);
  try{await lbSync(false)}catch(_){}lb.gate.ready=true;sfRender()}

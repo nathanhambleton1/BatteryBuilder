@@ -51,7 +51,7 @@
   if(hit)volleyFailures.push({sub:vessel.id,fault,depth,direction,target});
  }
  check('broadside escape trajectories '+volleys,volleyFailures.length===0,volleyFailures);
- boot(MISSIONS[22],'virginia');startBoss('leviathan');abilityAt=-99;useAbility();check('Virginia salvo targets campaign boss',missiles.length===9);
+ boot(MISSIONS[22],'virginia');startBoss('leviathan');abilityAt=-99;useAbility();check('Virginia salvo targets campaign boss',missiles.length===3);
  boot(MISSIONS[4]);sub.x=cm.recon[0].x1-250;check('recon holds until beacon return',campSpeed()===0);cm.recon[0].clues.forEach((_,j)=>cr.clues.add('0:'+j));check('recon releases after beacon return',campSpeed()>0);
  boot(MISSIONS[19]);pickups=[];speed=200;campSupplyTick();check('air supply independent of minefields',pickups.length===1);
  const terrainFailures=[];let courses=0;
