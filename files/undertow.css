@@ -278,3 +278,12 @@
 #cine>#cineSkip{position:absolute;top:22px;right:24px;z-index:2;padding:12px 18px;color:#dfefe6;background:#102832dd;border:1px solid #75aa9f;border-radius:8px}
 
 #secretAdmin{z-index:90;pointer-events:auto}#secretAdmin label{display:flex;flex-direction:column;gap:7px;font-size:12px;margin:12px 0;color:#b8d5d0}#secretAdmin input,#secretAdmin select{min-height:40px;padding:9px;background:#081d27;border:1px solid #567d80;border-radius:5px;color:#e8f4ee;font:inherit;font-size:14px}#adminRecords,#adminSearch{width:100%;margin-top:12px}#adminEditor{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}#adminEditor>.launch,.admin-achievements{grid-column:1/-1}.admin-actions{display:flex;gap:12px;flex-wrap:wrap}.admin-actions button,#adminRefresh{padding:10px 14px}.admin-achievements{max-height:240px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px}#secretAdmin .admin-achievements label{flex-direction:row;align-items:center;margin:0}.admin-achievements input{min-height:20px!important}#adminMessage{color:#ecc69b;line-height:1.5}#build[role=button]:focus-visible{outline:1px solid #a6ead5}@media(max-width:550px){#adminEditor,.admin-achievements{grid-template-columns:1fr}#secretAdmin .panel{padding:20px}}
+
+/* 3D ROV: drag-look surface stays below controls and the pause dialog. */
+#rovLook{position:absolute;inset:0;pointer-events:auto;touch-action:none;cursor:grab}#rovLook:active{cursor:grabbing}
+.rov-top,.rov-bottom{z-index:2}.rov-flight-help{position:absolute;bottom:84px;left:16px;right:16px;text-align:center;color:#a1c6bd;font:11px monospace;pointer-events:none}
+.rov-active #paused{z-index:50;background:#03111bdd}.rov-active #error{z-index:60}.rov-active #pause{visibility:hidden}
+#expedition button:disabled{opacity:.4}#expedition .rov-steer button{font-size:13px;padding:9px 12px}
+@media(max-width:700px){.rov-flight-help{bottom:145px;font-size:10px;max-width:330px;margin:auto;line-height:1.5}.rov-top{align-items:flex-start}.rov-top>span{max-width:90px;line-height:1.5}.rov-top .rov-actions{gap:4px}.rov-top button{padding:7px!important;font-size:10px}.rov-bottom{display:flex;flex-wrap:wrap;justify-content:center}.rov-steer{display:flex;gap:5px}#expedition .rov-steer button{min-width:40px;padding:8px;font-size:12px}}
+
+.cp-beta-notice{margin:12px 0;padding:10px 14px;border-left:3px solid var(--amber);background:#ecc69b0d;color:#b8cecb;font-size:12px;line-height:1.6}.cp-beta-notice strong{color:var(--amber)}

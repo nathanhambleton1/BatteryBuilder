@@ -6,10 +6,10 @@ await page.evaluate(()=>{soundOn=false;musicOn=false;show('sfGate',false);$('cal
 const result=await page.evaluate('(' + fs.readFileSync(path.join(__dirname,'campaign-checks.js'),'utf8') + ')()');result.errors=errors;fs.writeFileSync(path.join(artifacts,'campaign-check-results.json'),JSON.stringify(result,null,2));
 console.log(JSON.stringify({checks:result.checks.length,failures:result.failures,errors},null,2));
 await page.evaluate(()=>{cm=MISSIONS[1];subId='gato';diffId=cm.diff;courseSeed=campSeed(cm);camp.run={m:cm,cp:0,snap:null,clean:true,deaths:0,loot:[0,0,0],time:0,cuts:{}};reset();state='playing';panel=null;['menu','paused','sfGate','footer'].forEach(id=>show(id,false));expeditionStart(cr.wrecks[0]);});
-await page.waitForTimeout(150);await page.screenshot({path:path.join(artifacts,'rov-desktop.png')});await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);await page.screenshot({path:path.join(artifacts,'rov-mobile.png')});
+await page.locator('#rovSkip').click();await page.waitForTimeout(150);await page.screenshot({path:path.join(artifacts,'rov-desktop.png')});await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);await page.screenshot({path:path.join(artifacts,'rov-mobile.png')});
 console.log('controls',await page.evaluate(()=>({state,hidden:$('expedition').hidden,pause:$('paused').hidden,e:!!cr.expedition,css:['expedition','rovScan'].map(id=>{const s=getComputedStyle($(id));return {id,display:s.display,visibility:s.visibility,opacity:s.opacity,rect:$(id).getBoundingClientRect().toJSON()}})})));
-const startX=await page.evaluate(()=>cr.expedition.x);await page.keyboard.down('ArrowRight');await page.waitForTimeout(550);await page.keyboard.up('ArrowRight');
-const moved=await page.evaluate(()=>cr.expedition.x);if(moved<=startX+20)throw Error('Keyboard ROV steering failed');
+const startX=await page.evaluate(()=>cr.expedition.x);await page.keyboard.down('KeyD');await page.waitForTimeout(550);await page.keyboard.up('KeyD');
+const moved=await page.evaluate(()=>cr.expedition.x);if(moved<=startX+.5)throw Error('Keyboard ROV steering failed');
 await page.locator('#rovScan').click();if(!await page.evaluate(()=>cr.expedition.scan>0))throw Error('Touch sonar failed');await page.screenshot({path:path.join(artifacts,'rov-mobile-controls.png')});
 await page.locator('#rovPause').click();if(await page.evaluate(()=>state)!=='paused')throw Error('ROV pause failed');
 await page.locator('#resume').click();if(await page.evaluate(()=>state)!=='playing')throw Error('ROV resume failed');

@@ -8,8 +8,9 @@
 function paintScene(g,name,w,h,tm){
  const saved=c,sN=night,sA=ambient;c=g;night=0;ambient=tm;
  try{
-  c.save();const z=1.03+.06*smooth(0,12,tm),dx=Math.sin(tm*.09+name.length)*w*.012;c.translate(w/2+dx,h/2);c.scale(z,z);c.translate(-w/2,-h/2);
-  (SCENES[name]||SCENES.title)(w,h,tm);c.restore();
+  c.save();const action=/chase|sink|last|retreat|escape|attack/.test(name),motion=reduced?0:tm;const z=1.03+(action?.12:.06)*smooth(0,12,motion),dx=Math.sin(motion*(action?.24:.09)+name.length)*w*.012;c.translate(w/2+dx,h/2);c.scale(z,z);c.translate(-w/2,-h/2);
+  (SCENES[name]||SCENES.title)(w,h,reduced?2:tm);
+  cineDepth(name,w,h,motion);c.restore();
   const v=c.createRadialGradient(w/2,h/2,Math.min(w,h)*.35,w/2,h/2,Math.max(w,h)*.75);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,.55)');c.fillStyle=v;c.fillRect(0,0,w,h);
   const bar=Math.round(h*.065);c.fillStyle='#000';c.fillRect(0,0,w,bar);c.fillRect(0,h-bar,w,bar);
  }finally{c=saved;night=sN;ambient=sA}
@@ -179,4 +180,30 @@ SCENES.map=function(w,h,tm){
  MISSIONS.forEach((m,i)=>{const [x,y]=P(i),got=i<done,cur=i===Math.min(done,MISSIONS.length-1);if(i>done*prog+1&&!got)c.globalAlpha=.35;circle(x,y,(m.boss?7:4.5)*u,got?'#a6ead5':cur?'#ecc69b':'#3a5a50');if(m.boss)circle(x,y,11*u,null,got?'#a6ead5':'#e3785f',1.4);if(cur&&Math.floor(tm*2)%2)circle(x,y,16*u,null,'#ecc69b',1.5);c.globalAlpha=1});
  c.font=`${Math.round(11*u)}px ui-monospace,monospace`;c.fillStyle='#ecc69b';CHAPTERS.forEach((ch,i)=>{const [x,y]=P(MISSIONS.findIndex(m=>m.ch===i));c.fillText(ch.n+' / '+ch.name,x-10*u,y+26*u)});
  c.save();c.globalCompositeOperation='screen';glow(w*.9,h*.1,w*.4,'rgba(255,220,160,.12)');c.restore();
+};
+
+// Foreground silhouettes move faster than the distant scene to establish scale.
+function cineDepth(name,w,h,tm){
+ if(!/meridian_last|kraken|tentacles|octopus|core_found|trench|retreat|escape/.test(name))return;
+ c.save();const chase=/chase|escape/.test(name),speed=chase?140:18;
+ for(let i=0;i<18;i++){const layer=1+hash(i+60)*2,x=((hash(i+20)*w-tm*speed*layer)%(w+100)+w+100)%(w+100)-50,y=hash(i+40)*h;
+ c.globalAlpha=.12+layer*.07;c.fillStyle='#8aa9a6';c.beginPath();c.ellipse(x,y,layer*(chase?7:2),layer,0,0,TAU);c.fill()}
+ c.globalAlpha=1;const fog=c.createLinearGradient(0,h*.7,0,h);fog.addColorStop(0,'#010a1000');fog.addColorStop(1,'#010a10bb');c.fillStyle=fog;c.fillRect(0,h*.7,w,h*.3);
+ if(chase){c.globalAlpha=.65;c.fillStyle='#020b10';for(let i=0;i<5;i++){const x=((i*w/4-tm*95)%(w+200)+w+200)%(w+200)-100;c.beginPath();c.moveTo(x-100,h);c.lineTo(x,h*(.81+hash(i)*.12));c.lineTo(x+110,h);c.fill()}}
+ c.restore();
+}
+
+// A staged pursuit: the eye emerges, an arm commits, the boat dives beneath it,
+// and the creature falls behind. The action has a beginning and an escape beat.
+SCENES.kraken_chase=function(w,h,tm){
+ deep(w,h,tm,'#082832','#01050b',.025);
+ const u=U(w,h),reveal=smooth(0,3,tm),strike=smooth(3,5,tm),escape=smooth(6,10,tm);
+ const bx=w*(.62+.2*escape),by=h*(.43+.18*smooth(4,6,tm)-.06*escape);
+ drawKraken(w*(-.15+.22*reveal-.22*escape),h*.52,Math.min(w,h)/550,.15+.85*reveal,[1,0],0,.8);
+ const pts=[];for(let j=0;j<=22;j++){const f=j/22;pts.push([w*(-.1+f*(.35+.48*strike-.3*escape)),h*.36+Math.sin(f*4+tm)*22*u+f*f*35*u,40*u*(1-.9*f)])}
+ drawLimb(pts,'#235352','#0c292f','#91d4bc66');
+ subAt(campBoat(),bx,by,.16*(smooth(4,5,tm)-smooth(6,8,tm)),Math.min(w,h)/220);
+ bubs(bx-65*u,by,tm,36,65*u);
+ spot(bx+55*u,by,0,w*.35,80*u,.16);
+ for(let i=0;i<35;i++){const x=((hash(i)*w-tm*(70+hash(i+3)*90))%w+w)%w,y=hash(i+8)*h;c.strokeStyle='#9ddfdc22';c.beginPath();c.moveTo(x,y);c.lineTo(x+12+20*hash(i),y);c.stroke()}
 };

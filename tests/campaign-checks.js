@@ -2,16 +2,20 @@
  const checks=[],failures=[];const random=Math.random;Math.random=mulberry(20261026);
  const check=(name,ok,detail)=>{checks.push({name,ok,detail});if(!ok)failures.push({name,detail})};
  function boot(m,id='gato',cp=0,snap=null){cm=m;subId=id;diffId=m.diff;courseSeed=campSeed(m);camp.data=blankCamp();camp.run={m,cp,snap,clean:true,deaths:0,loot:[0,0,0],time:0,cuts:{}};reset();state='playing';panel=null;clearInput();}
- // Recover actual payloads using the same 120 Hz movement and tool code as play.
- for(const kind of ['ship','relay','mineRig','core'])for(let variant=0;variant<3;variant++){
-  boot(MISSIONS[1]);const w=cr.wrecks[variant];w.k=kind;expeditionStart(w);const e=cr.expedition;
-  function move(x,y){let n=0;while(cr.expedition&&Math.hypot(e.x-x,e.y-y)>8&&n++<3600){inputKeys.clear();if(Math.abs(x-e.x-e.vx*.24)>3)inputKeys.add(x>e.x+e.vx*.24?'ArrowRight':'ArrowLeft');if(Math.abs(y-e.y-e.vy*.24)>3)inputKeys.add(y>e.y+e.vy*.24?'ArrowDown':'ArrowUp');expeditionStep(1/120)}inputKeys.clear();for(let i=0;i<90&&cr.expedition;i++)expeditionStep(1/120)}
-  for(const n of e.nodes){move(n.x,n.y);expeditionScan()}
-  move(e.target.x,130);move(e.target.x,e.target.y);
-  let n=0;while(cr.expedition&&!e.cargo&&n++<1500){inputKeys.clear();if(e.clock-e.pulse>=2)expeditionScan();if(e.kind!=='core'||e.heat<.78)inputKeys.add('Space');expeditionStep(1/120)}
-  check('payload tool '+kind+'/'+variant,e.cargo,{hp:e.hp,time:e.clock,grip:e.grip,nodes:e.nodes});
-  move(e.target.x,130);move(130,130);
-  check('payload delivery '+kind+'/'+variant,w.done&&cr.salv.has(w.i)&&!cr.expedition,{hp:e.hp,time:e.clock,salv:[...cr.salv]});
+ // Recover payloads using real 3D thruster integration at 120 Hz.
+ for(const missionIndex of [1,6,14,20])for(const kind of ['ship','relay','mineRig','core'])for(let variant=0;variant<3;variant++){
+  boot(MISSIONS[missionIndex]);const w=cr.wrecks[variant];w.k=kind;expeditionStart(w);const e=cr.expedition;
+  if(!e){check('WebGL available',false);continue}for(let i=0;i<390;i++)expeditionStep(1/120);
+  function move(x,y,z){let n=0;while(cr.expedition&&e.phase==='pilot'&&Math.hypot(e.x-x,e.y-y,e.z-z)>.35&&n++<4200){inputKeys.clear();
+   const dx=x-e.x-e.vx*.4,dy=y-e.y-e.vy*.4,dz=z-e.z-e.vz*.4;
+   if(Math.abs(dx)>.12)inputKeys.add(dx>0?'KeyD':'KeyA');if(Math.abs(dy)>.12)inputKeys.add(dy>0?'Space':'KeyC');if(Math.abs(dz)>.12)inputKeys.add(dz>0?'KeyS':'KeyW');expeditionStep(1/120)
+  }inputKeys.clear();for(let i=0;i<90&&cr.expedition;i++)expeditionStep(1/120)}
+  function approach(p){move(e.x,16,e.z);move(p.x,16,p.z);move(p.x,p.y,p.z)}
+  for(const node of e.nodes){approach(node);expeditionScan()}
+  approach(e.target);let n=0;while(cr.expedition&&!e.cargo&&n++<1800){inputKeys.clear();if(e.clock-e.pulse>=2)expeditionScan();if(e.kind!=='core'||e.heat<.78)inputKeys.add('KeyF');expeditionStep(1/120)}
+  check('3D payload '+kind+'/'+missionIndex+'/'+variant,e.cargo,{hp:e.hp,time:e.clock,grip:e.grip});
+  approach(e.dock);for(let i=0;i<240&&cr.expedition;i++)expeditionStep(1/120);
+  check('3D delivery '+kind+'/'+missionIndex+'/'+variant,w.done&&cr.salv.has(w.i)&&!cr.expedition,{hp:e.hp,time:e.clock,salv:[...cr.salv]});
  }
  boot(MISSIONS[1]);expeditionStart(cr.wrecks[0]);const originalX=sub.x,originalTime=t,originalO2=o2;physics(1/120);check('mothership holds during expedition',sub.x===originalX&&t===originalTime&&o2===originalO2);
  cr.expedition.hp=0;expeditionStep(1/120);check('failed expedition stays retryable',!cr.expedition&&!cr.wrecks[0].done&&!cr.wrecks[0].busy);

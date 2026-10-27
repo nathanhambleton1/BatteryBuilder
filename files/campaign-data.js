@@ -307,7 +307,7 @@ const MISSIONS=[
   biomes:[['open',3000],['basin',4000],['shoal',2400],['open',9000]],mines:.8,gapK:1.08,air:.45,
   wrecks:[[1800,'ship'],[3600,'plane'],[6200,'ship'],[8200,'sub'],[11000,'ship'],[12600,'plane']],
   relic:{t:'wreck',i:3},post:'m2_post',reward:[8,1,0],
-  msgs:[[700,'JUNO','Wreck on sonar. When the SALVAGE marker lights up, press Q. Pilot with WASD. Q scans; hold Space to grab. Bring the payload back to the green dock.'],[4700,'JUNO','Watch vent warnings and your battery. Optional scrap is worth a detour if you have time.'],[8000,'RIGGS','Sunken submarine below. Those carry alloy.']]},
+  msgs:[[700,'JUNO','Wreck on sonar. When the SALVAGE marker lights up, press Q. Pilot with WASD. Space rises; C descends. Q scans; hold F to grab. Bring the payload back to the green dock.'],[4700,'JUNO','Watch vent warnings and your battery. Optional scrap is worth a detour if you have time.'],[8000,'RIGGS','Sunken submarine below. Those carry alloy.']]},
  {id:'m3',foes:[[6500,'destroyer'],[12500,'hunter'],[14800,'destroyer']],ch:0,name:'Picket Line',diff:'admiral',L:17000,cps:[5200,10800],ships:2600,
   brief:'Contract warships patrol the approaches to the strait. Fire missiles with F or right-click, shoot down their seekers, and reach the end of the picket line.',
   biomes:[['open',4000],['shoal',2500],['open',3500],['basin',4000],['open',9000]],mines:.9,air:.4,night:9000,
@@ -446,7 +446,7 @@ function scaleMission(m,k){
 }
 // Replace transit-only patrols with authored recovery operations.
 const OPERATIONS={
- m1:{name:'Harbour blackout',wrecks:[[2300,'relay'],[6300,'relay']],brief:'Recover two navigation recorders with the ROV, then break through the hunter patrol. Pilot with WASD, scan with Q, and hold Space to secure the recorder.'},
+ m1:{name:'Harbour blackout',wrecks:[[2300,'relay'],[6300,'relay']],brief:'Recover two navigation recorders with the ROV, then break through the hunter patrol. Fly the 3D ROV with WASD, rise with Space, descend with C, scan with Q, and hold F to secure the recorder.'},
  m3:{name:'Picket telemetry',wrecks:[[3800,'relay'],[9000,'relay']],brief:'Recover the picket fleet’s acoustic codes between destroyer patrols. Each recorder requires a drone sortie; bring it back to the dock.'},
  m7:{name:'Cathedral survey',wrecks:[[4300,'relay'],[10300,'relay'],[16300,'relay']],brief:'Recover three acoustic recorders inside the Cathedral. Dodge vent plumes during each drone dive, then survive the creatures drawn to the signal.'},
  m15:{name:'Mine network',wrecks:[[4500,'mineRig'],[11000,'mineRig'],[18500,'mineRig']],brief:'Disable three mine controllers with the ROV. Scan each controller, hold the tool steady, and return its circuit board to the boat.'}

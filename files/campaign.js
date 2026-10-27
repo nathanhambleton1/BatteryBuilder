@@ -138,6 +138,7 @@ function campReset(){
  if(m.race){cr.rival={x:x0+(snap.rival===undefined?320:snap.rival),y:sub.y+50,k:m.race.rival};cr.vents=buildVents()}
  if(m.relic&&m.relic.t==='float'&&!cr.relicGot)cr.relicAt=relicSpot();
  commsQ.length=0;commsUntil=0;$('comms').classList.remove('show');
+ fieldBuild();
  campHudInit();
 }
 function campSnap(){return {salv:[...cr.salv],clues:[...cr.clues],subs:cr.subLoads,tubes:cr.tubes,core:cr.core,rival:cr.rival?Math.round(clamp(cr.rival.x-sub.x,-2500,2500)):undefined}}
@@ -147,7 +148,7 @@ function reachCheckpoint(i){
  const cut=cm.cuts&&cm.cuts[i+1];if(cut&&!R.cuts[i+1]){R.cuts[i+1]=1;campaignRadioCut(cut)}
 }
 function campStep(dt){
- campStationTick();campSupplyTick();
+ campStationTick();campSupplyTick();fieldStep(dt);
  const m=cm,msgs=m.msgs||[];
  while(cr.msgI<msgs.length&&sub.x>=msgs[cr.msgI][0]){const [,w,txt]=msgs[cr.msgI++];comms(w,txt)}
  while(cr.cpNext<m.cps.length&&sub.x>=m.cps[cr.cpNext]){reachCheckpoint(cr.cpNext);cr.cpNext++;if(state!=='playing')return}
@@ -309,7 +310,8 @@ function updateRace(dt){
  const gap=r.x-sub.x,base=mix(D.speed[0],D.speed[1],clamp(r.x/D.ramp,0,1))*cm.race.rv,k=gap<0?1+clamp(-gap-600,0,1200)/1200*.65:1-clamp(gap-1200,0,2000)/2000*.15;
  const combat=cr.foes.some(f=>!f.dead)||cr.boss;
  const pace=combat?Math.min(base*S.speed,campCombatSpeed()*(cr.inStream?.92:1.04)):base*S.speed;
- r.x+=campTerrainSpeed(pace,r.x)*k*dt;const ty=streamY(r.x+220);r.y+=clamp((ty-r.y)*1.4,-110,110)*dt;
+ const fieldPace=fieldActive()?Math.min(pace,fieldSpeed(pace)*(cr.inStream?.92:1.04)):pace;
+ r.x+=campTerrainSpeed(fieldPace,r.x)*k*dt;const ty=streamY(r.x+220);r.y+=clamp((ty-r.y)*1.4,-110,110)*dt;
  if(t-(r.lb||0)>.05){r.lb=t;bubbles.push({x:r.x-60,y:r.y+(Math.random()-.5)*10,r:1+Math.random()*2,life:1.5,vx:-40,vy:-12})}
  for(const v of cr.vents){if(v.taken||Math.abs(v.x-sub.x)>S.hx+26)continue;if(Math.abs(v.y-sub.y)<S.hy+28){v.taken=true;cr.boostUntil=t+2.2;csfx.boost();for(let i=0;i<20;i++)bubbles.push({x:v.x,y:v.y,r:1+Math.random()*3,life:1,vx:rnd(-80,80),vy:rnd(-80,20)})}}
  if(cr.inStream&&Math.random()<.5)bubbles.push({x:sub.x-S.hx,y:sub.y+rnd(-12,12),r:1,life:.8,vx:-120,vy:0});

@@ -5,12 +5,12 @@
 const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e};
 const icon=id=>{const s=document.createElementNS('http://www.w3.org/2000/svg','svg'),u=document.createElementNS('http://www.w3.org/2000/svg','use');s.setAttribute('class','ic');u.setAttribute('href','#'+id);s.append(u);return s};
 const pad2=n=>String(n).padStart(2,'0');
-const missionTags=m=>[m.operation&&'ROV OPS',m.boss&&'BOSS',m.race&&'RACE',m.chase&&'CHASE',m.wrecks&&m.obj&&(m.obj.salv||m.obj.sub)&&'SALVAGE',m.recon&&'RECON',m.ships&&'WARSHIPS',m.night!==undefined&&'NIGHT'].filter(Boolean);
+const missionTags=m=>[m.field&&m.field.kind.toUpperCase(),m.operation&&'ROV OPS',m.boss&&'BOSS',m.race&&'RACE',m.chase&&'CHASE',m.wrecks&&m.obj&&(m.obj.salv||m.obj.sub)&&'SALVAGE',m.recon&&'RECON',m.ships&&'WARSHIPS',m.night!==undefined&&'NIGHT'].filter(Boolean);
 function objectiveText(m){const o=m.obj||{},L=[];
  if(m.boss)L.push('Defeat '+BOSS[m.boss.k].name.split(' / ').pop().replace(/^THE /,'the ').toLowerCase().replace(/(^|\s)\S/g,s=>s.toUpperCase()));
  else L.push(m.race?'Beat Volkov to the finish':m.chase?'Outrun the Kraken to the far side':'Reach the rendezvous');
- if(o.salv)L.push(m.id==='m15'?'Disable '+o.salv+' mine controllers with the ROV':m.operation?'Recover '+o.salv+' recorders: scan both relays, secure the payload, and dock':'Pilot the ROV to recover '+o.salv+' salvage loads and return to the dock');if(o.sub)L.push('Recover '+o.sub+' loads from sunken submarines');
- if(o.clues)L.push('Find '+o.clues+' beacons with the spotter drone');if(o.need==='core')L.push('Raise the Thermal Core');return L}
+ if(o.salv)L.push(m.id==='m15'?'Disable '+o.salv+' mine controllers with the ROV':m.operation?'Recover '+o.salv+' recorders: scan the relays in order, secure the payload, and dock':'Fly the 3D ROV to recover '+o.salv+' salvage loads, then return to the green dock');if(o.sub)L.push('Recover '+o.sub+' loads from sunken submarines');
+ if(o.clues)L.push('Find '+o.clues+' beacons with the spotter drone');if(o.need==='core')L.push('Raise the Thermal Core');if(m.field)L.push('Bonus: '+m.field.name+'. '+FIELD_HELP[m.field.kind]+' Earn air and workshop scrap.');return L}
 function partsText(p){return PARTS.map(([,n],i)=>p[i]?'+'+p[i]+' '+n:'').filter(Boolean).join('  ')}
 function firstOpenMission(){for(let i=0;i<MISSIONS.length;i++)if(campOpen(i)&&!camp.data.done[MISSIONS[i].id])return i;return MISSIONS.length-1}
 function campTile(){const n=Object.keys(camp.data.done).length,cp=camp.data.cp;$('campTileSub').textContent=n?(n>=MISSIONS.length?'Complete / ':'Mission '+(firstOpenMission()+1)+' of '+MISSIONS.length+' / ')+campStars()+' of '+MISSIONS.length*3+' stars'+(cp?' / resume ready':''):'Operation Deep Meridian / 24 missions'}

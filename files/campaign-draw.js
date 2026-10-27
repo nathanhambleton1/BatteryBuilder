@@ -114,6 +114,7 @@ function ufo(x,y,v,lamp){const a=clamp(v/600,-.3,.3);c.save();c.translate(x,y);c
 /* ---- World layers ---- */
 function campDrawBack(){
  if(!cr)return;const m=cm,lo=camX-300,hi=camX+vw+300;
+ fieldDraw();
  if(m.race)drawStream();
  m.cps.forEach((x,i)=>{if(x>lo&&x<hi)drawMarker(x,'CHECKPOINT '+(i+1),cr.cpNext>i?'120,230,160':'166,234,213',cr.cpNext>i,false,t-cr.cpFlash<1.2&&cr.cpNext===i+1)});
  if(!m.boss&&m.L>lo&&m.L<hi)drawMarker(m.L,m.race?'FINISH':'RENDEZVOUS','236,198,155',false,true,false);
@@ -184,6 +185,7 @@ function campDrawFront(){
 function campDrawScreen(){
  if(!cr)return;
  if(cr.expedition){expeditionDraw();return}
+ fieldDrawHUD();
  const ram=cr.boss&&cr.boss.lunge;if(ram&&t-ram.t0<2.6){const [,y]=proj(sub.x,ram.y);c.fillStyle="#ef66592b";c.fillRect(0,y-32,W,64);c.fillStyle="#ffb59c";c.font="13px monospace";c.fillText("RAM DEPTH LOCKED / MOVE CLEAR",W*.35,y-42)}
  if(cr.escape&&t<cr.escape.until){const [px,py]=proj(cr.escape.x,cr.escape.y),x=clamp(px,65,W-65),y=clamp(py,120,H-110);c.save();c.strokeStyle="#a6ead5";c.lineWidth=2;c.setLineDash([6,5]);c.strokeRect(x-24,y-32,48,64);c.setLineDash([]);c.fillStyle="#a6ead5";c.font="12px monospace";c.fillText("ESCAPE GAP",x-38,y-43);c.restore()}
  if(t<cr.inked){const [sx,sy]=proj(sub.x,sub.y),g=c.createRadialGradient(sx,sy,30,sx,sy,Math.max(W,H)*.6);g.addColorStop(0,'rgba(2,4,10,.55)');g.addColorStop(1,'rgba(2,4,10,.94)');c.fillStyle=g;c.fillRect(0,0,W,H)}

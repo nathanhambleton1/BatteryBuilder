@@ -8,7 +8,7 @@ function campTerrainSpeed(v,x=sub.x){
  return v;
 }
 function campLimitSpeed(v){
- v=campTerrainSpeed(v);
+ v=fieldSpeed(campTerrainSpeed(v));
  if(cr&&(cr.boss||cr.foes.some(f=>!f.dead)||cr.hz.some(h=>h.k==='tent'||h.k==='sweep')))return Math.min(v,campCombatSpeed());
  return v;
 }
