@@ -16,6 +16,7 @@ function updateSonar(dt){
 const reloadTime=()=>active('rapid')?.5:S.reload;
 function launch(target,vy=0,life=4.2){run.fired++;missiles.push({x:sub.x+S.hx*.9,y:sub.y+3,vx:speed+150,vy:sub.v*.3+15+vy,target,life})}
 function fire(){
+ if(cr&&cr.expedition)return;
  if(state!=='playing'||(cm&&!campCanFire()))return;
  if(t-lastFire<reloadTime()){if(t-lastFire>.25)tone(150,.07,.02,120);return}
  lastFire=t;launch(acquire());if(!practice)ach.st.fired++;
@@ -37,13 +38,14 @@ function acquire(skip=[]){
    An ability that would do nothing right now is refused without spending the charge. */
 const active=id=>S.ability.id===id&&t<abilityUntil;
 function useAbility(){
+ if(cr&&cr.expedition)return;
  if(state!=='playing')return;
  const A=S.ability;
  if(t-abilityAt<A.cd){if(t-abilityAt>.25)tone(150,.07,.02,120);return}
  const refuse=(title,body)=>{toast(title,body,1.8);tone(150,.12,.03,110);return false};
  if(cm&&['salvo','strike','rapid'].includes(A.id)&&!campCanFire())return;
  let ok=true;
- if(A.id==='salvo'){const taken=[];for(let i=0;i<3;i++){const tg=acquire(taken);if(tg)taken.push(tg.missile||tg.ship||tg.gate.x+':'+tg.k);launch(tg,(i-1)*110)}
+ if(A.id==='salvo'){const taken=[];for(let i=0;i<3;i++){const tg=acquire(taken);if(tg)taken.push(tg.missile||tg.ship||tg.camp||tg.gate.x+':'+tg.k);launch(tg,(i-1)*110)}
   for(let i=0;i<24;i++)bubbles.push({x:sub.x+S.hx,y:sub.y+(Math.random()-.5)*14,r:1+Math.random()*2.5,life:1+Math.random(),vx:speed*.6+Math.random()*60,vy:-10-Math.random()*30})}
  else if(A.id==='strike'){let n=0;
   if(terrain(sub.x).cave<.3)for(const s of ships){if(s.sinking||s.x<camX-100||s.x>camX+vw+200||terrain(s.x).cave>.15)continue;for(let i=0;i<s.hp;i++){launch({ship:s},-420-i*70,5.5);n++}}
@@ -175,8 +177,10 @@ async function finish(){
  $('saveNote').textContent='Saving score...';describeSave(await submitScore(lastEntry));
 }
 function physics(dt){
+ if(cm&&cr&&cr.expedition){expeditionStep(dt);return}
  t+=dt;difficulty=clamp(sub.x/D.ramp,0,1);
  speed=mix(D.speed[0],D.speed[1],difficulty)*(1+clamp((sub.x-D.ramp)/80000,0,.2))*S.speed*(practice?.85:1)*(active('flank')?1.5:1)*(cm?campSpeed():1);
+ if(cm)speed=campLimitSpeed(speed);
  sub.x+=speed*dt;distance=(sub.x-runX0)*.1;night=smooth(TP.night,TP.night+3500,sub.x);camX=sub.x-vw*.24;
  held=pointerLift||inputKeys.has('Space')||inputKeys.has('ArrowUp')||inputKeys.has('KeyW');down=inputKeys.has('ArrowDown')||inputKeys.has('KeyS');
  if(cm&&campHold())held=down=false;

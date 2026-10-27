@@ -53,7 +53,7 @@ const UPGRADES=[
  {id:'air',name:'CO2 scrubbers',desc:'Stretch every breath of air further.',per:'+15% AIR',max:3,cost:[[8,1,0],[16,3,1],[28,6,3]]},
  {id:'reload',name:'Torpedo room',desc:'A faster crew and a better loading rail.',per:'-10% RELOAD',max:3,cost:[[10,2,0],[18,4,1],[30,7,3]]},
  {id:'sonar',name:'Sonar array',desc:'A wider array pings more often.',per:'+12% PING RATE',max:2,cost:[[8,2,1],[18,5,3]]},
- {id:'drone',name:'Drone winch',desc:'Faster salvage drones and a bigger spotter battery.',per:'+35% DRONE / +4 S',max:2,cost:[[6,1,1],[14,4,2]]},
+ {id:'drone',name:'Drone winch',desc:'Stronger ROV thrusters and longer batteries: +8 seconds underwater, +5 seconds airborne.',per:'+15% ROV THRUST / MORE BATTERY',max:2,cost:[[6,1,1],[14,4,2]]},
  {id:'ballast',name:'Ballast pumps',desc:'The boat answers the helm sooner.',per:'+6% AGILITY',max:2,cost:[[10,3,0],[20,6,2]]},
 ];
 const PARTS=[['scrap','SCRAP'],['alloy','ALLOY'],['circ','CIRCUITS']];
@@ -298,7 +298,7 @@ const CINES={
 const MISSIONS=[
  // ---- Chapter I: Shakedown ----
  {id:'m1',foes:[[5200,'hunter'],[9000,'hunter']],ships:7800,ch:0,name:'Old Iron',diff:'admiral',L:11000,cps:[3800,7600],
-  brief:'Take the Remora out past the harbour shoals. Learn how she answers the helm, pass both checkpoints and meet the tender at the rendezvous.',
+  brief:'Take the Remora out past the harbour shoals. Learn how she answers the helm, recover the recorders and meet the tender at the rendezvous.',
   biomes:[['open',2800],['shoal',2600],['open',3400],['basin',8000]],mines:.75,gapK:1.12,air:.45,
   relic:{t:'float',x:6400,d:.82},pre:'prologue',post:'m1_post',reward:[6,1,0],
   msgs:[[300,'JUNO','Hold Space, W or the rise button to climb. Let go to sink. She is heavy, so think ahead.'],[1900,'JUNO','Air pockets glow blue. Steer through them to refill the tanks.'],[3900,'JUNO','That light curtain was a checkpoint. If we get into trouble, we start again from the last one we passed.'],[5100,'RIGGS','Mines ahead, paired top and bottom. Thread the gap and mind the cables.'],[6000,'JUNO','Something glinting near the seabed. Vance’s crew sealed their notes in capsules. Grab it if you can.'],[9400,'HALE','Remora, the tender is on station. Bring her in.']]},
@@ -307,7 +307,7 @@ const MISSIONS=[
   biomes:[['open',3000],['basin',4000],['shoal',2400],['open',9000]],mines:.8,gapK:1.08,air:.45,
   wrecks:[[1800,'ship'],[3600,'plane'],[6200,'ship'],[8200,'sub'],[11000,'ship'],[12600,'plane']],
   relic:{t:'wreck',i:3},post:'m2_post',reward:[8,1,0],
-  msgs:[[700,'JUNO','Wreck on sonar. When the SALVAGE marker lights up, press Q. The drone dives, digs and catches up with us.'],[4700,'JUNO','Drones can strike mines too. Pick your moment.'],[8000,'RIGGS','Sunken submarine below. Those carry alloy.']]},
+  msgs:[[700,'JUNO','Wreck on sonar. When the SALVAGE marker lights up, press Q. Pilot with WASD. Q scans; hold Space to grab. Bring the payload back to the green dock.'],[4700,'JUNO','Watch vent warnings and your battery. Optional scrap is worth a detour if you have time.'],[8000,'RIGGS','Sunken submarine below. Those carry alloy.']]},
  {id:'m3',foes:[[6500,'destroyer'],[12500,'hunter'],[14800,'destroyer']],ch:0,name:'Picket Line',diff:'admiral',L:17000,cps:[5200,10800],ships:2600,
   brief:'Contract warships patrol the approaches to the strait. Fire missiles with F or right-click, shoot down their seekers, and reach the end of the picket line.',
   biomes:[['open',4000],['shoal',2500],['open',3500],['basin',4000],['open',9000]],mines:.9,air:.4,night:9000,
@@ -431,10 +431,10 @@ const MISSIONS=[
   relic:{t:'float',x:22400,d:.2},pre:'m24_pre',post:'m24_post',reward:[30,10,6],unlock:'typhoon',
   msgs:[[18200,'RIGGS','We are out of the trench! It is falling back!'],[18800,'HALE','Wolfpack on the surface between you and home. Last push, Remora.'],[30000,'HALE','I can see your wake from the pier.']]},
 ];
-/* At Admiral speed the courses above would fly by, so every distance is stretched by
-   COURSE_SCALE when the game loads. Beacons keep their distance from the end of their
-   recon point, so a spotter flight stays within one battery. */
-const COURSE_SCALE=1.45;
+/* Keep authored distances: operations now add hands-on play rather than stretching
+   transit by 45%. Checkpoint indices remain compatible with existing saves.
+   Beacon offsets stay battery-safe if a future course scale is used. */
+const COURSE_SCALE=1;
 function scaleMission(m,k){
  const X=x=>Math.round(x*k);
  if(m.L)m.L=X(m.L);m.cps=m.cps.map(X);m.biomes=m.biomes.map(([b,len])=>[b,X(len)]);
@@ -443,6 +443,25 @@ function scaleMission(m,k){
  if(m.recon)m.recon=m.recon.map(z=>{const x1=X(z.x1),off=x=>x1+(x-z.x1);return {...z,x0:X(z.x0),x1,clues:z.clues.map(([x,h])=>[off(x),h]),relic:z.relic&&[off(z.relic[0]),z.relic[1]]}});
  if(m.relic&&m.relic.t==='float')m.relic={...m.relic,x:X(m.relic.x)};
  if(m.boss)m.boss={...m.boss,at:X(m.boss.at)};if(m.chase)m.chase={from:X(m.chase.from),to:X(m.chase.to)};
+}
+// Replace transit-only patrols with authored recovery operations.
+const OPERATIONS={
+ m1:{name:'Harbour blackout',wrecks:[[2300,'relay'],[6300,'relay']],brief:'Recover two navigation recorders with the ROV, then break through the hunter patrol. Pilot with WASD, scan with Q, and hold Space to secure the recorder.'},
+ m3:{name:'Picket telemetry',wrecks:[[3800,'relay'],[9000,'relay']],brief:'Recover the picket fleet’s acoustic codes between destroyer patrols. Each recorder requires a drone sortie; bring it back to the dock.'},
+ m7:{name:'Cathedral survey',wrecks:[[4300,'relay'],[10300,'relay'],[16300,'relay']],brief:'Recover three acoustic recorders inside the Cathedral. Dodge vent plumes during each drone dive, then survive the creatures drawn to the signal.'},
+ m15:{name:'Mine network',wrecks:[[4500,'mineRig'],[11000,'mineRig'],[18500,'mineRig']],brief:'Disable three mine controllers with the ROV. Scan each controller, hold the tool steady, and return its circuit board to the boat.'}
+};
+for(const m of MISSIONS){
+ const op=OPERATIONS[m.id];if(op){m.wrecks=op.wrecks;m.obj={salv:op.wrecks.length};m.brief=op.brief;m.operation=op.name}
+ // Mines are local hazards around encounters, not an endless corridor.
+ if(m.race)m.foes.unshift([1400,'hunter']);
+ m.mineZones=(m.foes||[]).map(([x])=>[x-650,x+600]);
+ if(m.id==='m15')m.mineZones=[[1800,3200],[7600,9000],[14500,16000],[22500,24000]];
+ m.mines=Math.min(m.mines||1,.6);m.gapK=Math.max(m.gapK||1,1.12);
+
+ if(m.id==='m1'||m.id==='m2')m.diff='captain';
+ // Explicit encounters supply combat; avoid additional random warship stacks.
+ delete m.ships;
 }
 MISSIONS.forEach(m=>scaleMission(m,COURSE_SCALE));
 const MISSION_BY_ID=Object.fromEntries(MISSIONS.map((m,i)=>[m.id,Object.assign(m,{i})]));

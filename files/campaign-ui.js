@@ -5,11 +5,11 @@
 const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e};
 const icon=id=>{const s=document.createElementNS('http://www.w3.org/2000/svg','svg'),u=document.createElementNS('http://www.w3.org/2000/svg','use');s.setAttribute('class','ic');u.setAttribute('href','#'+id);s.append(u);return s};
 const pad2=n=>String(n).padStart(2,'0');
-const missionTags=m=>[m.boss&&'BOSS',m.race&&'RACE',m.chase&&'CHASE',m.wrecks&&m.obj&&(m.obj.salv||m.obj.sub)&&'SALVAGE',m.recon&&'RECON',m.ships&&'WARSHIPS',m.night!==undefined&&'NIGHT'].filter(Boolean);
+const missionTags=m=>[m.operation&&'ROV OPS',m.boss&&'BOSS',m.race&&'RACE',m.chase&&'CHASE',m.wrecks&&m.obj&&(m.obj.salv||m.obj.sub)&&'SALVAGE',m.recon&&'RECON',m.ships&&'WARSHIPS',m.night!==undefined&&'NIGHT'].filter(Boolean);
 function objectiveText(m){const o=m.obj||{},L=[];
  if(m.boss)L.push('Defeat '+BOSS[m.boss.k].name.split(' / ').pop().replace(/^THE /,'the ').toLowerCase().replace(/(^|\s)\S/g,s=>s.toUpperCase()));
  else L.push(m.race?'Beat Volkov to the finish':m.chase?'Outrun the Kraken to the far side':'Reach the rendezvous');
- if(o.salv)L.push('Recover '+o.salv+' salvage loads with the drone');if(o.sub)L.push('Recover '+o.sub+' loads from sunken submarines');
+ if(o.salv)L.push(m.id==='m15'?'Disable '+o.salv+' mine controllers with the ROV':m.operation?'Recover '+o.salv+' recorders: scan both relays, secure the payload, and dock':'Pilot the ROV to recover '+o.salv+' salvage loads and return to the dock');if(o.sub)L.push('Recover '+o.sub+' loads from sunken submarines');
  if(o.clues)L.push('Find '+o.clues+' beacons with the spotter drone');if(o.need==='core')L.push('Raise the Thermal Core');return L}
 function partsText(p){return PARTS.map(([,n],i)=>p[i]?'+'+p[i]+' '+n:'').filter(Boolean).join('  ')}
 function firstOpenMission(){for(let i=0;i<MISSIONS.length;i++)if(campOpen(i)&&!camp.data.done[MISSIONS[i].id])return i;return MISSIONS.length-1}
@@ -116,6 +116,7 @@ function campReplay(){const i=cm.i;show('campDone',false);panel=null;campExit();
 /* ---- Cutscene player ---- */
 const cine={on:false,lines:null,i:0,done:null,scene:'title',t0:0,raf:0};
 function playCine(id,done){
+ $('cine').append($('cineSkip'));
  const L=CINES[id];if(!L){if(done)done();return}
  if(!camp.data.seen[id]){camp.data.seen[id]=1;profDirty(false)}
  if(panel)show(panel,false);panel='cine';cine.on=true;cine.lines=L;cine.i=0;cine.done=done;cine.scene='';
@@ -137,9 +138,9 @@ function cineFrame(now){
  if(cv.width!==Math.round(w*k)||cv.height!==Math.round(h*k)){cv.width=Math.round(w*k);cv.height=Math.round(h*k)}
  const g=cv.getContext('2d');g.setTransform(k,0,0,k,0,0);g.globalAlpha=1;g.globalCompositeOperation='source-over';
  // A frame's timestamp can predate the scene change by a few milliseconds.
- const tm=Math.max(0,now-cine.t0);paintScene(g,cine.scene||'title',w,h,tm/1000);
+ const tm=Math.max(0,now-cine.t0);paintScene(g,cine.scene||'title',w,h,tm/750);
  const pc=$('cinePort');if(cine.who&&cine.who!=='NARR'&&!$('cineBox').hidden)paintPortrait(pc.getContext('2d'),cine.who,pc.width,pc.height,now/1000,typer.el===$('cineText')&&typer.i<typer.text.length);
- const fade=clamp(tm/600,0,1);if(fade<1){g.fillStyle=`rgba(0,0,0,${1-fade})`;g.fillRect(0,0,w,h)}
+ const fade=clamp(tm/180,0,1);if(fade<1){g.fillStyle=`rgba(0,0,0,${1-fade})`;g.fillRect(0,0,w,h)}
  cine.raf=requestAnimationFrame(cineFrame);
 }
 

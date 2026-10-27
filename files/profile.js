@@ -64,7 +64,7 @@ async function profSync(){
   if(found&&prof.note==='new')prof.note='Loaded '+now.name+'’s profile from the shared folder.';
   else if(prof.note==='new'||prof.note==='local'||!prof.note)prof.note='Profile saved to the shared folder.';
   // Runs this sailor posted from a PC that never reached bin.dat.
-  const miss=now.scores.filter(e=>!included(lb.shared,e)&&!pending().some(q=>q.id===e.id));
+  const miss=now.scores.filter(e=>!lb.admin.entries[e.id]&&!included(lb.shared,e)&&!pending().some(q=>q.id===e.id));
   if(miss.length){store.set('undertow.pending.v1',[...pending(),...miss].slice(-100));lbSync(false)}
   renderRank();return true;
  }catch(e){if(prof.key===key){prof.pulled=false;prof.note='The shared profile could not be reached ('+(e&&e.message||e)+'). Progress is kept on this computer and syncs later.';renderRank()}return false}

@@ -43,10 +43,10 @@ const camp={data:blankCamp(),saved:null,run:null,after:false,sel:-1,tab:'mission
 const campParts=k=>camp.data.earn[k]-camp.data.spent[k];
 const starCount=s=>(s&1)+(s>>1&1)+(s>>2&1);
 const campStars=()=>Object.values(camp.data.done).reduce((n,s)=>n+starCount(s),0);
-const campOpen=i=>i===0||!!camp.data.done[MISSIONS[i-1].id];
+const campOpen=i=>secretAdmin.active||i===0||!!camp.data.done[MISSIONS[i-1].id];
 const campBuilt=()=>Object.values(camp.data.up).reduce((n,v)=>n+v,0);
 // Boats the campaign has released: the Gato from the start, then one per milestone.
-function campSubs(){const s=['gato'];for(const m of MISSIONS)if(m.unlock&&camp.data.done[m.id])s.push(m.unlock);return s}
+function campSubs(){if(secretAdmin.active)return SUBS.map(s=>s.id);const s=['gato'];for(const m of MISSIONS)if(m.unlock&&camp.data.done[m.id])s.push(m.unlock);return s}
 const campUnlockedBy=id=>MISSIONS.find(m=>m.unlock===id);
 // Lifetime numbers the achievements and XP read.
 function campLife(){const d=camp.data;return {cmis:Object.keys(d.done).length,cstars:campStars(),csalv:d.salv,cclues:d.clues,cbuilt:campBuilt(),cboss:d.boss,craces:d.races,crelic:Object.keys(d.relic).length,cfin:d.done.m24?1:0}}
@@ -59,11 +59,15 @@ function campDiff(){const m=cm,b=DIFFS[m.diff],len=m.boss?m.boss.at+9000:m.L;
 function campSub(){const b=SUB_BY_ID[subId]||SUBS[0],u=camp.data.up,l=k=>u[k]||0;
  return {...b,hull:b.hull+l('hull'),o2:Math.round(b.o2*(1+.15*l('air'))),reload:b.reload*(1-.1*l('reload')),sonar:b.sonar/(1+.12*l('sonar')),agility:b.agility*(1+.06*l('ballast'))}}
 function campWorld(){
- let x=0;SEG=cm.biomes.map(([k,len],i)=>{const s={x0:x,len,r:i?wrnd(1000,1300):1,kind:k,v:i||k!=='open'?BIOMES[k].v():{cave:0,basin:0,lift:0,tight:0,rough:1}};x+=len;return s});
+ let x=0;SEG=cm.biomes.map(([k,len],i)=>{const s={x0:x,len:cm.boss&&i===cm.biomes.length-1?1e9:len,r:i?wrnd(1400,1650):1,kind:k,v:i||k!=='open'?BIOMES[k].v():{cave:0,basin:0,lift:0,tight:0,rough:1}};x+=len;return s});
  TP.night=cm.night===undefined?1e9:cm.night>0?cm.night:-3600;
 }
 // Mines stay clear of checkpoints, the finish, recon points and boss arenas.
 function campCalm(x){const m=cm,calm=()=>{lastCenter=null;return true};
+ if(m.wrecks){const recovered=cr?cr.salv:new Set(camp.run&&camp.run.snap&&camp.run.snap.salv||[]);if(m.wrecks.some(([wx,k],i)=>k==='mineRig'&&recovered.has(i)&&x>=wx&&x<=wx+5000))return calm()}
+ if(m.mineZones&&!m.mineZones.some(([a,b])=>x>=a&&x<=b))return calm();
+ if(m.wrecks&&m.wrecks.some(([wx])=>Math.abs(x-wx)<1000))return calm();
+ if(m.chase&&x>=m.chase.from-400&&x<=m.chase.to)return calm();
  for(const p of m.cps)if(x>p-480&&x<p+760)return calm();
  if(!m.boss&&x>m.L-650&&x<m.L+900)return calm();
  if(m.boss&&x>m.boss.at-350)return calm();
@@ -88,7 +92,8 @@ function campLaunch(i,resume){
  store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch();
  if(!camp.saved)camp.saved={diffId,subId,practice};
  subId=campSubs().includes(camp.data.sub)?camp.data.sub:'gato';diffId=m.diff;practice=false;
- const cp=resume&&camp.data.cp&&camp.data.cp.m===m.id?camp.data.cp:null;
+ let cp=resume&&camp.data.cp&&camp.data.cp.m===m.id?camp.data.cp:null;
+ if(cp&&m.recon){const held=new Set(cp.snap.clues||[]),miss=m.recon.find((z,zi)=>z.x1<m.cps[cp.i-1]&&z.clues.some((_,j)=>!held.has(zi+':'+j)));if(miss){const i=m.cps.filter(x=>x<miss.x0).length;cp={...cp,i}}}
  camp.run={m,cp:cp?cp.i:0,snap:cp?cp.snap:null,clean:!cp,deaths:0,loot:[0,0,0],time:0,cuts:{}};
  cm=m;courseSeed=campSeed(m);camp.sel=i;camp.after=false;
  if(panel)show(panel,false);panel=null;
@@ -108,13 +113,14 @@ function campRetry(){
 function campAgain(){if(cm&&camp.after){campRetry();return true}return false}
 // Leaving the campaign: restore the sailor's own level, boat and mission setting.
 function campExit(){
- if(!cm)return false;cm=null;cr=null;courseSeed=null;runX0=0;camp.after=false;camp.run=null;
+ if(!cm)return false;if(cr&&cr.expedition)expeditionPanel(false);cm=null;cr=null;courseSeed=null;runX0=0;camp.after=false;camp.run=null;
  if(camp.saved){diffId=camp.saved.diffId;subId=camp.saved.subId;setMission(camp.saved.practice);camp.saved=null}
  ['campHud','bossBar','droneBlock','letterbox'].forEach(id=>show(id,false));$('comms').classList.remove('show');commsQ.length=0;
  $('endBest').previousElementSibling.textContent='BEST SCORE';$('again').lastChild.textContent='DIVE AGAIN';$('restartPause').lastChild.textContent='Restart dive';
  return true;
 }
 function campReset(){
+ if(cr&&cr.expedition)expeditionPanel(false);
  const m=cm,R=camp.run,cpI=R.cp,x0=cpI?m.cps[cpI-1]:0,snap=R.snap||{};
  cr={salv:new Set(snap.salv||[]),clues:new Set(snap.clues||[]),subLoads:snap.subs||0,core:!!snap.core,
   tubes:snap.tubes===undefined?!(m.start&&m.start.tubes===false):snap.tubes,cpNext:cpI,msgI:0,
@@ -127,6 +133,7 @@ function campReset(){
  const msgs=m.msgs||[];while(cr.msgI<msgs.length&&msgs[cr.msgI][0]<x0+60)cr.msgI++;
  const fl=m.foes||[];while(cr.foeI<fl.length&&fl[cr.foeI][0]<x0+60)cr.foeI++;
  cr.wrecks=(m.wrecks||[]).map(([x,k],i)=>({x,k,i,y:terrain(x).bottom-4,done:cr.salv.has(i),busy:false}));
+ const required=campRequiredWrecks(m);let moved=0;for(const w of cr.wrecks){w.required=required.includes(w.i);if(w.required&&!w.done&&w.x<x0+500){w.x=x0+900+(moved++)*1400;w.y=terrain(w.x).bottom-4}}
  if(m.start&&m.start.hull&&!cr.tubes)hull=Math.max(1,S.hull+m.start.hull);
  if(m.race){cr.rival={x:x0+(snap.rival===undefined?320:snap.rival),y:sub.y+50,k:m.race.rival};cr.vents=buildVents()}
  if(m.relic&&m.relic.t==='float'&&!cr.relicGot)cr.relicAt=relicSpot();
@@ -137,9 +144,10 @@ function campSnap(){return {salv:[...cr.salv],clues:[...cr.clues],subs:cr.subLoa
 function reachCheckpoint(i){
  const R=camp.run;R.cp=i+1;R.snap=campSnap();camp.data.cp={m:cm.id,i:i+1,snap:R.snap,at:Date.now()};profDirty(false);
  cr.cpFlash=t;toast('CHECKPOINT '+(i+1)+' / '+cm.cps.length,'Progress saved. A lost boat restarts here.',2.6);csfx.checkpoint();
- const cut=cm.cuts&&cm.cuts[i+1];if(cut&&!R.cuts[i+1]){R.cuts[i+1]=1;campCut(cut)}
+ const cut=cm.cuts&&cm.cuts[i+1];if(cut&&!R.cuts[i+1]){R.cuts[i+1]=1;campaignRadioCut(cut)}
 }
 function campStep(dt){
+ campStationTick();campSupplyTick();
  const m=cm,msgs=m.msgs||[];
  while(cr.msgI<msgs.length&&sub.x>=msgs[cr.msgI][0]){const [,w,txt]=msgs[cr.msgI++];comms(w,txt)}
  while(cr.cpNext<m.cps.length&&sub.x>=m.cps[cr.cpNext]){reachCheckpoint(cr.cpNext);cr.cpNext++;if(state!=='playing')return}
@@ -154,7 +162,7 @@ function campStep(dt){
  else if(cr&&cr.boss&&cr.boss.k==='warden')camY=mix(camY,Math.max(-280,Math.min(camY,SURFACE-vh*.32)),1-Math.exp(-dt*2));
 }
 // Called from physics(): the boat's speed multiplier (currents, vents, recon, flight).
-function campSpeed(){if(!cr)return 1;if(cr.air)return 0;let k=1;
+function campSpeed(){if(!cr)return 1;if(cr.air||campStation())return 0;let k=1;
  if(cm.race){cr.inStream=Math.abs(sub.y-streamY(sub.x))<64;if(cr.inStream)k*=1.3;if(t<cr.boostUntil)k*=1.55;if(t<cr.slowUntil)k*=.65}
  if(inRecon(sub.x))k*=.6;return k}
 const campHold=()=>!!(cr&&cr.air);
@@ -183,7 +191,7 @@ function campWin(){
  achCheck();profDirty(false);
  R.result={stars,prev,first,newSub:campSubs().find(s=>!subsBefore.includes(s)),score:score(),secs:Math.round((R.time||0)+t)};
  toast('MISSION COMPLETE',m.name.toUpperCase(),3);csfx.win();
- setTimeout(()=>{if(state==='debrief'&&cm===m)showDebrief()},1500);
+ setTimeout(()=>{if(state==='debrief'&&cm===m)showDebrief()},650);
 }
 // Mission failed (a lost boat, or an objective missed at the finish).
 function campFinish(){
@@ -207,9 +215,10 @@ function relicGet(){
 }
 
 /* ---- Salvage drone: dives to a wreck, digs, and chases the boat home ---- */
-function wreckInRange(){let best=null,bd=Infinity;for(const w of cr.wrecks){if(w.done||w.busy)continue;const dx=w.x-sub.x;if(dx<-420||dx>1100)continue;const d=Math.abs(dx-300);if(d<bd){bd=d;best=w}}return best}
+function wreckInRange(){let best=null,bd=Infinity;for(const w of cr.wrecks){if(w.done||w.busy)continue;const dx=w.x-sub.x;if(dx<-420||dx>1100)continue;const d=Math.abs(dx-300)-(w.required?2000:0);if(d<bd){bd=d;best=w}}return best}
 function campDrone(){
  if(state!=='playing'||!cr)return;
+ if(cr.expedition){expeditionScan();return}
  if(cr.air){const a=cr.air;if(t-a.turnAt>.3){a.dir=-a.dir;a.turnAt=t;tone(a.dir>0?520:390,.1,.03,a.dir>0?700:300);toast(a.dir>0?'DRONE OUTBOUND':'DRONE RETURNING','',1.2)}return}
  const z=inRecon(sub.x);
  if(z&&surfaced){if(t>=cr.airCool)launchAir(z);return}
@@ -217,7 +226,7 @@ function campDrone(){
  if(t<cr.droneCool){tone(150,.07,.02,120);return}
  const w=wreckInRange();
  if(!w){toast(z?'SURFACE TO LAUNCH':'NO SALVAGE IN RANGE',z?'Ride the surface at the recon point, then launch the spotter drone.':'Wait for a SALVAGE marker on a wreck below.',1.8);tone(150,.12,.03,110);return}
- w.busy=true;cr.drone={st:'out',x:sub.x,y:sub.y+S.hy*.8,w,dig:0,born:t};csfx.drone();
+ expeditionStart(w);
 }
 function moveTo(o,tx,ty,v,dt){const dx=tx-o.x,dy=ty-o.y,d=Math.hypot(dx,dy);if(d<1e-3)return 0;const s=Math.min(d,v*dt);o.x+=dx/d*s;o.y+=dy/d*s;return d-s}
 function updateSalvage(dt){
@@ -232,6 +241,7 @@ function updateSalvage(dt){
 function lootFor(w){const L=LOOT[w.k]||LOOT.ship,h=n=>hash(cm.i*31.7+w.i*7.3+n*1.91);return [L[0]+Math.floor(h(1)*(L[1]+1)),h(2)<L[2]?1:0,h(3)<L[3]?1:0]}
 function deliver(w){
  w.done=true;w.busy=false;cr.salv.add(w.i);const p=lootFor(w);addParts(p);camp.data.salv++;
+ if(w.k==='mineRig'){for(const g of gates)if(g.x>=w.x&&g.x<=w.x+5000){g.dead=[true,true];boom(g.x,g.centre,20)}comms('JUNO','Controller disabled. Its downstream minefield is cold. Route is clear.')}
  if(w.k==='sub'||w.k==='akula')cr.subLoads++;if(w.k==='core')cr.core=true;
  csfx.salvage();const got=PARTS.map(([,n],i)=>p[i]?'+'+p[i]+' '+n:'').filter(Boolean).join('  ');
  const o=cm.obj||{},n=o.salv?' / LOAD '+cr.salv.size+' OF '+o.salv:o.sub&&(w.k==='sub'||w.k==='akula')?' / SUB PARTS '+cr.subLoads+' OF '+o.sub:'';
@@ -249,9 +259,10 @@ function deliver(w){
    logged on the drone: they count once it lands back on the deck. Gusts knock it about,
    gulls and flak bring it down, and a flat battery drops it in the sea. */
 function launchAir(z){
+ enemyMissiles=[];cr.hz=[];
  const zi=cm.recon.indexOf(z),flock=[];for(let k=0;k<(z.flak?6:4);k++){let bx=z.x1+900+k*1000+hash(zi*9+k)*300;if(z.clues.some(([cx])=>Math.abs(cx-bx-200)<260))bx+=460;for(let j=0;j<3;j++)flock.push({x:bx+j*26,y:SURFACE-150-hash(zi*5+k*3)*260+j*12,ph:hash(k*7+j)*TAU})}
  cr.air={x:sub.x+S.hx*.3,y:SURFACE-22,v:-170,dir:1,turnAt:-9,bat:airBattery(),z,zi,t0:t,flak:[],nextFlak:t+1.1,gustAt:t+rnd(1.5,3),gust:-9,birds:flock,held:new Set(),relic:false,warned:false,
-  end:Math.max(...z.clues.map(c=>c[0]),z.relic?z.relic[0]:0)+700};
+  hp:3,hitAt:-9,end:Math.max(...z.clues.map(c=>c[0]),z.relic?z.relic[0]:0)+700};
  cr.ret=false;csfx.drone();toast('SPOTTER DRONE AIRBORNE','Find the beacons, then press Q to turn back and land on the deck.',3);
 }
 const deckAt=()=>[sub.x+S.hx*.1,sub.y-S.hy*1.4];
@@ -261,13 +272,13 @@ function updateAir(dt){
  if(t>a.gustAt){a.v+=(Math.random()<.5?-1:1)*rnd(140,a.z.flak?300:220);a.gust=t;a.gustAt=t+rnd(1.4,3)}
  a.v=clamp(a.v+((up?-560:dn?440:200)-1.6*a.v)*dt,-280,300);a.y+=a.v*dt;a.x+=360*a.dir*dt;a.bat-=dt;
  const ceil=SURFACE-620;if(a.y<ceil){a.y=ceil;a.v=Math.max(0,a.v)}
- const [dx,dy]=deckAt();if(t-a.t0>1.5&&Math.hypot(a.x-dx,(a.y-dy)*1.4)<55)return airLand();
+ const [dx,dy]=deckAt();if(a.dir<0&&Math.abs(a.x-dx)<230){a.y=mix(a.y,dy,1-Math.exp(-dt*4));a.v*=Math.exp(-dt*5)}if(t-a.t0>1.5&&Math.hypot(a.x-dx,(a.y-dy)*1.4)<65)return airLand();
  const isle=terrain(a.x).cave>.002,g=isle?islandTop(a.x):SURFACE;
  if(a.y>g-9)return airEnd(isle?'The drone clipped the cliffs.':'The drone ditched in the sea.');
  // Gulls wheel over their patch of sky rather than drifting down onto the boat.
- for(const b of a.birds){b.x+=Math.cos(ambient*.9+b.ph)*60*dt;b.y+=Math.sin(ambient*1.3+b.ph)*40*dt;if(Math.hypot(b.x-a.x,b.y-a.y)<24)return airEnd('A gull took the drone down.')}
+ for(const b of a.birds){b.x+=Math.cos(ambient*.9+b.ph)*60*dt;b.y+=Math.sin(ambient*1.3+b.ph)*40*dt;if(Math.hypot(b.x-a.x,b.y-a.y)<24){airHit('Bird strike. Keep clear of the flock.');if(!cr.air)return}}
  if(a.z.flak&&t>a.nextFlak){a.flak.push({x:a.x+a.dir*rnd(220,500),y:clamp(a.y+rnd(-100,100),ceil+30,g-45),born:t});a.nextFlak=t+rnd(.45,.85)}
- for(const f of a.flak){const age=t-f.born;if(!f.pop&&age>=.75){f.pop=true;sfx.boom(12);if(Math.hypot(f.x-a.x,f.y-a.y)<54)return airEnd('Flak shredded the drone.')}}
+ for(const f of a.flak){const age=t-f.born;if(!f.pop&&age>=.75){f.pop=true;sfx.boom(12);if(Math.hypot(f.x-a.x,f.y-a.y)<54){airHit('Flak hit. Move away from the red rings.');if(!cr.air)return}}}
  a.flak=a.flak.filter(f=>t-f.born<1.7);
  a.z.clues.forEach(([cx,h],j)=>{const id=a.zi+':'+j;if(cr.clues.has(id)||a.held.has(id))return;if(Math.hypot(cx-a.x,clueY(cx,h)-a.y)<64){a.held.add(id);csfx.relic();
   toast('BEACON LOGGED ON THE DRONE',CLUE_TEXT[(cm.i*3+cr.clues.size+a.held.size)%CLUE_TEXT.length]+' Bring the drone home to keep it.',3)}});
@@ -278,6 +289,7 @@ function updateAir(dt){
  if(a.dir<0&&a.x<dx-700){a.dir=1;a.turnAt=t}
  if(a.bat<=0)return airEnd('The battery died and the drone fell into the sea.');
 }
+function airHit(message){const a=cr.air;if(!a||t-a.hitAt<1.2)return;a.hitAt=t;a.hp--;boom(a.x,a.y,12);if(a.hp<=0)return airEnd(message);toast('DRONE HIT / '+a.hp+' HULL',message,1.6,true)}
 function airLand(){
  const a=cr.air,n=a.held.size;cr.air=null;cr.ret=true;cr.airCool=t+.8;clearInput();
  for(const id of a.held){cr.clues.add(id);camp.data.clue[cm.id+':'+id]=1;camp.data.clues++}
@@ -295,7 +307,9 @@ function updateRace(dt){
  const r=cr.rival;if(!r)return;
  // Volkov eases off when far ahead and pushes when far behind, so a race stays a race.
  const gap=r.x-sub.x,base=mix(D.speed[0],D.speed[1],clamp(r.x/D.ramp,0,1))*cm.race.rv,k=gap<0?1+clamp(-gap-600,0,1200)/1200*.65:1-clamp(gap-1200,0,2000)/2000*.15;
- r.x+=base*k*dt;const ty=streamY(r.x+220);r.y+=clamp((ty-r.y)*1.4,-110,110)*dt;
+ const combat=cr.foes.some(f=>!f.dead)||cr.boss;
+ const pace=combat?Math.min(base*S.speed,campCombatSpeed()*(cr.inStream?.92:1.04)):base*S.speed;
+ r.x+=campTerrainSpeed(pace,r.x)*k*dt;const ty=streamY(r.x+220);r.y+=clamp((ty-r.y)*1.4,-110,110)*dt;
  if(t-(r.lb||0)>.05){r.lb=t;bubbles.push({x:r.x-60,y:r.y+(Math.random()-.5)*10,r:1+Math.random()*2,life:1.5,vx:-40,vy:-12})}
  for(const v of cr.vents){if(v.taken||Math.abs(v.x-sub.x)>S.hx+26)continue;if(Math.abs(v.y-sub.y)<S.hy+28){v.taken=true;cr.boostUntil=t+2.2;csfx.boost();for(let i=0;i<20;i++)bubbles.push({x:v.x,y:v.y,r:1+Math.random()*3,life:1,vx:rnd(-80,80),vy:rnd(-80,20)})}}
  if(cr.inStream&&Math.random()<.5)bubbles.push({x:sub.x-S.hx,y:sub.y+rnd(-12,12),r:1,life:.8,vx:-120,vy:0});
@@ -308,14 +322,24 @@ function updateRace(dt){
    point deflects. Hazards (cr.hz) are arms, sweeps, ink, depth charges and drifting
    mines; seekers and torpedoes reuse the enemy missile code. */
 function spawnArms(b,ph,who){
- const x=sub.x+rnd(500,680),z=terrain(x),top=z.cave>.002?z.top:SURFACE-30,bot=z.bottom,span=bot-top,half=S.hy+[68,60,52][ph];
- const arm=(x,fromTop,tip,delay=0)=>cr.hz.push({k:'tent',x,top:fromTop,base:fromTop?top-12:bot+12,tip,born:t+delay,warn:1.05,ext:.32,hold:1.05,ret:.55,w:who==='mother'?17:23,who});
- const r=Math.random();
- if(r<(ph?.42:.58)){const g=clamp(mix(top,bot,.5)+(Math.random()-.5)*span*.45,top+half+45,bot-half-45);arm(x,true,g-half);arm(x,false,g+half)}
- else if(r<.78){const ft=Math.random()<.5,f=rnd(.5,.62);arm(x,ft,ft?top+span*f:bot-span*f)}
- else{const a=Math.random()<.5;arm(x,a,a?top+span*.56:bot-span*.56);arm(x+300,!a,!a?top+span*.56:bot-span*.56,.25)}
+ // One readable formation at a time. This also prevents an ambush and a boss
+ // from combining individually fair patterns into an impossible wall.
+ if(cr.hz.some(h=>h.k==='tent'||h.k==='sweep'))return;
+ const ag=S.agility*(t<ballastUntil?.55:1),v=Math.max(90,Math.min(speed,campCombatSpeed())),eta=3.1;
+ const x=sub.x+v*eta+S.hx+38,z=terrain(x),top=ceilAt(x),bot=z.bottom;
+ const half=S.hy+Math.max(64,86-ph*8),margin=half+32;
+ // Leave a reaction interval, then bound the target by both steering envelopes.
+ const lo=Math.max(top+margin,campVerticalReach(sub.y,sub.v,eta-.7,true)+half*.25);
+ const hi=Math.min(bot-margin,campVerticalReach(sub.y,sub.v,eta-.7,false)-half*.25);
+ if(lo>hi)return; // A terrain transition takes priority over an arm formation.
+ const desired=clamp(sub.y+(Math.random()<.5?-1:1)*(65+ph*18)*ag,lo,hi);
+ const target=[desired,clamp(sub.y,lo,hi),(lo+hi)/2].find(y=>campArmRouteClear(y,v));
+ if(target===undefined)return;
+ for(const fromTop of [true,false])cr.hz.push({k:'tent',x,top:fromTop,base:fromTop?top-12:bot+12,tip:target+(fromTop?-half:half),born:t,warn:eta-.75,ext:.3,hold:1.3,ret:.45,w:who==='mother'?17:23,who,safe:target});
+ cr.escape={x,y:target,until:t+eta+1.3};
 }
-function torp(x,y,seek){enemyMissiles.push({x,y,vx:speed-400,vy:0,air:false,life:6.5,turn:.7,seek,err:0,sp:Math.abs(speed-400)+6,torp:true})}
+
+function torp(x,y,seek){enemyMissiles.push({x,y,vx:speed-180,vy:0,air:false,life:9,turn:0,seek:0,err:0,sp:Math.abs(speed-180),torp:true})}
 function seeker(x,y,ph){enemyMissiles.push({x,y,vx:speed-260,vy:rnd(-80,-30),air:false,life:6,turn:D.turn*(.45+.15*ph),seek:1.5,err:rnd(-50,50),sp:speed+D.mvel*.5})}
 const BOSS={
  warden:{name:'GROZNY / THE IRON WARDEN',hp:15,
@@ -335,7 +359,7 @@ const BOSS={
   init(b){b.off=620;b.y=sub.y;b.nextT=t+2;b.nextM=t+6},
   update(b,dt){const ph=b.hp<=b.max/2?1:0,top=ceilAt(b.x)+70,bot=terrain(b.x).bottom-70;
    b.x=sub.x+b.off+140*Math.sin((t-b.t0)*.38);const ty=clamp(sub.y+130*Math.sin((t-b.t0)*.55),top,Math.max(top,bot));b.y+=clamp((ty-b.y)*1.2,-95,95)*dt;
-   if(t>b.nextT){const n=ph?3:1;for(let i=0;i<n;i++)torp(b.x-85,b.y+(i-(n-1)/2)*55,ph?.8:.3);b.nextT=t+(ph?1.8:2.3);sfx.launch()}
+   if(t>b.nextT){const n=ph?3:1;if(n>1)campVolley(b.x-85,b.y,n,55);else torp(b.x-85,b.y,.3);b.nextT=t+(ph?1.8:2.3);sfx.launch()}
    if(t>b.nextM){for(let i=0;i<2+ph;i++)cr.hz.push({k:'fmine',x:b.x-70-i*45,y:clamp(b.y+(i-.5)*70,top,Math.max(top,bot)),ph:rnd(0,TAU)});b.nextM=t+(ph?5:6.5)}},
   pts(b){return [{x:b.x,y:b.y,r:66,ry:34}]}},
  kchase:{name:'THE KRAKEN',hp:0,
@@ -350,7 +374,7 @@ const BOSS={
    b.x=sub.x+b.off+40*Math.sin((t-b.t0)*.3);b.y=mix(b.y,mix(z.centre,sub.y,.5)+30*Math.sin((t-b.t0)*.5),1-Math.exp(-dt*1.2));
    const was=b.open;b.open=t<b.openUntil;if(was&&!b.open)csfx.lid();
    if(t>b.nextA&&!b.open){spawnArms(b,ph,'kraken');b.nextA=t+[1.9,1.6,1.3][ph]}
-   if(ph&&t>b.nextS&&!b.open){const top=ceilAt(sub.x)+60,bot=terrain(sub.x).bottom-60;cr.hz.push({k:'sweep',y:clamp(sub.y,top,bot),h:44,born:t,warn:1.35,ext:.45,hold:.55,ret:.5});b.nextS=t+(ph>1?6.5:8);b.nextOpen=Math.min(b.nextOpen,t+2.8)}
+   if(ph&&t>b.nextS&&!b.open&&!cr.hz.some(h=>h.k==='tent'||h.k==='sweep')){const top=ceilAt(sub.x)+60,bot=terrain(sub.x).bottom-60;cr.hz.push({k:'sweep',y:clamp(sub.y,top,bot),h:44,born:t,warn:2.5,ext:.45,hold:.55,ret:.5});b.nextS=t+(ph>1?6.5:8);b.nextOpen=Math.min(b.nextOpen,t+2.8)}
    if(ph>1&&t>b.nextI){const x=sub.x+rnd(340,520);cr.hz.push({k:'ink',x,y:safeY(x,sub.y,20),r:20,R:230,born:t,life:8});b.nextI=t+9}
    if(!b.open&&t>b.nextOpen){b.openUntil=t+4.5;b.nextOpen=t+4.5+[6,5.5,5][ph];toast('THE EYE IS OPEN','Fire now!',1.6);csfx.lid()}},
   pts(b){return [{x:b.x-150,y:b.y-30,r:54,armor:!b.open}]}},
@@ -358,19 +382,19 @@ const BOSS={
   init(b){b.off=680;b.y=sub.y;b.next=t+2.6;b.vulnUntil=0;b.lunge=null;b.n=0},
   update(b,dt){const p=b.hp/b.max,ph=p>.6?0:p>.3?1:2,top=ceilAt(b.x)+90,bot=Math.max(top,terrain(b.x).bottom-90);
    let off=b.off+120*Math.sin((t-b.t0)*.33);const L=b.lunge;
-   if(L){const e=t-L.t0;if(e>1.2&&e<2)off=mix(off,70,smooth(1.2,2,e));else if(e>=2&&e<3.3)off=mix(70,off,smooth(2,3.3,e));else if(e>=3.3){b.lunge=null;b.vulnUntil=t+4}
-    if(e>1.35&&e<2.5&&Math.abs(b.x-sub.x)<S.hx+140&&Math.abs(b.y-sub.y)<S.hy+42)damage(2,'The Typhoon rammed the hull.','breach')}
+   if(L){const e=t-L.t0;if(e>2.6&&e<3.4)off=mix(off,70,smooth(2.6,3.4,e));else if(e>=3.4&&e<4.7)off=mix(70,off,smooth(3.4,4.7,e));else if(e>=4.7){b.lunge=null;b.vulnUntil=t+4}
+    if(e>2.75&&e<3.9&&Math.abs(b.x-sub.x)<S.hx+140&&Math.abs(b.y-sub.y)<S.hy+42)damage(2,'The Typhoon rammed the hull.','breach')}
    b.x=sub.x+off;const ty=b.lunge?b.lunge.y:clamp(sub.y+110*Math.sin((t-b.t0)*.5),top,bot);b.y+=clamp((ty-b.y)*1.3,-100,100)*dt;
    if(!b.lunge&&t>b.next){const pick=ph>1&&b.n%3===2?3:b.n%3===0?0:b.n%3===1?1:2;b.n++;
-    if(pick===0){const n=3+ph;for(let i=0;i<n;i++)torp(b.x-120,clamp(b.y+(i-(n-1)/2)*60,top-40,bot+40),ph?.5:0);sfx.launch()}
+    if(pick===0){const n=3+ph;campVolley(b.x-120,b.y,n,60);sfx.launch()}
     else if(pick===1){for(let i=0;i<2+ph;i++)seeker(b.x-40+i*30,b.y-30,ph);sfx.enemyLaunch()}
     else if(pick===2){const gx=b.x-90,gy=clamp(sub.y,top,bot);for(let y=top-40;y<=bot+40;y+=68)if(Math.abs(y-gy)>S.hy+58)cr.hz.push({k:'fmine',x:gx,y,ph:rnd(0,TAU)})}
-    if(pick===3){b.lunge={t0:t,y:clamp(sub.y,top,bot)};toast('RAMMING SPEED','Get out of her line!',1.4,true);csfx.alarm()}else b.vulnUntil=t+4;
+    if(pick===3){b.lunge={t0:t,y:clamp(sub.y,top,bot)};toast('RAMMING SPEED','Her depth is locked. Climb or dive clear!',2.6,true);csfx.alarm()}else b.vulnUntil=t+4;
     b.next=t+[4.2,3.6,3.1][ph]}},
   pts(b){return [{x:b.x,y:b.y,r:115,ry:40,armor:t>=b.vulnUntil}]}},
 };
 function startBoss(k){
- const B=BOSS[k],b={k,hp:B.hp,max:B.hp,t0:t,x:sub.x+900,y:sub.y,hitAt:-9,dead:0};B.init(b);cr.boss=b;cr.nextAirX=sub.x+900;
+ const B=BOSS[k],b={k,hp:B.hp,max:B.hp,t0:t,x:sub.x+900,y:sub.y,hitAt:-9,dead:0};B.init(b);cr.foes=[];cr.hz=[];enemyMissiles=[];gates=gates.filter(g=>g.x<sub.x-200);cr.boss=b;cr.nextAirX=sub.x+900;
  if(k==='kchase'){toast('THE KRAKEN','Do not fight it. Outrun the arms!',3,true);csfx.roar()}
  else{toast(B.name,'Weak points flash when hit. Good hunting, Captain.',3,true);csfx.roar()}
  $('bossName').textContent=B.name;show('bossBar',!!B.hp);
@@ -495,10 +519,10 @@ function commsTick(){
  if(!commsQ.length){box.classList.remove('show');return}
  const [w,text]=commsQ.shift(),C=CAST[w],pc=$('commsPort');pc.hidden=w==='NARR';if(w!=='NARR')paintPortrait(pc.getContext('2d'),w,pc.width,pc.height,1.2,false);
  $('commsWho').textContent=speakerName(w)+(C.role?' / '+C.role:'');$('commsWho').style.color=C.c;$('commsText').textContent=text;
- box.classList.add('show');commsUntil=performance.now()+clamp(text.length*55,3500,8000);csfx.radio();
+ box.classList.add('show');commsUntil=performance.now()+clamp(text.length*32,2200,5500);csfx.radio();
 }
 const typer={el:null,text:'',i:0,timer:0};
-function typeText(el,text){clearInterval(typer.timer);typer.el=el;typer.text=text;typer.i=0;el.textContent='';typer.timer=setInterval(()=>{typer.i+=2;el.textContent=typer.text.slice(0,typer.i);if(typer.i>=typer.text.length)clearInterval(typer.timer)},18)}
+function typeText(el,text){clearInterval(typer.timer);typer.el=el;typer.text=text;typer.i=text.length;el.textContent=text}
 function typeDone(){if(typer.el&&typer.i<typer.text.length){clearInterval(typer.timer);typer.i=typer.text.length;typer.el.textContent=typer.text;return false}return true}
 function campCut(lines){cr.cut={lines,i:0};state='cut';clearInput();$('letterbox').classList.remove('on');show('letterbox',true);requestAnimationFrame(()=>{if(cr&&cr.cut)$('letterbox').classList.add('on')});cutShow()}
 function cutShow(){const [w,text]=cr.cut.lines[cr.cut.i],C=CAST[w],pc=$('cutPort');$('cutWho').textContent=speakerName(w);$('cutWho').style.color=C.c;paintPortrait(pc.getContext('2d'),w,pc.width,pc.height,.5,false);typeText($('cutText'),text)}

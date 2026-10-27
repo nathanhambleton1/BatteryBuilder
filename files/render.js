@@ -36,6 +36,7 @@ let cam3d=store.get('undertow.cam3d',true)!==false,yaw=0,pitch=0,orbitYaw=0,yawK
 // fX/fY is the point the camera follows: the boat, or the campaign's spotter drone.
 let cyw=1,syw=0,cpt=1,spt=0,Psx=0,Psy=0,fX=0,fY=0;
 function updateCamera(dt){
+ if(cr&&cr.expedition)return;
  const turn=(inputKeys.has('KeyD')||inputKeys.has('ArrowRight')?1:0)-(inputKeys.has('KeyA')||inputKeys.has('ArrowLeft')?1:0);
  if(cam3d&&turn)orbitYaw=clamp(orbitYaw+turn*dt*1.2,-.9,.9);else orbitYaw*=Math.exp(-dt*(state==='menu'?.3:.8));
  let ty=0,tp=0;
@@ -463,6 +464,7 @@ function drawDistress(beat){
 }
 function draw(){
  c.setTransform(dpr,0,0,dpr,0,0);c.globalAlpha=1;c.globalCompositeOperation='source-over';
+ if(cm&&cr&&cr.expedition){expeditionDraw();$('expedition').hidden=state!=='playing';return}
  if(state==='menu'){sub.x=350+ambient*13;sub.y=390+Math.sin(ambient*.55)*9;sub.v=Math.cos(ambient*.55)*5;camX=sub.x-vw*.63;camY=Math.max(-130,400-vh*.52);night=.12;}else camX=sub.x-vw*camLead;
  fX=sub.x;fY=sub.y;if(cm&&state!=='menu')campFocus();
  camSetup();const baseScale=scale,beat=heartbeat();

@@ -15,7 +15,7 @@
    bin.dat.bak is a copy of the last good write. An older plain bin.json is
    imported once, when there is no bin.dat yet. */
 // Shown in the footer and on the Duel screen, so players can tell which copy of the game they are running.
-const BUILD='2026-10-26 / 10';
+const BUILD='2026-10-26 / 12 · Campaign operations';
 const BOARD_FILE='bin.dat', BACKUP_FILE='bin.dat.bak', LOCK_FILE='bin.dat.lock', LEGACY_FILE='bin.json';
 
 /* ---- Seal ------------------------------------------------------------------
@@ -224,7 +224,7 @@ function mineY(g,k){return (k?g.bottom:g.top)+(g.amp?g.amp*Math.sin(t*1.3+g.phas
 function makeGate(x,space){
  const d=clamp(x/D.ramp,0,1), z=terrain(x), gap=mix(D.gap[0],D.gap[1],d)*grnd(.9,1.12);
  // The opening can only move as far as a boat can climb before it arrives.
- const shift=clamp(space/mix(D.speed[0],D.speed[1],d)*125,60,104);
+ const shift=cm?clamp(space/(D.speed[1]*S.speed*1.5)*75*S.agility,18,90):clamp(space/mix(D.speed[0],D.speed[1],d)*125,60,104);
  let amp=d>D.drift&&gateRand()<.55?12+gateRand()*20:0;
  amp=Math.min(amp,Math.max(0,(z.bottom-z.top-gap-2*R-72)/2));
  const desired=route(x)+(gateRand()-.5)*gap*.9, reach=lastCenter===null?desired:clamp(desired,lastCenter-shift,lastCenter+shift);
@@ -290,6 +290,7 @@ function achCommit(){
 }
 function achCountText(){const n=ACHS.filter(a=>ach.un[a.id]).length;return 'Achievements '+n+'/'+ACHS.length}
 function reset(){
+ if(cm){if(cr&&cr.expedition)expeditionPanel(false);cr=null}
  D=cm?campDiff():DIFFS[diffId];S=cm?campSub():SUB_BY_ID[subId];runX0=0;
  t=0;distance=0;difficulty=0;speed=D.speed[0];night=0;runSeed=Math.random()*1000;if(courseSeed===null)worldRand=gateRand=Math.random;else{worldRand=mulberry(courseSeed);gateRand=mulberry(courseSeed^0x9E3779B9)}newWorld();burst=0;firstShip=D.ships*rnd(.7,1.3);sub={x:0,y:route(0),v:0};gates=[];nextGate=900;lastCenter=null;
  pings=[];echoes=[];bubbles=[];debris=[];ships=[];enemyMissiles=[];missiles=[];booms=[];pickups=[];spray=[];ripples=[];surfaced=false;surfacedAt=-9;tilt=0;lastDrip=0;

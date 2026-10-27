@@ -16,7 +16,7 @@ function mergePlayer(a,b){if(!a)return b;if(!b)return a;const m={...b.ach};for(c
 function cleanPlayers(p){const out={};if(p&&typeof p==='object'&&!Array.isArray(p))for(const v of Object.values(p)){if(!v||typeof v!=='object')continue;const name=String(v.name||'').replace(/[\u0000-\u001f]/g,'').trim().slice(0,16);if(!name)continue;const a={};if(v.ach&&typeof v.ach==='object')for(const [id,d] of Object.entries(v.ach))if(ACH_BY_ID[id])a[id]=String(d||'').slice(0,10);const k=name.toLowerCase();out[k]=mergePlayer(out[k],{name,ach:a,xp:Math.max(0,Math.floor(+v.xp||0))})}return out}
 function mergePlayers(a,b){const o={...a};for(const [k,v] of Object.entries(b))o[k]=mergePlayer(o[k],v);return o}
 function myPlayer(){const name=callsign(),xp=profXp();if(name==='Anonymous'||!Object.keys(ach.un).length&&!xp)return null;return {name,ach:{...ach.un},xp}}
-function playerCurrent(players){const me=myPlayer();if(!me)return true;const p=players[me.name.toLowerCase()];return !!p&&Object.keys(me.ach).every(id=>p.ach[id])&&(p.xp||0)>=me.xp}
+function playerCurrent(players){const me=myPlayer();if(!me)return true;if(lb.admin&&lb.admin.players[me.name.toLowerCase()])return true;const p=players[me.name.toLowerCase()];return !!p&&Object.keys(me.ach).every(id=>p.ach[id])&&(p.xp||0)>=me.xp}
 const included=(list,e)=>list.some(x=>x.id===e.id)||(list.length>=BOARD_CAP&&e.score<=list[list.length-1].score);
 // Where this page lives, e.g. \\SERVER\Share\Games\ or Z:\Games\, shown so players pick the right folder.
 const PAGE_NAME=(()=>{try{return decodeURIComponent(location.pathname.split('/').pop()||'')}catch(_){return ''}})();
@@ -25,7 +25,7 @@ const GAME_DIR=(()=>{try{if(location.protocol!=='file:')return '';const p=decode
 // points at it once; the handle is kept in IndexedDB and access is re-asked on load if needed.
 const SHARED_DIR='G:\\Nathan Hambleton\\Submarine Photos\\New Folder', SHARED_NAME=SHARED_DIR.slice(SHARED_DIR.lastIndexOf('\\')+1);
 const sameDir=(a,b)=>!!a&&!!b&&a.replace(/\\+$/,'').toLowerCase()===b.replace(/\\+$/,'').toLowerCase();
-const lb={supported:typeof window.showDirectoryPicker==='function',dir:null,perm:'none',shared:[],players:{},achView:'path',achWho:'',local:(store.get('undertow.local.v1',[])||[]).map(cleanEntry).filter(Boolean),source:'shared',filter:'all',note:'',warn:'',gate:{ready:false,offline:false,msg:'',repick:false,busy:false},mine:new Set(store.get('undertow.mine.v1',[]))};
+const lb={supported:typeof window.showDirectoryPicker==='function',dir:null,perm:'none',shared:[],players:{},admin:{entries:{},players:{}},achView:'path',achWho:'',local:(store.get('undertow.local.v1',[])||[]).map(cleanEntry).filter(Boolean),source:'shared',filter:'all',note:'',warn:'',gate:{ready:false,offline:false,msg:'',repick:false,busy:false},mine:new Set(store.get('undertow.mine.v1',[]))};
 if(!lb.supported)lb.source='local';
 $('lbPath').textContent=SHARED_DIR+'\\'+BOARD_FILE;
 function idb(mode,fn){return new Promise((res,rej)=>{let open;try{open=indexedDB.open('undertow',1)}catch(e){rej(e);return}open.onupgradeneeded=()=>open.result.createObjectStore('kv');open.onerror=()=>rej(open.error);open.onsuccess=()=>{const db=open.result;let tx,req;try{tx=db.transaction('kv',mode);req=fn(tx.objectStore('kv'))}catch(e){db.close();rej(e);return}tx.oncomplete=()=>{db.close();res(req.result)};tx.onerror=tx.onabort=()=>{db.close();rej(tx.error)}}})}
@@ -43,7 +43,7 @@ async function lbRead(){
   if(i>=3){const bak=await readBoard(BACKUP_FILE);if(bak)return bak;throw new Error(BOARD_FILE+' is not a readable Undertow leaderboard.')}await sleep(150);
  }
 }
-function parseBoard(text){if(text==null)return null;try{const data=JSON.parse(text),list=Array.isArray(data)?data:data&&Array.isArray(data.entries)?data.entries:null;if(list)return {entries:list.map(cleanEntry).filter(Boolean),players:cleanPlayers(data.players)}}catch(_){}return null}
+function parseBoard(text){if(text==null)return null;try{const data=JSON.parse(text),list=Array.isArray(data)?data:data&&Array.isArray(data.entries)?data.entries:null;if(list){const admin=cleanBoardAdmin(data.admin);return {entries:boardAdminEntries(list.map(cleanEntry).filter(Boolean),admin),players:boardAdminPlayers(cleanPlayers(data.players),admin),admin}}}catch(_){}return null}
 async function readBoard(name){try{return parseBoard(unseal(await readText(name)))}catch(_){return null}}
 // No board yet: use the backup, else import the old plain bin.json.
 async function lbFallback(){let legacy=null;try{legacy=parseBoard(await readText(LEGACY_FILE))}catch(_){}return await readBoard(BACKUP_FILE)||legacy||{entries:[],players:{}}}
@@ -62,16 +62,16 @@ async function lbFlush(){
  const queue=pending(),me=myPlayer();
  return withLock(async locked=>{
   for(let attempt=0;attempt<6;attempt++){
-   let {entries:list,players}=await lbRead();
-   const missing=queue.filter(e=>!included(list,e));
+   let {entries:list,players,admin}=await lbRead();admin=cleanBoardAdmin(admin);lb.admin=admin;
+   const missing=queue.filter(e=>!admin.entries[e.id]&&!included(list,e));
    if(missing.length||!playerCurrent(players)){
     const merged=me?mergePlayers(players,{[me.name.toLowerCase()]:me}):players;
-    const text=seal(JSON.stringify({game:'UNDERTOW',version:4,updated:new Date().toISOString(),entries:mergeEntries(list,missing),players:merged}));
+    const text=seal(JSON.stringify({game:'UNDERTOW',version:4,updated:new Date().toISOString(),entries:boardAdminEntries(mergeEntries(list,missing),admin),players:boardAdminPlayers(merged,admin),admin}));
     try{await writeText(BOARD_FILE,text);await writeText(BACKUP_FILE,text)}catch(_){await sleep(100+Math.random()*250);continue}
     // Without the lock another write may land on top, so give it a moment first.
-    if(!locked)await sleep(80+Math.random()*120);({entries:list,players}=await lbRead());
+    if(!locked)await sleep(80+Math.random()*120);({entries:list,players,admin}=await lbRead());lb.admin=cleanBoardAdmin(admin);
    }
-   if(queue.every(e=>included(list,e))&&playerCurrent(players)){store.set('undertow.pending.v1',pending().filter(e=>!queue.some(q=>q.id===e.id)));lb.shared=list;lb.players=players;return}
+   if(queue.every(e=>lb.admin.entries[e.id]||included(list,e))&&playerCurrent(players)){store.set('undertow.pending.v1',pending().filter(e=>!queue.some(q=>q.id===e.id)));lb.shared=list;lb.players=players;return}
    await sleep(100+Math.random()*250);
   }
   throw new Error('the file was busy.');
@@ -84,7 +84,7 @@ async function syncNow(ask){
  if(!lb.dir){lb.perm='none';renderBoard();return false}
  if(!await lbPermitted(ask)){lb.perm='prompt';renderBoard();return false}
  lb.perm='granted';
- try{const r=await lbRead();lb.shared=r.entries;lb.players=r.players;if(pending().length||!playerCurrent(r.players))await lbFlush();lb.note='';retries=0;if(!prof.pulled)profSync()}
+ try{const r=await lbRead();lb.shared=r.entries;lb.players=r.players;lb.admin=cleanBoardAdmin(r.admin);if(pending().length||!playerCurrent(r.players))await lbFlush();lb.note='';retries=0;if(!prof.pulled)profSync()}
  catch(e){lb.note='Could not update '+BOARD_FILE+': '+(e&&e.message||e)+(retries<8?' Retrying shortly.':'');if(retries<8){retries++;clearTimeout(retryTimer);retryTimer=setTimeout(()=>lbSync(false).then(ok=>{if(ok&&state==='over')describeSave('shared')}),1500+Math.random()*2000)}renderBoard();return false}
  renderBoard();return true;
 }
@@ -171,13 +171,13 @@ function renderBoard(){
  document.querySelectorAll('#srcSeg button').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.src===lb.source));if(b.dataset.src==='shared')b.disabled=!lb.supported});
  document.querySelectorAll('#filterSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.filter===lb.filter)));
  const body=$('lbBody');body.textContent='';
- const rows=(useShared?(connected?lb.shared:[]):lb.local).filter(e=>lb.filter==='all'||e.diff===lb.filter).slice(0,50);
+ const rows=(useShared?(connected?boardAdminEntries(lb.shared,lb.admin):[]):boardAdminEntries(lb.local,localBoardAdmin())).filter(e=>lb.filter==='all'||e.diff===lb.filter).slice(0,50);
  if(!rows.length){const tr=document.createElement('tr');cell(tr,useShared&&!connected?'Connect the shared folder to see everyone\u2019s scores.':'No scores yet. Be the first on the board.','empty');tr.firstChild.colSpan=7;body.append(tr)}
  rows.forEach((e,i)=>{const tr=document.createElement('tr');if(duelKey(e.name)===prof.key)tr.className='me';cell(tr,i+1);cell(tr,e.name,'name');cell(tr,e.score.toLocaleString(),'num');cell(tr,e.distance+' m','num hide-sm');cell(tr,SUB_BY_ID[e.sub].name,'hide-sm');cell(tr,DIFFS[e.diff].label);cell(tr,whenText(e),'hide-sm');body.append(tr)});
  renderChip();if(panel==='ach')renderAch();
 }
 // The fleet is everyone in the shared file plus you, ranked by achievements held.
-function fleet(){const me=myPlayer(),all=mergePlayers(lb.players,me?{[me.name.toLowerCase()]:me}:{});return Object.values(all).map(p=>({...p,n:Object.keys(p.ach).length,last:Object.values(p.ach).sort().pop()||''})).filter(p=>p.n).sort((a,b)=>b.n-a.n||a.last.localeCompare(b.last))}
+function fleet(){const me=myPlayer(),all=boardAdminPlayers(mergePlayers(lb.players,me?{[me.name.toLowerCase()]:me}:{}),lb.admin);return Object.values(all).map(p=>({...p,n:Object.keys(p.ach).length,last:Object.values(p.ach).sort().pop()||''})).filter(p=>p.n).sort((a,b)=>b.n-a.n||a.last.localeCompare(b.last))}
 function svgIcon(id){const i=document.createElementNS('http://www.w3.org/2000/svg','svg'),u=document.createElementNS('http://www.w3.org/2000/svg','use');i.setAttribute('class','ic');u.setAttribute('href','#'+id);i.append(u);return i}
 function renderAch(){
  const v=lb.achView,F=fleet(),meKey=callsign().toLowerCase(),other=lb.achWho&&lb.achWho!==meKey?F.find(p=>p.name.toLowerCase()===lb.achWho):null;

@@ -159,7 +159,7 @@ function campDrawFront(){
  if(b&&!b.leaving){const sink=b.dead?(t-b.dead)*26:0,al=b.dead?clamp(1-(t-b.dead-1.4)/2,0,1):1,hit=clamp(.6-(t-b.hitAt)*2.4,0,.6);
   if(b.k==='warden'){c.save();c.translate(b.x,SURFACE+sink);c.rotate(b.dead?Math.min(.3,(t-b.dead)*.1):Math.sin(ambient*.8)*.01);c.globalAlpha=al;drawCruiser(0,0,1.15,hit);c.restore();if(!b.dead)tag(b.x,SURFACE-150,'GROZNY','#f0a08c')}
   else if(b.k==='vepr'||b.k==='leviathan'){const B=BOSS[b.k],m=SUB_BY_ID[B.sub],ang=clamp((b.lunge?0:(b.y-(b.py||b.y))*2),-.15,.15);b.py=b.y;
-   if(b.k==='leviathan'&&b.lunge&&t-b.lunge.t0<1.3){c.save();c.globalCompositeOperation='screen';glow(b.x,b.y,200,`rgba(255,50,30,${.25+.2*Math.sin(ambient*20)})`);c.restore()}
+   if(b.k==='leviathan'&&b.lunge&&t-b.lunge.t0<2.6){c.save();c.globalCompositeOperation='screen';glow(b.x,b.y,200,`rgba(255,50,30,${.25+.2*Math.sin(ambient*20)})`);c.restore()}
    subAt(m,b.x,b.y+sink,ang+(b.dead?.25:0),B.scale,al);
    c.save();c.globalAlpha=al;star5(b.x-10*B.scale,b.y-24*B.scale+sink,4*B.scale,'#d0392bdd');c.restore();
    if(b.k==='leviathan'&&!b.dead){const shield=t>=b.vulnUntil;
@@ -183,13 +183,16 @@ function campDrawFront(){
 // Screen space: ink blindness and the spotter drone's camera frame.
 function campDrawScreen(){
  if(!cr)return;
+ if(cr.expedition){expeditionDraw();return}
+ const ram=cr.boss&&cr.boss.lunge;if(ram&&t-ram.t0<2.6){const [,y]=proj(sub.x,ram.y);c.fillStyle="#ef66592b";c.fillRect(0,y-32,W,64);c.fillStyle="#ffb59c";c.font="13px monospace";c.fillText("RAM DEPTH LOCKED / MOVE CLEAR",W*.35,y-42)}
+ if(cr.escape&&t<cr.escape.until){const [px,py]=proj(cr.escape.x,cr.escape.y),x=clamp(px,65,W-65),y=clamp(py,120,H-110);c.save();c.strokeStyle="#a6ead5";c.lineWidth=2;c.setLineDash([6,5]);c.strokeRect(x-24,y-32,48,64);c.setLineDash([]);c.fillStyle="#a6ead5";c.font="12px monospace";c.fillText("ESCAPE GAP",x-38,y-43);c.restore()}
  if(t<cr.inked){const [sx,sy]=proj(sub.x,sub.y),g=c.createRadialGradient(sx,sy,30,sx,sy,Math.max(W,H)*.6);g.addColorStop(0,'rgba(2,4,10,.55)');g.addColorStop(1,'rgba(2,4,10,.94)');c.fillStyle=g;c.fillRect(0,0,W,H)}
  const a=cr.air;if(!a)return;
  c.save();c.strokeStyle='rgba(225,240,232,.7)';c.lineWidth=1.5;const m=26,l=34;
  for(const [x,y,dx,dy] of [[m,m+50,1,1],[W-m,m+50,-1,1],[m,H-m,1,-1],[W-m,H-m,-1,-1]]){c.beginPath();c.moveTo(x,y+dy*l);c.lineTo(x,y);c.lineTo(x+dx*l,y);c.stroke()}
  // Feed readouts sit top and bottom centre, clear of the HUD in the corners.
  c.font='10px ui-monospace,monospace';c.fillStyle='rgba(225,240,232,.85)';c.textAlign='center';const top=Math.min(150,H*.2);
- c.fillText('SPOTTER FEED / ALT '+Math.max(0,Math.round((SURFACE-a.y)*.1))+' M',W/2,top);if(Math.floor(ambient*2)%2)circle(W/2-100,top-4,3.5,'#ff5a4a');
+ c.fillText('SPOTTER / HULL '+a.hp+'/3 / ALT '+Math.max(0,Math.round((SURFACE-a.y)*.1))+' M',W/2,top);if(Math.floor(ambient*2)%2)circle(W/2-100,top-4,3.5,'#ff5a4a');
  c.fillStyle=a.dir<0?'#a6ead5':'#ffd29a';c.fillText((a.dir<0?'RETURNING TO THE BOAT':'OUTBOUND / Q TURNS BACK')+' / '+a.held.size+' ON DRONE',W/2,top+16);
  // Where the boat is, when it is off the feed.
  const [ddx,ddy]=deckAt(),[px,py]=proj(ddx,ddy),dist=Math.round(Math.abs(a.x-ddx)*.1);if(px<30||px>W-30){const left=px<30,ex=left?40:W-40,ey=clamp(py,90,H-120);c.fillStyle='#a6ead5';c.beginPath();c.moveTo(ex+(left?-14:14),ey);c.lineTo(ex+(left?6:-6),ey-10);c.lineTo(ex+(left?6:-6),ey+10);c.fill();c.fillText('BOAT '+dist+' M',ex+(left?40:-40),ey+4)}
