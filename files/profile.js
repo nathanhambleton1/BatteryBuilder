@@ -72,7 +72,7 @@ async function profSync(){
 }
 // Called when the callsign changes: save the old sailor, then load the new one.
 function profSwitch(){
- const name=callsign(),key=duelKey(name);if(key===prof.key)return false;
+ const name=callsign(),key=duelKey(name);if(key===prof.key)return false;analyticsTick();analytics.context=null;
  if(prof.key){clearTimeout(prof.timer);profSaveLocal();profSync()}
  prof.key=key;prof.name=name;prof.pulled=false;prof.at=0;
  const local=store.get(PROFILE_PREFIX+key,null);

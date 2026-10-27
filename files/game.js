@@ -174,7 +174,7 @@ async function finish(){
  renderEarned();$('place').hidden=true;
  show('over',true);overAt=performance.now();$('hud').classList.add('ended');$('again').focus({preventScroll:true});
  const now=new Date(),entry=dived.practice?null:{id:now.getTime().toString(36)+Math.random().toString(36).slice(2,8),name:callsign(),score:final,distance:metres,sub:dived.sub,diff:dived.diff,ships:shipsSunk,date:now.toISOString().slice(0,10),at:now.getTime()};
- lastEntry=entry;
+ lastEntry=entry;analyticsEnd('lost',entry&&entry.id);
  if(entry){const saved=submitScore(entry);$('saveNote').textContent='Saving on this computer…';saved.then(res=>{if(state==='over'&&lastEntry&&lastEntry.id===entry.id)describeSave(res)}).catch(e=>saveStatus('scores','error','Score save failed: '+e.message))}
  else $('saveNote').textContent='Practice dives are not recorded.';
  if(duel.run)await duelRoundOver(final).catch(e=>{if(state==='over'&&lastEntry===entry)$('cause').textContent=deathCause+' The duel result is waiting for the shared drive: '+(e&&e.message||e)});

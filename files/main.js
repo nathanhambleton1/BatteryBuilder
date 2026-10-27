@@ -42,3 +42,5 @@ $('fullscreen').hidden=!document.documentElement.requestFullscreen;$('build').te
 // only unlocks audio, so a saved "on" setting is never flipped off by that first click.
 initAudio();['pointerdown','touchstart','keydown'].forEach(ev=>addEventListener(ev,()=>{if(soundOn)initAudio()},{capture:true,passive:true}));
 profInit();initializeSharedScores();reset();updateSound();updateMenu();requestAnimationFrame(frame);
+
+analyticsInit();

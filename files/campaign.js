@@ -182,7 +182,7 @@ function campArrive(){
 }
 // Mission complete: stars, rewards and unlocks, then the debrief panel.
 function campWin(){
- if(state!=='playing'||!cr||cr.done)return;cr.done=true;
+ if(state!=='playing'||!cr||cr.done)return;cr.done=true;analyticsEnd('won');
  const m=cm,R=camp.run,d=camp.data,first=!d.done[m.id],prev=d.done[m.id]||0,subsBefore=campSubs();
  const stars=1|(R.clean?2:0)|(d.relic[m.id]?4:0);d.done[m.id]=prev|stars;
  if(first&&m.reward)addParts(m.reward,true);
@@ -196,7 +196,7 @@ function campWin(){
 }
 // Mission failed (a lost boat, or an objective missed at the finish).
 function campFinish(){
- if(state==='over')return;state='over';const m=cm,R=camp.run;R.clean=false;R.deaths++;R.time=(R.time||0)+t;
+ if(state==='over')return;analyticsEnd('lost');state='over';const m=cm,R=camp.run;R.clean=false;R.deaths++;R.time=(R.time||0)+t;
  if(cr){cr.drone=null;cr.air=null;cr.foes=[]}
  achCommit();const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;if(run.promoted)achPop({kind:'PROMOTED',name:'LEVEL '+l1+' / '+rankTitle(l1)});
  $('overLabel').textContent='MISSION FAILED / '+m.name.toUpperCase();$('cause').textContent=deathCause;
