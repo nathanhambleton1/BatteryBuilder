@@ -46,7 +46,7 @@ const campStars=()=>Object.values(camp.data.done).reduce((n,s)=>n+starCount(s),0
 const campOpen=i=>secretAdmin.active||i===0||!!camp.data.done[MISSIONS[i-1].id];
 const campBuilt=()=>Object.values(camp.data.up).reduce((n,v)=>n+v,0);
 // Boats the campaign has released: the Gato from the start, then one per milestone.
-function campSubs(){if(secretAdmin.active)return SUBS.map(s=>s.id);const s=['gato'];for(const m of MISSIONS)if(m.unlock&&camp.data.done[m.id])s.push(m.unlock);return s}
+function campSubs(){return fleetAvailable()}
 const campUnlockedBy=id=>MISSIONS.find(m=>m.unlock===id);
 // Lifetime numbers the achievements and XP read.
 function campLife(){const d=camp.data;return {cmis:Object.keys(d.done).length,cstars:campStars(),csalv:d.salv,cclues:d.clues,cbuilt:campBuilt(),cboss:d.boss,craces:d.races,crelic:Object.keys(d.relic).length,cfin:d.done.m24?1:0}}

@@ -291,7 +291,7 @@ const CINES={
   ['JUNO','The Core is cool to the touch for the first time in months. I think it knows it is home.','core'],
   ['VANCE','“Tell my daughter the kettle worked.”','logtape'],
   ['NARR','The Thermal Core lit a hospital, then a town, then a city. Nobody ever told the Kraken.','city_lights'],
-  {title:'OPERATION DEEP MERIDIAN',sub:'COMPLETE / THE TYPHOON IS YOURS',scene:'title'},
+  {title:'OPERATION DEEP MERIDIAN',sub:'COMPLETE / THE FLEET SALUTES YOU',scene:'title'},
  ],
 };
 

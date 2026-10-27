@@ -10,14 +10,14 @@ function cleanEntry(e){if(!e||typeof e!=='object')return null;const s=Math.floor
 // Runs since the time was added carry at: epoch ms. Older ones only have a UTC date, shown as is.
 function entryAt(e){const at=Math.floor(Number(e.at));return Number.isFinite(at)&&at>1e12&&at<1e13?{at}:{}}
 function whenText(e){if(!e.at)return e.date||'';const d=new Date(e.at),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())}
-function mergeEntries(a,b){const m=new Map();for(const e of [...a,...b])m.set(e.id,e);return [...m.values()].sort((x,y)=>y.score-x.score).slice(0,BOARD_CAP)}
+function mergeEntries(a,b){const m=new Map();for(const e of [...a,...b])m.set(e.id,e);return [...m.values()].sort((x,y)=>y.score-x.score)}
 // Achievements in the shared file: players[lower-case callsign] = {name, ach:{id:date}, xp}. Unions and maximums only, never removals.
 function mergePlayer(a,b){if(!a)return b;if(!b)return a;const m={...b.ach};for(const [id,d] of Object.entries(a.ach))if(!m[id]||d<m[id])m[id]=d;return {name:b.name||a.name,ach:m,xp:Math.max(a.xp||0,b.xp||0)}}
 function cleanPlayers(p){const out={};if(p&&typeof p==='object'&&!Array.isArray(p))for(const v of Object.values(p)){if(!v||typeof v!=='object')continue;const name=String(v.name||'').replace(/[\u0000-\u001f]/g,'').trim().slice(0,16);if(!name)continue;const a={};if(v.ach&&typeof v.ach==='object')for(const [id,d] of Object.entries(v.ach))if(ACH_BY_ID[id])a[id]=String(d||'').slice(0,10);const k=name.toLowerCase();out[k]=mergePlayer(out[k],{name,ach:a,xp:Math.max(0,Math.floor(+v.xp||0))})}return out}
 function mergePlayers(a,b){const o={...a};for(const [k,v] of Object.entries(b))o[k]=mergePlayer(o[k],v);return o}
 function myPlayer(){const name=callsign(),xp=profXp();if(name==='Anonymous'||!Object.keys(ach.un).length&&!xp)return null;return {name,ach:{...ach.un},xp}}
 function playerCurrent(players){const me=myPlayer();if(!me)return true;if(lb.admin&&lb.admin.players[me.name.toLowerCase()])return true;const p=players[me.name.toLowerCase()];return !!p&&Object.keys(me.ach).every(id=>p.ach[id])&&(p.xp||0)>=me.xp}
-const included=(list,e)=>list.some(x=>x.id===e.id)||(list.length>=BOARD_CAP&&e.score<=list[list.length-1].score);
+const included=(list,e)=>list.some(x=>x.id===e.id);
 // Where this page lives, e.g. \\SERVER\Share\Games\ or Z:\Games\, shown so players pick the right folder.
 const PAGE_NAME=(()=>{try{return decodeURIComponent(location.pathname.split('/').pop()||'')}catch(_){return ''}})();
 const GAME_DIR=(()=>{try{if(location.protocol!=='file:')return '';const p=decodeURIComponent(location.pathname);return (location.host?'\\\\'+location.host:'')+p.slice(0,p.lastIndexOf('/')+1).replace(/^\/([A-Za-z]:)/,'$1').replace(/\//g,'\\')}catch(_){return ''}})();
@@ -30,7 +30,7 @@ if(!lb.supported)lb.source='local';
 $('lbPath').textContent=SHARED_DIR+'\\'+BOARD_FILE;
 function idb(mode,fn){return new Promise((res,rej)=>{let open;try{open=indexedDB.open('undertow',1)}catch(e){rej(e);return}open.onupgradeneeded=()=>open.result.createObjectStore('kv');open.onerror=()=>rej(open.error);open.onsuccess=()=>{const db=open.result;let tx,req;try{tx=db.transaction('kv',mode);req=fn(tx.objectStore('kv'))}catch(e){db.close();rej(e);return}tx.oncomplete=()=>{db.close();res(req.result)};tx.onerror=tx.onabort=()=>{db.close();rej(tx.error)}}})}
 const idbGet=k=>idb('readonly',s=>s.get(k)), idbSet=(k,v)=>idb('readwrite',s=>s.put(v,k)), idbDel=k=>idb('readwrite',s=>s.delete(k));
-const pending=()=>(store.get('undertow.pending.v1',[])||[]).map(cleanEntry).filter(Boolean);
+const pending=()=>journalPending();
 async function readText(name,dir=lb.dir){return (await (await dir.getFileHandle(name)).getFile()).text()}
 async function writeText(name,text,dir=lb.dir){const w=await (await dir.getFileHandle(name,{create:true})).createWritable();try{await w.write(text);await w.close()}catch(e){try{await w.abort()}catch(_){}throw e}}
 async function lbPermitted(ask){if(!lb.dir)return false;const o={mode:'readwrite'};try{if(await lb.dir.queryPermission(o)==='granted')return true;if(ask&&await lb.dir.requestPermission(o)==='granted')return true}catch(_){}return false}
@@ -48,30 +48,30 @@ async function readBoard(name){try{return parseBoard(unseal(await readText(name)
 // No board yet: use the backup, else import the old plain bin.json.
 async function lbFallback(){let legacy=null;try{legacy=parseBoard(await readText(LEGACY_FILE))}catch(_){}return await readBoard(BACKUP_FILE)||legacy||{entries:[],players:{}}}
 async function withLock(fn){
- const me=Math.random().toString(36).slice(2),begun=performance.now();let got=false,seen=null,seenAt=0;
- while(!got&&performance.now()-begun<4000){
-  let holder=null;try{holder=JSON.parse(await readText(LOCK_FILE)).id||null}catch(_){}
-  if(holder!==seen){seen=holder;seenAt=performance.now()}
-  // A lock that has not changed hands for 2.5 s belongs to a player who closed mid-save.
-  if(!holder||performance.now()-seenAt>2500){try{await writeText(LOCK_FILE,JSON.stringify({id:me}));await sleep(40+Math.random()*40);got=JSON.parse(await readText(LOCK_FILE)).id===me}catch(_){}}
-  if(!got)await sleep(30+Math.random()*70);
+ const dir=lb.dir,me=crypto.randomUUID(),begun=performance.now();let got=false;
+ while(!got&&performance.now()-begun<4500){
+  let holder=null,modified=0;try{const file=await (await dir.getFileHandle(LOCK_FILE)).getFile();modified=file.lastModified||0;holder=JSON.parse(await file.text())}catch(_){}
+  if(!holder||Date.now()-(holder.at||modified)>120000){await writeText(LOCK_FILE,JSON.stringify({id:me,at:Date.now()}),dir);await sleep(80+Math.random()*80);try{got=JSON.parse(await readText(LOCK_FILE,dir)).id===me}catch(_){}}
+  if(!got)await sleep(100+Math.random()*100);
  }
- try{return await fn(got)}finally{if(got)try{await lb.dir.removeEntry(LOCK_FILE)}catch(_){}}
+ if(!got)throw Error('The shared drive is busy. Your local scores remain queued.');
+ const owns=async()=>{const lock=JSON.parse(await readText(LOCK_FILE,dir));if(lock.id!==me)throw Error('Shared save ownership changed. Retrying safely.');};
+ try{return await fn(true,owns)}finally{try{await owns();await dir.removeEntry(LOCK_FILE)}catch(_){}}
 }
 async function lbFlush(){
  const queue=pending(),me=myPlayer();
- return withLock(async locked=>{
+ return withLock(async (locked,owns)=>{
   for(let attempt=0;attempt<6;attempt++){
    let {entries:list,players,admin}=await lbRead();admin=cleanBoardAdmin(admin);lb.admin=admin;
    const missing=queue.filter(e=>!admin.entries[e.id]&&!included(list,e));
    if(missing.length||!playerCurrent(players)){
     const merged=me?mergePlayers(players,{[me.name.toLowerCase()]:me}):players;
     const text=seal(JSON.stringify({game:'UNDERTOW',version:4,updated:new Date().toISOString(),entries:boardAdminEntries(mergeEntries(list,missing),admin),players:boardAdminPlayers(merged,admin),admin}));
-    try{await writeText(BOARD_FILE,text);await writeText(BACKUP_FILE,text)}catch(_){await sleep(100+Math.random()*250);continue}
+    try{await owns();await writeText(BOARD_FILE,text);await owns();await writeText(BACKUP_FILE,text)}catch(_){await sleep(100+Math.random()*250);continue}
     // Without the lock another write may land on top, so give it a moment first.
     if(!locked)await sleep(80+Math.random()*120);({entries:list,players,admin}=await lbRead());lb.admin=cleanBoardAdmin(admin);
    }
-   if(queue.every(e=>lb.admin.entries[e.id]||included(list,e))&&playerCurrent(players)){store.set('undertow.pending.v1',pending().filter(e=>!queue.some(q=>q.id===e.id)));lb.shared=list;lb.players=players;return}
+   if(queue.every(e=>lb.admin.entries[e.id]||included(list,e))&&playerCurrent(players)){await owns();journalAcknowledge(queue);lb.shared=list;lb.players=players;return}
    await sleep(100+Math.random()*250);
   }
   throw new Error('the file was busy.');
@@ -79,13 +79,13 @@ async function lbFlush(){
 }
 // One sync at a time per page; a failed post retries itself a few times.
 let lbChain=Promise.resolve(),retryTimer=0,retries=0;
-function lbSync(ask){const run=lbChain.then(()=>syncNow(ask));lbChain=run.catch(()=>{});return run}
+function lbSync(ask){return queueBoardSync(ask)}
 async function syncNow(ask){
- if(!lb.dir){lb.perm='none';renderBoard();return false}
- if(!await lbPermitted(ask)){lb.perm='prompt';renderBoard();return false}
- lb.perm='granted';
- try{const r=await lbRead();lb.shared=r.entries;lb.players=r.players;lb.admin=cleanBoardAdmin(r.admin);if(pending().length||!playerCurrent(r.players))await lbFlush();lb.note='';retries=0;if(!prof.pulled)profSync()}
- catch(e){lb.note='Could not update '+BOARD_FILE+': '+(e&&e.message||e)+(retries<8?' Retrying shortly.':'');if(retries<8){retries++;clearTimeout(retryTimer);retryTimer=setTimeout(()=>lbSync(false).then(ok=>{if(ok&&state==='over')describeSave('shared')}),1500+Math.random()*2000)}renderBoard();return false}
+ if(!lb.dir){lb.perm='none';if(pending().length)saveStatus('scores','queued','Saved locally · Connect the shared drive to upload');renderBoard();return false}
+ if(!await lbPermitted(ask)){lb.perm='prompt';saveStatus('scores','queued','Saved locally · Allow shared-drive access to upload');renderBoard();return false}
+ lb.perm='granted';saveStatus('scores','busy','Saved locally · Checking the shared drive…');
+ try{const r=await lbRead();journalReconcile(r);lb.shared=r.entries;lb.players=r.players;lb.admin=cleanBoardAdmin(r.admin);if(pending().length||!playerCurrent(r.players))await lbFlush();lb.note='';retries=0;if(!prof.pulled)profSync();saveStatus('scores','done',pending().length?'Saved locally · More scores queued':'Scores saved locally and synced to the shared drive')}
+ catch(e){retries++;lb.note='Could not update '+BOARD_FILE+': '+(e&&e.message||e)+'. Local scores will retry automatically.';clearTimeout(retryTimer);retryTimer=setTimeout(()=>lbSync(false),Math.min(30000,1500*Math.pow(2,Math.min(retries,5))));saveStatus('scores','queued','Saved locally · Shared drive unavailable; retrying automatically');renderBoard();return false}
  renderBoard();return true;
 }
 /* Shared-folder gate. Called from a click (needs a user gesture): with a stored handle it asks for
@@ -136,18 +136,10 @@ async function sfCheck(){
  else if(!ok&&lb.perm==='granted'){lb.gate.offline=false;lb.perm=lb.dir?'prompt':'none';renderBoard()}
  sfRender();
 }
-async function submitScore(entry){
- lb.local=mergeEntries(lb.local,[entry]).slice(0,100);store.set('undertow.local.v1',lb.local);
- lb.mine.add(entry.id);store.set('undertow.mine.v1',[...lb.mine].slice(-300));
- prof.scores=mergeEntries(prof.scores,[entry]).slice(0,PROFILE_RUNS);profDirty(false);
- if(!lb.supported)return 'local';
- store.set('undertow.pending.v1',[...pending(),entry].slice(-100));
- if(!lb.dir)return 'nohandle';
- return await lbSync(false)?'shared':lb.perm==='granted'?'retrying':'pending';
-}
+async function submitScore(entry){return persistScore(entry)}
 function describeSave(res){
  if(!lastEntry)return;const list=res==='shared'?lb.shared:lb.local,rank=list.findIndex(e=>e.id===lastEntry.id)+1;
- const msg={shared:'Posted to the shared leaderboard'+(rank?`: rank ${rank} of ${list.length}.`:'.'),retrying:'Saved on this computer. The shared file is busy; posting again in a moment.',pending:'Saved on this computer. Allow access to post it to the shared leaderboard.',nohandle:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+`. Select Allow access on the Leaderboard screen to connect ${SHARED_NAME} and post it for everyone.`,local:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+'. Use Edge or Chrome for the shared leaderboard.'}[res];
+ const msg={'storage-error':'Local storage is unavailable. Keep this game open while saving is retried.',shared:'Posted to the shared leaderboard'+(rank?`: rank ${rank} of ${list.length}.`:'.'),retrying:'Saved on this computer. The shared file is busy; posting again in a moment.',pending:'Saved on this computer. Allow access to post it to the shared leaderboard.',nohandle:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+`. Select Allow access on the Leaderboard screen to connect ${SHARED_NAME} and post it for everyone.`,local:'Saved on this computer'+(rank?` (rank ${rank} here)`:'')+'. Use Edge or Chrome for the shared leaderboard.'}[res];
  $('saveNote').textContent=msg;$('saveShared').hidden=res!=='pending';renderPlace(list,res==='shared');
 }
 function renderEarned(){const box=$('achEarned');box.textContent='';
@@ -219,9 +211,9 @@ addEventListener('focus',()=>sfCheck());document.addEventListener('visibilitycha
 document.querySelectorAll('#srcSeg button').forEach(b=>b.onclick=()=>{lb.source=b.dataset.src;renderBoard()});
 document.querySelectorAll('#filterSeg button').forEach(b=>b.onclick=()=>{lb.filter=b.dataset.filter;renderBoard()});
 $('saveShared').onclick=async()=>describeSave(await lbSync(true)?'shared':lb.perm==='granted'?'retrying':'pending');
-setInterval(()=>{if((panel==='board'||panel==='ach')&&lb.perm==='granted')lbSync(false)},10000);
+// Background synchronization runs throughout gameplay, not only on the board screen.
 // On load: connect silently if the stored folder is still allowed, otherwise put the gate up right away.
 // A folder linked before there was one fixed folder may be the wrong one: ask for the right one instead.
-if(lb.supported)(async()=>{try{lb.dir=await idbGet('folder')||null;idbDel('board').catch(()=>{})}catch(_){}
+async function initializeSharedScores(){await journalRestore();if(!lb.supported){renderBoard();return}try{lb.dir=await idbGet('folder')||null;idbDel('board').catch(()=>{})}catch(_){}
  if(lb.dir&&String(lb.dir.name).toLowerCase()!==SHARED_NAME.toLowerCase()){lb.gate.startIn=lb.dir;lb.gate.msg=`This browser was linked to the "${lb.dir.name}" folder. The team now uses ${SHARED_NAME} only, so please pick it.`;lb.dir=null}
- try{await lbSync(false)}catch(_){}lb.gate.ready=true;sfRender()})();
+ try{await lbSync(false)}catch(_){}lb.gate.ready=true;sfRender()}

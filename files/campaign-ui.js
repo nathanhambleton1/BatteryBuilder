@@ -39,7 +39,7 @@ function renderMissions(body){
  ob.append(el('div','cp-sub','CHECKPOINTS / '+m.cps.length+(m.boss?' / BOSS ARENA AFTER THE LAST':'')));det.append(ob);
  const sb=el('div','cp-block');sb.append(el('div','cp-bh','STARS'));
  [['Complete the mission',1],['Complete it in one run, from the start, without losing the boat',2],['Find Dr. Vance’s journal page hidden on the course',4]].forEach(([x,bit])=>{const r=el('div','cp-row'+(s&bit?' got':''));const i=icon('i-star');r.append(i,el('span',null,x));sb.append(r)});det.append(sb);
- const rw=el('div','cp-block');rw.append(el('div','cp-bh','FIRST-TIME REWARD'));rw.append(el('div','cp-row',(s?'Claimed: ':'')+partsText(m.reward||[])+(m.unlock?'  +  NEW BOAT: '+SUB_BY_ID[m.unlock].name.toUpperCase()+' CLASS':'')));det.append(rw);
+ const rw=el('div','cp-block');rw.append(el('div','cp-bh','FIRST-TIME REWARD'));rw.append(el('div','cp-row',(s?'Claimed: ':'')+partsText(m.reward||[])));det.append(rw);
  if(!campOpen(m.i)){det.append(el('p','cp-lock','Complete mission '+pad2(m.i)+', '+MISSIONS[m.i-1].name+', to unlock.'));return}
  // Boat for the campaign: any boat the campaign has released.
  const vr=el('div','vessel-row cp-vessel'),cv=el('canvas','mini'),info=el('div'),boat=SUB_BY_ID[campSubs().includes(camp.data.sub)?camp.data.sub:'gato'];
@@ -54,14 +54,14 @@ function renderMissions(body){
 }
 function campSubFor(id){const save=subId;subId=id;try{return campSub()}finally{subId=save}}
 function renderDock(body){
- body.append(el('p','cp-note','Boats are released to you as the campaign goes on. Workshop upgrades apply to every one of them.'));
+ body.append(el('p','cp-note','Earn player levels to unlock boats across every mode. The regular fleet unlocks by level 45. Turtle is the special level 75 unlock. Workshop upgrades apply to every campaign boat.'));
  const list=el('div','subs'),open=campSubs();
  for(const base of SUBS){const m=campSubFor(base.id),ok=open.includes(base.id),b=el('button','sub-card');b.setAttribute('aria-pressed',String(ok&&camp.data.sub===base.id));if(!ok){b.classList.add('locked');b.disabled=true}
   const cv=el('canvas','mini');cv.width=Math.round(240*dpr);cv.height=Math.round(64*dpr);const nm=el('b',null,base.name.toUpperCase()+' CLASS');nm.append(icon('i-check'));
   b.append(cv,nm,el('small',null,base.origin.toUpperCase()+' / '+base.mark));
   if(ok){b.append(el('p',null,base.desc));const ab=el('div','ab'),an=el('b',null,'E / '+base.ability.name);ab.append(an,base.ability.desc);b.append(ab);
    for(const [label,v] of statRows(m)){const row=el('div','stat'),bar=el('span'),fill=el('i');fill.style.width=Math.round(clamp(v,.08,1)*100)+'%';bar.append(fill);row.append(el('label',null,label),bar);b.append(row)}}
-  else{const u=campUnlockedBy(base.id);b.append(el('p','cp-lockline','Released after mission '+pad2(u.i+1)+': '+u.name+'.'))}
+  else{b.append(el('p','cp-lockline','Unlocks at player level '+FLEET_LEVELS[base.id]+'. Current level: '+fleetLevel()+'.'))}
   b.onclick=()=>{if(!ok)return;camp.data.sub=base.id;camp.data.at=Date.now();profDirty(false);renderCamp()};list.append(b);drawPreview(cv,base,240,64)}
  body.append(list);
 }

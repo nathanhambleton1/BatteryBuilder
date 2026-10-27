@@ -40,7 +40,7 @@ function profApply(p,settings=state==='menu'){
  if(state==='menu'){reset();updateMenu()}else renderRank();
  if(panel==='duel')renderDuel();if(panel==='ach')renderAch();if(panel==='board')renderBoard();if(panel==='camp')renderCamp();campTile();
 }
-const profSaveLocal=()=>store.set(PROFILE_PREFIX+prof.key,profSnapshot());
+const profSaveLocal=()=>{const ok=store.set(PROFILE_PREFIX+prof.key,profSnapshot());if(!ok)saveStatus('profile','error','Profile could not be saved locally: storage is unavailable.');return ok};
 // Saved here at once; the shared copy follows a moment later so a burst of changes is one write.
 function profDirty(settings){if(!prof.key)return;if(settings)prof.at=Date.now();profSaveLocal();clearTimeout(prof.timer);prof.timer=setTimeout(()=>profSync(),2500)}
 /* Reads the shared copy, merges it with this one, writes the result back if it differs,
@@ -48,7 +48,8 @@ function profDirty(settings){if(!prof.key)return;if(settings)prof.at=Date.now();
 async function profSync(){
  const key=prof.key,snap=profSnapshot();
  if(!key||key==='anonymous'||!lb.dir||lb.perm!=='granted')return false;
- prof.pulled=true;
+ if(prof.syncJob&&prof.syncKey===key)return prof.syncJob.then(()=>true,()=>false);
+ prof.pulled=true;saveStatus('profile','busy','Profile saved locally · Syncing shared profile…');
  const job=prof.chain.then(async()=>{
   const dir=await lb.dir.getDirectoryHandle(PROFILE_DIR,{create:true}),file=key+'.dat';let remote=null;
   try{const text=unseal(await readText(file,dir));if(text)remote=cleanProfile(JSON.parse(text),snap.name)}catch(e){if(!e||e.name!=='NotFoundError')throw e}
@@ -56,7 +57,7 @@ async function profSync(){
   if(!remote||JSON.stringify(merged)!==JSON.stringify(remote))for(let i=0;;i++){try{await writeText(file,seal(JSON.stringify(merged)),dir);break}catch(e){if(i>=4)throw e;await sleep(200*(i+1)+Math.random()*200)}}
   return {merged,found:!!remote};
  });
- prof.chain=job.catch(()=>{});
+ prof.chain=job.catch(()=>{});prof.syncJob=job;prof.syncKey=key;
  try{
   const {merged,found}=await job;if(prof.key!==key)return true;
   // Merge again with this copy as it is now, in case it changed while the drive was busy.
@@ -65,9 +66,9 @@ async function profSync(){
   else if(prof.note==='new'||prof.note==='local'||!prof.note)prof.note='Profile saved to the shared folder.';
   // Runs this sailor posted from a PC that never reached bin.dat.
   const miss=now.scores.filter(e=>!lb.admin.entries[e.id]&&!included(lb.shared,e)&&!pending().some(q=>q.id===e.id));
-  if(miss.length){store.set('undertow.pending.v1',[...pending(),...miss].slice(-100));lbSync(false)}
-  renderRank();return true;
- }catch(e){if(prof.key===key){prof.pulled=false;prof.note='The shared profile could not be reached ('+(e&&e.message||e)+'). Progress is kept on this computer and syncs later.';renderRank()}return false}
+  if(miss.length){for(const e of miss)journalWrite(e);lbSync(false)}
+  saveStatus('profile','done','Profile saved locally and synced');renderRank();return true;
+ }catch(e){saveStatus('profile','queued','Profile saved locally · Shared drive retry pending');if(prof.key===key){prof.pulled=false;prof.note='The shared profile could not be reached ('+(e&&e.message||e)+'). Progress is kept on this computer and syncs later.';renderRank()}return false}finally{if(prof.syncJob===job)prof.syncJob=null}
 }
 // Called when the callsign changes: save the old sailor, then load the new one.
 function profSwitch(){

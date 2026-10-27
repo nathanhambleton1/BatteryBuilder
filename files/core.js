@@ -58,10 +58,12 @@ const SUBS=[
  {id:'astute',name:'Astute',origin:'United Kingdom / 2010',mark:'S119',desc:'Exceptionally quiet. The fastest sonar recharge and nimble dive planes.',speed:1.02,agility:1.1,hull:3,o2:90,reload:5,sonar:.62,hx:46,hy:16,ability:{id:'silent',name:'SILENT RUNNING',desc:'Goes acoustically dark for 6 seconds. Seekers lose lock and warships hold fire.',cd:13,dur:6},look:{pal:'uk',sail:'slope',prop:'pump'}},
  {id:'type212',name:'Type 212A',origin:'Germany / 2005',mark:'U 31',desc:'Compact air-independent boat. Tiny profile and long endurance, but a thin skin.',speed:.95,agility:1.22,hull:2,o2:115,reload:6,sonar:1.05,hx:36,hy:13,ability:{id:'air',name:'AIP RESERVE',desc:'The air-independent plant restores half your air and seals any leak.',cd:16},look:{pal:'de',sail:'small',stern:'x',prop:'screw'}},
  {id:'gato',name:'Gato',origin:'United States / 1941',mark:'SS-212',desc:'Second World War fleet boat. Quick reloads, but the air runs out fast.',speed:1,agility:1.12,hull:3,o2:62,reload:3.9,sonar:1.15,hx:46,hy:15,ability:{id:'rapid',name:'RAPID RELOAD',desc:'The torpedo room works double-time: half-second reloads for 6 seconds.',cd:12,dur:6},look:{pal:'gato',sail:'tower',prop:'twin',bow:'ship'}},
- {id:'akula',name:'Akula',origin:'Soviet Union / 1986',mark:'K-157',desc:'Double hull and heavy plating. Survives a hit that would sink others.',speed:1.03,agility:.95,hull:4,o2:85,reload:5,sonar:1,hx:48,hy:18,ability:{id:'repair',name:'DAMAGE CONTROL',desc:'Repairs one hull section and clears every system fault.',cd:18},look:{pal:'ru',sail:'long',prop:'screw',pod:true}},
+ {id:'akula',name:'Akula',origin:'Soviet Union / 1986',mark:'K-157',desc:'Double hull and heavy plating. Survives a hit that would sink others.',speed:1.03,agility:.95,hull:4,o2:75,reload:5,sonar:1,hx:48,hy:18,ability:{id:'repair',name:'DAMAGE CONTROL',desc:'Repairs one hull section and clears every system fault.',cd:26},look:{pal:'ru',sail:'long',prop:'screw',pod:true}},
  {id:'ohio',name:'Ohio',origin:'United States / 1981',mark:'SSBN-726',desc:'Ballistic missile carrier. Rapid launches, slow to answer the helm.',speed:.98,agility:.86,hull:5,o2:100,reload:2.6,sonar:1,hx:56,hy:18,ability:{id:'strike',name:'TRIDENT STRIKE',desc:'Vertical launch: one missile for every warship hit and incoming seeker in range.',cd:18},look:{pal:'us',sail:'planes',prop:'screw',deck:'hump'}},
  {id:'typhoon',name:'Typhoon',origin:'Soviet Union / 1981',mark:'TK-208',desc:'The largest submarine ever built. Enormous, armoured and ponderous.',speed:.95,agility:.78,hull:6,o2:125,reload:3,sonar:1.1,hx:60,hy:22,ability:{id:'shield',name:'ICE-BREAKER HULL',desc:'Reinforced plating shrugs off all damage for 5 seconds. Rock is still fatal.',cd:15,dur:5},look:{pal:'ru',sail:'aft',prop:'twin',deck:'fore'}},
 ];
+SUBS.push({id:'turtle',name:'Turtle',origin:'Wooden fleet / experimental',mark:'ONE MAN. BIG BOOM.',desc:'A tiny hand-cranked wooden menace. Slow, fragile, and carrying a deeply unreasonable bomb.',speed:.88,agility:1.15,hull:2,o2:55,reload:5.5,sonar:1.15,hx:20,hy:22,ability:{id:'wipe',name:'ABSOLUTELY EVERYONE',desc:'Detonates a screen-clearing bomb. Every visible hostile is destroyed. Recharge: 30 seconds.',cd:30},look:{pal:'wood',sail:'small',prop:'screw',turtle:true}});
+PALS.wood=['#c8a36a','#ab834c','#88663b','#654c2d','#453520','#241e15','#a59361'];
 const SUB_BY_ID=Object.fromEntries(SUBS.map(s=>[s.id,s]));
 /* Achievements run from easy lessons to long-haul goals. Each has a value and a goal:
    run goals read the current dive (R), career goals read lifetime totals (L). */
@@ -141,12 +143,12 @@ const ACH_BY_ID=Object.fromEntries(ACHS.map(a=>[a.id,a]));
 // Records worth cheating on are sealed; settings stay plain. Unsealed records from
 // before sealing existed are converted once, then never accepted again.
 const SEALED=new Set(['undertow.ach.v1','undertow.best.v2','undertow.local.v1','undertow.mine.v1','undertow.pending.v1']);
-const PROFILE_PREFIX='undertow.p.', sealedKey=k=>SEALED.has(k)||k.startsWith(PROFILE_PREFIX);
-const store={get(k,f){try{const v=localStorage.getItem(k);if(v===null)return f;if(!sealedKey(k))return JSON.parse(v);const t=unseal(v);return t===null?f:JSON.parse(t)}catch(_){return f}},set(k,v){try{const t=JSON.stringify(v);localStorage.setItem(k,sealedKey(k)?seal(t):t)}catch(_){}}};
+const PROFILE_PREFIX='undertow.p.', sealedKey=k=>SEALED.has(k)||k.startsWith(PROFILE_PREFIX)||k.startsWith('undertow.score.v2.');
+const store={get(k,f){try{const v=localStorage.getItem(k);if(v===null)return f;if(!sealedKey(k))return JSON.parse(v);const t=unseal(v);return t===null?f:JSON.parse(t)}catch(_){return f}},set(k,v){try{const t=JSON.stringify(v);localStorage.setItem(k,sealedKey(k)?seal(t):t);return true}catch(_){return false}}};
 try{if(!localStorage.getItem('undertow.sealed')){for(const k of SEALED){const v=localStorage.getItem(k);if(v!==null&&unseal(v)===null)localStorage.setItem(k,seal(v))}localStorage.setItem('undertow.sealed','1')}}catch(_){}
 let W=innerWidth,H=innerHeight,dpr=1,quality=1,scale=1,vw=1,vh=1,camX=0,camY=-10;
 let state='menu', panel=null, practice=false, held=false, down=false, inputKeys=new Set(),pointerLift=false;
-let diffId=store.get('undertow.diff','officer'), subId=store.get('undertow.sub','virginia');
+let diffId=store.get('undertow.diff','officer'), subId=store.get('undertow.sub','gato');
 if(!DIFFS[diffId])diffId='officer';if(!SUB_BY_ID[subId])subId='virginia';
 let D=DIFFS[diffId], S=SUB_BY_ID[subId];
 let t=0, ambient=0, distance=0, speed=0, difficulty=0, night=0, sub={x:0,y:400,v:0}, gates=[],nextGate=900,lastCenter=null;
@@ -297,7 +299,7 @@ function reset(){
  cleared=0;maxDepth=0;lastPing=-10;lastBubble=0;shake=0;flash=0;airFx=hullFx=crackFx=0;wreck=null;camLead=.24;
  hull=S.hull;o2=S.o2;invulnUntil=0;lastHitAt=-9;sonarDownUntil=0;leakUntil=0;ballastUntil=0;lastFire=-99;nextShipAt=0;shipsSunk=0;minesDestroyed=0;intercepts=0;airCollected=0;bonus=0;lastAlarm=0;lowO2Warned=false;abilityAt=-99;abilityUntil=0;
  announced={};run={hits:0,fired:0,ability:0,committed:false,earned:[]};practiceHit=-9;lastHud=-1;toastUntil=0;camY=Math.max(-130,terrain(0).centre-vh*.53);clearInput();populate();buildPips();
- if(cm)campReset();
+ resetRack();if(cm)campReset();
 }
 function score(){return Math.floor((distance+cleared*10+bonus)*D.score)}
 function show(id,visible){$(id).hidden=!visible}
@@ -307,7 +309,7 @@ function callsign(){return $('callsign').value.replace(/[\u0000-\u001f]/g,'').tr
 function callsignSet(){return callsign().toLowerCase()!=='anonymous'}
 function callsignState(){const ok=callsignSet(),l=$('launch');l.classList.toggle('locked',!ok);l.setAttribute('aria-disabled',String(!ok));if(ok){$('callsignMsg').hidden=true;$('callsign').classList.remove('err')}}
 function launchDive(){if(callsignSet())return start();const i=$('callsign');i.classList.remove('err');void i.offsetWidth;i.classList.add('err');$('callsignMsg').hidden=false;i.focus();callsignState()}
-function start(){initAudio();nextSong();store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch();if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}reset();run.xp0=profXp();state='playing';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';show('restartPause',true);setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach','duel','camp','campDone'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
+function start(){initAudio();nextSong();store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch();ensureFleetSelection();if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}reset();run.xp0=profXp();state='playing';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';show('restartPause',true);setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach','duel','camp','campDone'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
 function home(){const wasCamp=campExit();state='menu';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';clearInput();$('hud').classList.remove('ended');['paused','over','hud','pause','help','board','hangar','ach','duel'].forEach(id=>show(id,false));show('menu',true);show('footer',true);reset();updateMenu();if(wasCamp)openPanel('camp');}
 function clearInput(){held=false;down=false;pointerLift=false;inputKeys.clear();$('thrust').classList.remove('on')}
 function pause(){if(state!=='playing')return;state='paused';clearInput();show('paused',true);$('resume').focus()}

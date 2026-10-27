@@ -229,7 +229,7 @@ function drawShip(s){
 }
 function drawShips(){for(const s of ships)if(s.x>camX-260&&s.x<camX+vw+260)drawShip(s)}
 function drawMissile(m,enemy){const a=Math.atan2(m.vy,m.vx);c.save();c.translate(m.x,m.y);billboard();c.rotate(a);c.save();c.globalCompositeOperation='screen';glow(-11,0,18,enemy?'rgba(255,110,80,.4)':'rgba(255,214,150,.4)');c.restore();path([[-9,-2.2],[7,-2.2],[12,0],[7,2.2],[-9,2.2]],enemy?'#a45244':'#d9d3c0','#0008',.5);path([[-9,-2],[-13,-6],[-11,0],[-13,6],[-9,2]],enemy?'#6e2f27':'#8c8a7e');circle(-12,0,2.2,enemy?'#ffb08a':'#fff1cf');c.restore()}
-function drawMissiles(){for(const m of enemyMissiles)drawMissile(m,true);for(const m of missiles)drawMissile(m,false)}
+function drawMissiles(){for(const m of enemyMissiles){if(m.route)drawFastTorpedo(m);else drawMissile(m,true)}for(const m of missiles)drawMissile(m,false)}
 function drawSonar(){
  c.save();c.globalCompositeOperation='screen';
  for(const p of pings){let fade=Math.max(0,1-p.r/p.range);c.lineWidth=1.3;c.strokeStyle=`rgba(131,239,203,${fade*.36})`;circle(p.x,p.y,p.r,null,c.strokeStyle,1.3);if(p.r>8)circle(p.x,p.y,p.r-8,null,`rgba(107,217,200,${fade*.08})`,5)}
@@ -240,6 +240,7 @@ function drawSonar(){
    deck, stern, propulsor and paint per class, then scale to the class size. */
 const SAILS={std:[[-18,-12],[-17,-28],[-9,-33],[6,-32],[12,-13]],fillet:[[-25,-12],[-18,-21],[-17,-29],[-9,-33],[6,-32],[11,-21],[19,-12]],slope:[[-18,-12],[-16,-31],[-2,-33],[5,-31],[16,-13]],small:[[-10,-11],[-9,-25],[-3,-28],[7,-27],[12,-11]],tower:[[-22,-13],[-21,-25],[-15,-29],[8,-29],[13,-25],[16,-13]],long:[[-31,-12],[-24,-25],[-12,-31],[5,-31],[13,-24],[17,-12]],planes:[[4,-13],[5,-30],[12,-34],[25,-33],[30,-13]],aft:[[-28,-15],[-26,-28],[-17,-32],[-1,-31],[7,-15]]};
 function drawSubModel(m,lamp){
+ if(m.look.turtle){drawTurtleModel(m,lamp);return}
  const L=m.look,P=PALS[L.pal];c.save();c.scale(m.hx/45,m.hy/17);
  if(lamp){c.save();c.globalCompositeOperation='screen';let g=c.createLinearGradient(42,0,270,0);g.addColorStop(0,`rgba(172,226,212,${.12+night*.09})`);g.addColorStop(1,'#a2dfc600');path([[42,-3],[270,-45],[270,48],[42,4]],g);c.restore();c.save();c.scale(1,.35);glow(0,35,100,'#000a');c.restore()}
  // Stern control surfaces.
@@ -284,6 +285,7 @@ function extrude(f,pts,w,kind){const ref=[pts.reduce((s,p)=>s+p[0],0)/pts.length
  for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];f.push({v:[[a[0],a[1],-w],[b[0],b[1],-w],[b[0],b[1],w],[a[0],a[1],w]],ref,kind,bias:-2})}}
 function buildMesh(m){
  const L=m.look,f=[],sw=['tower','long','aft'].includes(L.sail)?4.2:3.2,fin=(shape,a)=>f.push({v:shape.map(([x,r])=>[x,-r*Math.cos(a),r*Math.sin(a)]),kind:'fin',two:true});
+ if(L.turtle){lathe(f,[-45,-40,-30,-15,0,15,30,40,45],x=>17*Math.sqrt(Math.max(0,1-(x/45)**2)),'hull',false);extrude(f,[[-12,-14],[-10,-23],[10,-23],[12,-14]],6,'sail');for(const x of [-23,23])lathe(f,[x-1.5,x+1.5],()=>15,'prop',false);return {faces:f,sw:6}}
  lathe(f,STATIONS,hullR,'hull',false);
  f.push({v:Array.from({length:18},(_,j)=>{const a=j/18*TAU,r=hullR(-50);return [-50,-r*Math.cos(a),r*Math.sin(a)]}),ref:[-40,0,0],kind:'dark'});
  // The sail's base is sunk just below the curved deck so no gap shows.
@@ -463,6 +465,7 @@ function drawDistress(beat){
  hud.style.transform=reduced?'':`scale(${1+beat*.006*hullFx})`;
 }
 function draw(){
+ rackButton();
  c.setTransform(dpr,0,0,dpr,0,0);c.globalAlpha=1;c.globalCompositeOperation='source-over';
  if(cm&&cr&&cr.expedition){expeditionDraw();$('expedition').hidden=state!=='playing';return}
  if(state==='menu'){sub.x=350+ambient*13;sub.y=390+Math.sin(ambient*.55)*9;sub.v=Math.cos(ambient*.55)*5;camX=sub.x-vw*.63;camY=Math.max(-130,400-vh*.52);night=.12;}else camX=sub.x-vw*camLead;
@@ -474,11 +477,11 @@ function draw(){
  const unwiden=widenView();worldTransform();
  shakeX=shakeY=0;if(shake&&!reduced){shakeX=(Math.random()-.5)*shake;shakeY=(Math.random()-.5)*shake;c.translate(shakeX,shakeY)}
  drawSurface();drawTerrainDepth();if(state!=='menu')drawShips();drawTerrain();if(cm)campDrawBack();
- if(state!=='menu'){drawPickups();drawMines();drawMissiles();if(cm)campDrawFront()}
+ if(state!=='menu'){drawPickups();drawMines();drawMissiles();if(cm)campDrawFront();else drawPatrolContacts()}
  drawSonar();drawParticles();
  if((state!=='dying'&&state!=='over')||(cm&&!wreck)){drawSub();drawAbilityFx()}else if(wreck)drawSub3D(wreck.angle,wreck);
  if(state!=='menu')drawSurfaceFx();drawBooms();unwiden();distort(beat);
- c.setTransform(dpr,0,0,dpr,0,0);drawInstruments();if(cm)campDrawScreen();
+ c.setTransform(dpr,0,0,dpr,0,0);drawInstruments();if(cm)campDrawScreen();drawScreenBomb();
  if(night>0){let gg=c.createRadialGradient(W*.38,H*.47,Math.min(W,H)*.1,W*.4,H*.5,Math.max(W,H)*.7);gg.addColorStop(0,'#00000000');gg.addColorStop(1,`rgba(0,4,12,${night*.32})`);c.fillStyle=gg;c.fillRect(0,0,W,H)}
  drawDistress(beat);scale=baseScale;
  $('flash').style.opacity=String(flash);
