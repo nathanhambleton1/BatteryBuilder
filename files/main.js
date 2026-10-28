@@ -9,7 +9,7 @@ document.querySelectorAll('#duelDiffSeg button').forEach(b=>b.onclick=()=>{duel.
 function setMission(p){practice=p;$('standard').setAttribute('aria-pressed',String(!p));$('practice').setAttribute('aria-pressed',String(p))}
 $('standard').onclick=()=>{setMission(false);profDirty(true)};
 $('practice').onclick=()=>{setMission(true);profDirty(true)};
-$('helpOpen').onclick=()=>openPanel('help');$('helpClose').onclick=closePanel;$('hangarOpen').onclick=()=>openPanel('hangar');$('hangarClose').onclick=closePanel;
+$('helpOpen').onclick=()=>{if(state==='playing')pause();openPanel('help')};$('helpClose').onclick=closePanel;$('hangarOpen').onclick=()=>openPanel('hangar');$('hangarClose').onclick=closePanel;
 $('boardOpen').onclick=()=>openPanel('board');$('achOpen').onclick=()=>openPanel('ach');$('overAch').onclick=()=>openPanel('ach');$('achClose').onclick=closePanel;document.querySelectorAll('#achSeg button').forEach(b=>b.onclick=()=>{lb.achView=b.dataset.v;if(b.dataset.v==='path')lb.achWho='';renderAch()});$('lbChip').onclick=()=>openPanel('board');$('overBoard').onclick=()=>openPanel('board');$('boardClose').onclick=closePanel;
 $('callsign').addEventListener('change',()=>{store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch()});
 $('callsign').addEventListener('input',callsignState);callsignState();
