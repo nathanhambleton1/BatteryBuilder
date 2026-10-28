@@ -44,3 +44,5 @@ initAudio();['pointerdown','touchstart','keydown'].forEach(ev=>addEventListener(
 profInit();initializeSharedScores();reset();updateSound();updateMenu();requestAnimationFrame(frame);
 
 analyticsInit();
+
+document.querySelectorAll('.view.overlay').forEach(installPopupClose);

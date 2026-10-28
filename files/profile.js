@@ -18,22 +18,23 @@ function cleanProfile(p,name){
   scores:(Array.isArray(p.scores)?p.scores:[]).map(cleanEntry).filter(Boolean).slice(0,PROFILE_RUNS),
   duels:(Array.isArray(p.duels)?p.duels:[]).filter(h=>h&&typeof h==='object'&&h.id).slice(0,20),camp:cleanCamp(p.camp),
   set:s&&{diff:DIFFS[s.diff]?s.diff:'officer',practice:!!s.practice,sub:SUB_BY_ID[s.sub]?s.sub:'virginia',rounds:[1,3,5].includes(+s.rounds)?+s.rounds:3,duelDiff:DIFFS[s.duelDiff]?s.duelDiff:'officer'},
-  at:Math.max(0,+p.at||0)};
+  adminAt:Math.max(0,+p.adminAt||0),at:Math.max(0,+p.at||0)};
 }
 function mergeProfiles(a,b){
+ if((a.adminAt||0)!==(b.adminAt||0))return cleanProfile((b.adminAt||0)>(a.adminAt||0)?b:a,a.name);
  const un={...a.ach.un};for(const [id,d] of Object.entries(b.ach.un))if(!un[id]||d<un[id])un[id]=d;
  const bst={...a.ach.best};for(const [id,v] of Object.entries(b.ach.best))bst[id]=Math.max(bst[id]||0,v);
  const st={};for(const k of ST_NUM)st[k]=Math.max(a.ach.st[k],b.ach.st[k]);
  for(const k of ST_MAP){st[k]={...a.ach.st[k]};for(const [id,v] of Object.entries(b.ach.st[k]))st[k][id]=Math.max(st[k][id]||0,v)}
  const newer=b.at>a.at?b:a,duels=[...new Map([...b.duels,...a.duels].map(h=>[h.id,h])).values()].sort((x,y)=>(+y.at||0)-(+x.at||0)).slice(0,20);
- return {name:newer.name,ach:{un,best:bst,st},best:Math.max(a.best,b.best),scores:mergeEntries(a.scores,b.scores).slice(0,PROFILE_RUNS),duels,set:newer.set||a.set||b.set,camp:mergeCamp(a.camp,b.camp),at:Math.max(a.at,b.at)};
+ return {name:newer.name,ach:{un,best:bst,st},best:Math.max(a.best,b.best),scores:mergeEntries(a.scores,b.scores).slice(0,PROFILE_RUNS),duels,set:newer.set||a.set||b.set,camp:mergeCamp(a.camp,b.camp),adminAt:a.adminAt||0,at:Math.max(a.at,b.at)};
 }
 // During a campaign mission the globals hold the mission's level and boat, so the sailor's own come from camp.saved.
 function profSnapshot(){const own=camp.saved||{diffId,subId,practice};return cleanProfile({name:prof.name,ach:{un:ach.un,best:ach.best,st:ach.st},best,scores:prof.scores,duels:duel.history,
- set:{diff:own.diffId,practice:own.practice,sub:own.subId,rounds:duel.rounds,duelDiff:duel.diff},camp:camp.data,at:prof.at},prof.name)}
+ set:{diff:own.diffId,practice:own.practice,sub:own.subId,rounds:duel.rounds,duelDiff:duel.diff},camp:camp.data,adminAt:prof.adminAt||0,at:prof.at},prof.name)}
 // Settings only change between dives; mid-dive, only the record is taken in.
-function profApply(p,settings=state==='menu'){
- ach.un=p.ach.un;ach.best=p.ach.best;ach.st=p.ach.st;best=p.best;camp.data=p.camp;prof.scores=p.scores;prof.at=p.at;duel.history=p.duels;
+function profApply(p,settings=state==='menu'&&!cm){
+ prof.adminAt=p.adminAt||0;ach.un=p.ach.un;ach.best=p.ach.best;ach.st=p.ach.st;best=p.best;camp.data=p.camp;prof.scores=p.scores;prof.at=p.at;duel.history=p.duels;
  if(p.scores.length){lb.local=mergeEntries(lb.local,p.scores).slice(0,100);store.set('undertow.local.v1',lb.local)}
  if(settings&&p.set){diffId=p.set.diff;subId=p.set.sub;D=DIFFS[diffId];S=SUB_BY_ID[subId];setMission(p.set.practice);duel.rounds=p.set.rounds;duel.diff=p.set.duelDiff;duel.diffSet=true;
   store.set('undertow.diff',diffId);store.set('undertow.sub',subId)}

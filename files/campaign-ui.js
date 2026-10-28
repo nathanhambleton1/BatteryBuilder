@@ -55,14 +55,7 @@ function renderMissions(body){
 function campSubFor(id){const save=subId;subId=id;try{return campSub()}finally{subId=save}}
 function renderDock(body){
  body.append(el('p','cp-note','Earn player levels to unlock boats across every mode. The regular fleet unlocks by level 45. Turtle is the special level 75 unlock. Workshop upgrades apply to every campaign boat.'));
- const list=el('div','subs'),open=campSubs();
- for(const base of fleetOrdered()){const m=campSubFor(base.id),ok=open.includes(base.id),b=el('button','sub-card');b.setAttribute('aria-pressed',String(ok&&camp.data.sub===base.id));if(!ok){b.classList.add('locked');b.disabled=true}
-  const cv=el('canvas','mini');cv.width=Math.round(240*dpr);cv.height=Math.round(64*dpr);const nm=el('b',null,base.name.toUpperCase()+' CLASS');nm.append(icon('i-check'));
-  b.append(cv,nm,el('small',null,base.origin.toUpperCase()+' / '+base.mark));
-  if(ok){b.append(el('p',null,base.desc));const ab=el('div','ab'),an=el('b',null,'E / '+base.ability.name);ab.append(an,base.ability.desc);b.append(ab);
-   for(const [label,v] of statRows(m)){const row=el('div','stat'),bar=el('span'),fill=el('i');fill.style.width=Math.round(clamp(v,.08,1)*100)+'%';bar.append(fill);row.append(el('label',null,label),bar);b.append(row)}}
-  else{b.append(el('p','cp-lockline','Unlocks at player level '+FLEET_LEVELS[base.id]+'. Current level: '+fleetLevel()+'.'))}
-  b.onclick=()=>{if(!ok)return;camp.data.sub=base.id;camp.data.at=Date.now();profDirty(false);renderCamp()};list.append(b);drawPreview(cv,base,240,64)}
+ const list=el('div','subs');for(const base of fleetOrdered())list.append(vesselCard(base,campSubFor(base.id),camp.data.sub===base.id,()=>{camp.data.sub=base.id;camp.data.at=Date.now();profDirty(false);renderCamp()}));
  body.append(list);
 }
 function renderShop(body){
