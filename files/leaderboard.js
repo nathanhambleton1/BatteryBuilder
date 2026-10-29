@@ -23,7 +23,7 @@ const PAGE_NAME=(()=>{try{return decodeURIComponent(location.pathname.split('/')
 const GAME_DIR=(()=>{try{if(location.protocol!=='file:')return '';const p=decodeURIComponent(location.pathname);return (location.host?'\\\\'+location.host:'')+p.slice(0,p.lastIndexOf('/')+1).replace(/^\/([A-Za-z]:)/,'$1').replace(/\//g,'\\')}catch(_){return ''}})();
 // The one folder the whole team shares. A page cannot open a folder by path, so each PC/browser
 // points at it once; the handle is kept in IndexedDB and access is re-asked on load if needed.
-const SHARED_DIR='G:\\Nathan Hambleton\\Submarine Photos\\New Folder', SHARED_NAME=SHARED_DIR.slice(SHARED_DIR.lastIndexOf('\\')+1);
+const SHARED_DIR='your chosen shared folder', SHARED_NAME='shared folder';
 const sameDir=(a,b)=>!!a&&!!b&&a.replace(/\\+$/,'').toLowerCase()===b.replace(/\\+$/,'').toLowerCase();
 const lb={supported:typeof window.showDirectoryPicker==='function',dir:null,perm:'none',shared:[],players:{},admin:{entries:{},players:{}},achView:'path',achWho:'',local:(store.get('undertow.local.v1',[])||[]).map(cleanEntry).filter(Boolean),source:'shared',filter:'all',note:'',warn:'',gate:{ready:false,offline:false,msg:'',repick:false,busy:false},mine:new Set(store.get('undertow.mine.v1',[]))};
 if(!lb.supported)lb.source='local';
@@ -109,9 +109,6 @@ async function sfPick(){
  const g=lb.gate,o={id:'undertow',mode:'readwrite'};let dir;
  try{try{const from=lb.dir||g.startIn;dir=await window.showDirectoryPicker(from?{...o,startIn:from}:o)}catch(e){if(e&&e.name==='AbortError')throw e;dir=await window.showDirectoryPicker(o)}}
  catch(e){if(e&&e.name==='AbortError'){g.msg=`No folder was picked. Pick ${SHARED_DIR}.`;return false}throw e}
- let hasPage=false;if(PAGE_NAME){try{await dir.getFileHandle(PAGE_NAME);hasPage=true}catch(_){}}
- const named=String(dir.name).toLowerCase()===SHARED_NAME.toLowerCase();
- if(!named||PAGE_NAME&&!hasPage){g.msg=`That was the "${dir.name}" folder${PAGE_NAME&&!hasPage?', which does not contain '+PAGE_NAME:''}. Select the button again and pick ${SHARED_DIR}.`;g.startIn=dir;return false}
  lb.warn='';lb.dir=dir;try{await idbSet('folder',dir)}catch(_){}
  return true;
 }
@@ -122,7 +119,7 @@ function sfRender(){
  $('sfTitle').textContent=first?'Connect the shared folder':'Allow the shared folder';
  $('sfBody').textContent='UNDERTOW saves the leaderboard, duels and your profile to the team’s shared folder:';
  $('sfPath').textContent=SHARED_DIR;
- $('sfHint').textContent=first?`The browser needs you to point at it once on this computer. Select the button, go to that folder (${SHARED_NAME}, the one with ${PAGE_NAME||'this game'} in it${here?', where this page was opened from':''}) and choose Select Folder, then allow edits. If the browser offers Allow on every visit, choose it so the game connects on its own next time.`:`Select Allow access and, in the browser prompt, choose Allow on every visit so you are not asked again.`+(GAME_DIR&&!here?` (This page was opened from ${GAME_DIR}.)`:'');
+ $('sfHint').textContent='Choose the folder your team uses for shared game data. It may be anywhere and does not need to contain the game. Everyone must choose the same folder. You can change it with Connect shared folder.';
  $('sfGo').querySelector('span').textContent=first?'CHOOSE '+SHARED_NAME.toUpperCase():'ALLOW ACCESS';$('sfGo').disabled=g.busy;
  $('sfMsg').textContent=g.msg;$('sfMsg').hidden=!g.msg;
  $('sfRepick').hidden=!(lb.dir&&!g.repick&&g.msg);
@@ -200,7 +197,7 @@ function renderAch(){
   tr.onclick=()=>{lb.achWho=k;lb.achView='path';renderAch()};body.append(tr)});
 }
 function renderChip(){$('achCount').textContent=achCountText();const ch=$('lbChip');ch.classList.toggle('on',lb.perm==='granted');ch.classList.toggle('warn',lb.supported&&lb.perm!=='granted');ch.querySelector('span').textContent=!lb.supported?'LEADERBOARD / THIS COMPUTER':lb.perm==='granted'?'CONNECTED TO '+(lb.dir?lb.dir.name:SHARED_NAME).toUpperCase():SHARED_NAME.toUpperCase()+' NOT CONNECTED / ALLOW ACCESS'}
-$('lbConnect').onclick=()=>lbPick();
+$('lbConnect').onclick=()=>lbPick(true);
 $('lbRefresh').onclick=()=>lbSync(true);
 $('sfGo').onclick=()=>lbPick();
 $('sfRepick').onclick=()=>lbPick(true);
@@ -214,9 +211,8 @@ document.querySelectorAll('#filterSeg button').forEach(b=>b.onclick=()=>{lb.filt
 // Background synchronization runs throughout gameplay, not only on the board screen.
 // On load: connect silently if the stored folder is still allowed, otherwise put the gate up right away.
 // A folder linked before there was one fixed folder may be the wrong one: ask for the right one instead.
-async function initializeSharedScores(){await journalRestore();if(!lb.supported){renderBoard();return}try{lb.dir=await idbGet('folder')||null;idbDel('board').catch(()=>{})}catch(_){}
- if(lb.dir&&String(lb.dir.name).toLowerCase()!==SHARED_NAME.toLowerCase()){lb.gate.startIn=lb.dir;lb.gate.msg=`This browser was linked to the "${lb.dir.name}" folder. The team now uses ${SHARED_NAME} only, so please pick it.`;lb.dir=null}
- // Try the remembered handle directly. Browsers requiring a user gesture fall
- // back to one Allow access click, never a new folder selection.
- if(lb.dir)await lbPermitted(true);
- try{await lbSync(false)}catch(_){}lb.gate.ready=true;sfRender()}
+async function initializeSharedScores(){
+ await journalRestore();
+ lb.dir=null;lb.perm='none';lb.gate.ready=true;
+ renderBoard();sfRender();
+}
