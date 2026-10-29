@@ -239,13 +239,27 @@ function drawSonar(){
  for(const e of echoes){const sx=e.x,sy=e.y;glow(sx,sy,12,'#b4ffe136');circle(sx,sy,2,'#c9ffe9');c.strokeStyle='#b2f7d84a';c.lineWidth=1;c.beginPath();c.moveTo(sx,sy);let dx=e.ox-sx,dy=e.oy-sy,d=Math.hypot(dx,dy);if(d>0)c.lineTo(sx+dx/d*Math.min(d,30),sy+dy/d*Math.min(d,30));c.stroke()}
  c.restore();
 }
-/* Submarine models share one base drawing (45 x 17 units) and vary the sail,
-   deck, stern, propulsor and paint per class, then scale to the class size. */
-const SAILS={std:[[-18,-12],[-17,-28],[-9,-33],[6,-32],[12,-13]],fillet:[[-25,-12],[-18,-21],[-17,-29],[-9,-33],[6,-32],[11,-21],[19,-12]],slope:[[-18,-12],[-16,-31],[-2,-33],[5,-31],[16,-13]],small:[[-10,-11],[-9,-25],[-3,-28],[7,-27],[12,-11]],tower:[[-22,-13],[-21,-25],[-15,-29],[8,-29],[13,-25],[16,-13]],long:[[-31,-12],[-24,-25],[-12,-31],[5,-31],[13,-24],[17,-12]],planes:[[4,-13],[5,-30],[12,-34],[25,-33],[30,-13]],aft:[[-28,-15],[-26,-28],[-17,-32],[-1,-31],[7,-15]]};
+/* Shared model-space silhouettes drive menu previews, side view and 3D.
+   Gameplay collision extents remain unchanged. x increases toward the bow. */
+const HULL_PROFILES={
+ virginia:[[-50,2],[-40,7],[-27,13],[-12,15],[25,15],[40,12],[51,7],[57,0]],
+ seawolf:[[-50,3],[-38,10],[-23,16],[22,16],[40,14],[52,8],[57,0]],
+ astute:[[-50,2],[-36,7],[-22,14],[-8,17],[25,17],[43,13],[53,6],[57,0]],
+ type212:[[-50,2],[-36,9],[-18,16],[12,17],[32,15],[48,10],[57,0]],
+ gato:[[-50,2],[-38,7],[-18,11],[24,11],[43,8],[54,4],[57,0]],
+ akula:[[-50,2],[-39,8],[-23,16],[-5,18],[24,18],[42,13],[53,7],[57,0]],
+ ohio:[[-50,2],[-39,7],[-23,14],[30,14],[45,11],[54,6],[57,0]],
+ typhoon:[[-50,3],[-38,11],[-20,17],[25,17],[43,14],[54,8],[57,0]]
+};
+const DECKS={hump:[[-39,-11],[-33,-20],[3,-20],[9,-12]],fore:[[5,-13],[11,-22],[39,-22],[49,-12]],fleet:[[-43,-6],[-37,-14],[40,-14],[54,-4]]};
+const BOW_PLANES={virginia:[14,5,16],seawolf:[20,6,18],astute:[30,5,20],type212:[23,4,17],gato:[34,4,18],akula:[22,5,22],typhoon:[33,5,23]};
+function hullR(x,m){const p=HULL_PROFILES[m.id];if(!p)return 0;for(let i=1;i<p.length;i++){const [a,r]=p[i-1],[b,q]=p[i];if(x<=b)return mix(r,q,clamp((x-a)/(b-a),0,1))}return 0}
+const hullStations=m=>[...new Set([...STATIONS,...HULL_PROFILES[m.id].map(p=>p[0])])].sort((a,b)=>a-b);
+const SAILS={std:[[-18,-12],[-17,-28],[-9,-33],[6,-32],[12,-13]],fillet:[[-25,-12],[-18,-21],[-17,-29],[-9,-33],[6,-32],[11,-21],[19,-12]],slope:[[-24,-13],[-20,-30],[-10,-35],[3,-35],[17,-13]],small:[[-10,-11],[-9,-25],[-3,-28],[7,-27],[12,-11]],tower:[[-20,-12],[-19,-24],[-14,-30],[3,-30],[9,-23],[12,-12]],long:[[-31,-12],[-24,-25],[-12,-31],[5,-31],[13,-24],[17,-12]],planes:[[4,-13],[5,-30],[12,-34],[25,-33],[30,-13]],aft:[[-28,-15],[-26,-28],[-17,-32],[-1,-31],[7,-15]]};
 function drawSubModel(m,lamp){
  if(m.look.turtle){drawTurtleModel(m,lamp);return}
  const L=m.look,P=PALS[L.pal];c.save();c.scale(m.hx/45,m.hy/17);
- if(lamp){c.save();c.globalCompositeOperation='screen';let g=c.createLinearGradient(42,0,270,0);g.addColorStop(0,`rgba(172,226,212,${.12+night*.09})`);g.addColorStop(1,'#a2dfc600');path([[42,-3],[270,-45],[270,48],[42,4]],g);c.restore();c.save();c.scale(1,.35);glow(0,35,100,'#000a');c.restore()}
+ if(lamp){c.save();c.globalCompositeOperation='screen';let g=c.createLinearGradient(54,0,270,0);g.addColorStop(0,`rgba(172,226,212,${.12+night*.09})`);g.addColorStop(1,'#a2dfc600');path([[54,-3],[270,-45],[270,48],[54,4]],g);c.restore()}
  // Stern control surfaces.
  if(L.stern==='x'){path([[-34,-6],[-49,-20],[-55,-19],[-47,-4]],P[6],'#70929377',.8);path([[-34,6],[-49,20],[-55,19],[-47,4]],P[6],'#70929377',.8)}
  else path([[-38,-9],[-53,-21],[-58,-20],[-54,-3],[-54,5],[-58,18],[-53,18],[-37,8]],P[6],'#70929377',.8);
@@ -254,9 +268,8 @@ function drawSubModel(m,lamp){
  const spin=Math.sin(ambient*38);
  if(L.prop==='pump'){path([[-46,-8],[-57,-9],[-61,-6],[-61,6],[-57,9],[-46,8]],P[5],'#8fa9a466',.8);c.strokeStyle='#8fa9a444';c.lineWidth=.6;for(const x of [-57,-53]){c.beginPath();c.moveTo(x,-8);c.lineTo(x,8);c.stroke()}}
  else for(const oy of L.prop==='twin'?[-5,5]:[0]){c.strokeStyle='#687e80';c.lineWidth=2;c.beginPath();c.moveTo(-48,oy);c.lineTo(-61,oy);c.stroke();c.fillStyle='#8b9a83';c.beginPath();c.ellipse(-60,oy,2,Math.abs(spin)*(oy?8:13)+2,.15,0,TAU);c.fill()}
- // Missile decks.
- if(L.deck==='hump'){path([[-40,-11],[-34,-18],[2,-18],[6,-13]],P[2],'#819c9955',.7);c.strokeStyle='#0a1a2477';c.lineWidth=.6;for(let x=-32;x<0;x+=4.5){c.beginPath();c.moveTo(x,-18);c.lineTo(x,-15.5);c.stroke()}}
- if(L.deck==='fore'){path([[8,-14],[13,-20],[40,-19],[48,-12]],P[2],'#819c9955',.7);c.strokeStyle='#0a1a2477';c.lineWidth=.6;for(let x=15;x<40;x+=4){c.beginPath();c.moveTo(x,-19.5);c.lineTo(x,-16.5);c.stroke()}}
+ // The same raised decks and hatch positions are used by the mesh.
+ if(DECKS[L.deck]){path(DECKS[L.deck],P[2],'#819c9955',.7);const deck=DECKS[L.deck];c.strokeStyle='#0a1a2477';c.lineWidth=.7;for(let x=deck[1][0]+3;x<deck[2][0];x+=5){c.beginPath();c.moveTo(x,deck[1][1]);c.lineTo(x,deck[1][1]+3);c.stroke()}}
  // Sail or conning tower, with masts.
  const sp=SAILS[L.sail]||SAILS.std,top=Math.min(...sp.map(p=>p[1])),mx=(sp[1][0]+sp[sp.length-2][0])/2;
  path(sp,P[3],'#819c9977',.8);c.strokeStyle='#64817c';c.lineWidth=1.4;c.beginPath();c.moveTo(sp[1][0]+1,sp[1][1]+1);for(let i=2;i<sp.length-1;i++)c.lineTo(sp[i][0],sp[i][1]+1);c.stroke();
@@ -265,39 +278,49 @@ function drawSubModel(m,lamp){
  if(L.sail==='tower'){c.strokeStyle='#9fb3ad66';c.lineWidth=.5;c.beginPath();c.moveTo(-44,-16);c.lineTo(46,-16);c.stroke();for(let x=-42;x<=44;x+=8){c.beginPath();c.moveTo(x,-16);c.lineTo(x,-13);c.stroke()}path([[20,-13],[22,-18],[29,-18],[30,-13]],P[3]);c.strokeStyle=P[1];c.lineWidth=1.6;c.beginPath();c.moveTo(27,-16.5);c.lineTo(38,-19);c.stroke()}
  // Pressure hull.
  let hullG=c.createLinearGradient(0,-17,0,18);[0,.14,.37,.52,.78,1].forEach((s,i)=>hullG.addColorStop(s,P[i]));
- c.beginPath();c.moveTo(-48,-8);
- if(L.bow==='ship'){c.lineTo(-42,-13);c.lineTo(38,-13);c.quadraticCurveTo(53,-12,57,-6);c.bezierCurveTo(54,6,42,13,30,13);c.bezierCurveTo(10,17,-29,14,-48,8)}
- else{c.bezierCurveTo(-23,-18,17,-18,36,-11);c.bezierCurveTo(59,-5,59,8,36,13);c.bezierCurveTo(13,19,-29,14,-48,8)}
- c.quadraticCurveTo(-53,0,-48,-8);c.closePath();c.fillStyle=hullG;c.fill();c.strokeStyle='#9ebcb34d';c.lineWidth=.8;c.stroke();
+ const stations=hullStations(m);c.beginPath();stations.forEach((x,i)=>i?c.lineTo(x,-hullR(x,m)):c.moveTo(x,-hullR(x,m)));for(const x of [...stations].reverse())c.lineTo(x,hullR(x,m));c.closePath();c.fillStyle=hullG;c.fill();c.strokeStyle='#9ebcb34d';c.lineWidth=.8;c.stroke();
+
  if(L.pal==='ru'){c.save();c.clip();c.fillStyle='rgba(120,40,32,.45)';c.fillRect(-60,7,120,20);c.restore()}
- c.save();c.beginPath();c.ellipse(1,0,48,15,0,0,TAU);c.clip();for(let x=-31;x<=31;x+=13){c.strokeStyle='#081a2a77';c.lineWidth=.7;c.beginPath();c.ellipse(x,0,3,16,0,0,TAU);c.stroke();for(let y=-9;y<=9;y+=6)circle(x-2,y,.65,'#b0c0b04a')}c.restore();
+ c.save();c.clip();for(let x=-31;x<=31;x+=13){c.strokeStyle='#081a2a77';c.lineWidth=.7;c.beginPath();c.ellipse(x,0,3,16,0,0,TAU);c.stroke();for(let y=-9;y<=9;y+=6)circle(x-2,y,.65,'#b0c0b04a')}c.restore();
  c.strokeStyle='#b1c6b67a';c.lineWidth=.6;c.beginPath();c.moveTo(-35,-9);c.bezierCurveTo(-9,-14,27,-13,41,-7);c.stroke();
- path([[11,3],[24,10],[22,13],[5,6]],P[6],'#9db4a544',.6);
+ const bp=BOW_PLANES[m.id];if(bp){const [x,y,w]=bp;path([[x-7,y],[x+7,y],[x+4,y+w*.4],[x-4,y+w*.4]],P[6],'#9db4a544',.6)}
  c.font='5px Arial';c.fillStyle='#b1c3baaa';c.fillText(m.mark,-30,3);
- circle(45,0,2.3,'#e2f2d4');glow(47,0,12,'#b7f6df55');circle(mx,top+2,1.2,'#bf8b61');c.restore();
+ circle(56.5,0,2.3,'#e2f2d4');glow(57,0,12,'#b7f6df55');circle(mx,top+2,1.2,'#bf8b61');c.restore();
 }
 /* The boat in 3D: a lathed pressure hull, extruded sail and decks, cruciform (or X)
    stern planes, bow planes and propulsors, built once per class in the same model
    units as the side drawing, lit from above and painter-sorted each frame. */
 const meshCache={},hexRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
 const STATIONS=[-50,-46,-42,-37,-31,-25,-20,-10,0,10,20,30,36,42,47,51,54,56,57],LIGHT=[.3,-1,-.45].map((v,_,a)=>v/Math.hypot(...a));
-function hullR(x){return x>36?15.5*Math.sqrt(Math.max(0,1-((x-36)/21)**2)):x<-20?15.5*Math.sqrt(Math.max(0,1-((x+20)/30)**2*.93)):15.5}
+
 function lathe(f,xs,rf,kind,two,N=18,oz=0){const ring=(x,a)=>{const r=rf(x);return [x,-r*Math.cos(a),r*Math.sin(a)+oz]};for(let i=0;i<xs.length-1;i++)for(let j=0;j<N;j++){const a0=j/N*TAU,a1=(j+1)/N*TAU;f.push({v:[ring(xs[i],a0),ring(xs[i+1],a0),ring(xs[i+1],a1),ring(xs[i],a1)],ref:[(xs[i]+xs[i+1])/2,0,oz],kind,two})}}
 function extrude(f,pts,w,kind){const ref=[pts.reduce((s,p)=>s+p[0],0)/pts.length,pts.reduce((s,p)=>s+p[1],0)/pts.length,0];
  for(const z of [-w,w])f.push({v:pts.map(p=>[p[0],p[1],z]),ref,kind,bias:-2});
  for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];f.push({v:[[a[0],a[1],-w],[b[0],b[1],-w],[b[0],b[1],w],[a[0],a[1],w]],ref,kind,bias:-2})}}
 function buildMesh(m){
  const L=m.look,f=[],sw=['tower','long','aft'].includes(L.sail)?4.2:3.2,fin=(shape,a)=>f.push({v:shape.map(([x,r])=>[x,-r*Math.cos(a),r*Math.sin(a)]),kind:'fin',two:true});
- if(L.turtle){lathe(f,[-45,-40,-30,-15,0,15,30,40,45],x=>17*Math.sqrt(Math.max(0,1-(x/45)**2)),'hull',false);extrude(f,[[-12,-14],[-10,-23],[10,-23],[12,-14]],6,'sail');for(const x of [-23,23])lathe(f,[x-1.5,x+1.5],()=>15,'prop',false);return {faces:f,sw:6}}
- lathe(f,STATIONS,hullR,'hull',false);
- f.push({v:Array.from({length:18},(_,j)=>{const a=j/18*TAU,r=hullR(-50);return [-50,-r*Math.cos(a),r*Math.sin(a)]}),ref:[-40,0,0],kind:'dark'});
+ if(L.turtle){
+  // Upright wooden barrel, matching the side drawing's dimensions and bands.
+  const body=[];lathe(body,[-17,-16,-12,-8,0,8,12,16,17],y=>45*Math.sqrt(Math.max(0,1-(y/17)**2)),'hull',false,24);
+  for(const face of body){face.v=face.v.map(([y,x,z])=>[x,y,z*17/45]);face.ref=[0,0,0]}f.push(...body);
+  for(let j=0;j<16;j++){const a=j/16*TAU;for(let y=-16;y<16;y+=4){const point=(v,da)=>{const r=45*Math.sqrt(Math.max(0,1-(v/17)**2))+.2;return [-r*Math.cos(a+da),v,r*Math.sin(a+da)*17/45]};f.push({v:[point(y,0),point(y+4,0),point(y+4,.018),point(y,.018)],ref:[0,0,0],kind:'dark',two:true})}}
+  for(const y of [-9.35,9.35]){const band=[];lathe(band,[y,y+2.3],v=>45*Math.sqrt(Math.max(0,1-(v/17)**2))+.6,'prop',true,24);for(const face of band){face.v=face.v.map(([yy,x,z])=>[x,yy,z*17/45]);face.ref=[0,0,0]}f.push(...band)}
+  extrude(f,[[-13.5,-17],[-13.5,-21],[13.5,-21],[13.5,-17]],5,'prop');
+  for(const [r,kind,z]of [[12,'prop',-15.5],[8.5,'glass',-16]])f.push({v:Array.from({length:24},(_,i)=>{const a=i/24*TAU;return [18+r*Math.cos(a),-2.3+r*.77*Math.sin(a),z]}),kind,two:true});
+  lathe(f,[-45,-65],()=>1.2,'prop',false,8);
+  return {faces:f,sw:6};
+ }
+ lathe(f,hullStations(m),x=>hullR(x,m),'hull',false);
+ f.push({v:Array.from({length:18},(_,j)=>{const a=j/18*TAU,r=hullR(-50,m);return [-50,-r*Math.cos(a),r*Math.sin(a)]}),ref:[-40,0,0],kind:'dark'});
  // The sail's base is sunk just below the curved deck so no gap shows.
- const sp=SAILS[L.sail]||SAILS.std;extrude(f,sp.map(([x,y],i)=>[x,i&&i<sp.length-1?y:.8-Math.sqrt(Math.max(0,hullR(x)**2-sw*sw))]),sw,'sail');
- if(L.deck==='hump')extrude(f,[[-30,-12.5],[-26,-18],[2,-18],[6,-12.5]],7,'hull');
- if(L.deck==='fore')extrude(f,[[8,-12.5],[13,-20],[40,-19],[46,-12.5]],7,'hull');
+ const sp=SAILS[L.sail]||SAILS.std;extrude(f,sp.map(([x,y],i)=>[x,i&&i<sp.length-1?y:.8-Math.sqrt(Math.max(0,hullR(x,m)**2-sw*sw))]),sw,'sail');
+ if(DECKS[L.deck])extrude(f,DECKS[L.deck],L.deck==='fore'?12:L.deck==='fleet'?5:8,'hull');
+ // Fleet-boat deck gun and missile hatches remain visible from oblique views.
+ if(L.deck==='fleet'){extrude(f,[[20,-14],[22,-19],[29,-19],[30,-14]],2,'sail');extrude(f,[[26,-18],[38,-21],[38,-19],[26,-16]],.7,'fin')}
+ if(['fore','hump'].includes(L.deck)){const deck=DECKS[L.deck],y=deck[1][1]-.2;for(let x=deck[1][0]+4;x<deck[2][0]-1;x+=5)for(const z of [-4,4])f.push({v:Array.from({length:12},(_,i)=>{const a=i/12*TAU;return [x+1.7*Math.cos(a),y,z+2.2*Math.sin(a)]}),kind:'dark',two:true})}
  const x=L.stern==='x',stern=x?[[-34,5],[-49,20],[-55,19],[-47,3]]:[[-37,7],[-52,20],[-57,19],[-53,3]];
  for(let k=0;k<4;k++)fin(stern,(x?Math.PI/4:0)+k*Math.PI/2);
- for(const s of [1,-1])f.push({v:[[6,4,13*s],[22,4,13*s],[19,4,21*s],[11,4,21*s]],kind:'fin',two:true});
+ const bp=BOW_PLANES[m.id];if(bp){const [x,y,w]=bp;for(const side of [-1,1])f.push({v:[[x-7,y,9*side],[x+7,y,9*side],[x+4,y,w*side],[x-4,y,w*side]],kind:'fin',two:true})}
  if(L.sail==='planes')for(const s of [1,-1])f.push({v:[[8,-25,2.5*s],[24,-25,2.5*s],[21,-25,14*s],[12,-25,14*s]],kind:'fin',two:true});
  if(L.pod)extrude(f,Array.from({length:11},(_,i)=>{const a=i/10*TAU;return [-55+7*Math.cos(a),-22+3*Math.sin(a)]}),2.6,'fin');
  if(L.prop==='pump'){const PX=[-46,-50,-55,-59,-61],PR=[8.6,9.2,9,8.2,7.2];lathe(f,PX,x=>PR[PX.indexOf(x)],'sail',true,14);f.push({v:Array.from({length:14},(_,j)=>{const a=j/14*TAU;return [-60.5,-7*Math.cos(a),7*Math.sin(a)]}),kind:'dark',two:true})}
@@ -305,7 +328,7 @@ function buildMesh(m){
  return {faces:f,sw};
 }
 function propFaces(L,time){const out=[];if(L.prop==='pump')return out;const spin=time*14;
- for(const oz of L.prop==='twin'?[-6,6]:[0]){const R=oz?8:12;for(let k=0;k<4;k++){const a=spin+k*TAU/4,p=(r,da)=>[-60,-r*Math.cos(a+da),r*Math.sin(a+da)+oz];out.push({v:[p(1.5,-.12),p(R,-.3),p(R,.3),p(1.5,.12)],kind:'prop',two:true})}}
+ for(const oz of L.prop==='twin'?[-6,6]:[0]){const R=L.turtle?6:oz?8:12;for(let k=0;k<4;k++){const a=spin+k*TAU/4,p=(r,da)=>[L.turtle?-65:-60,-r*Math.cos(a+da),r*Math.sin(a+da)+oz];out.push({v:[p(1.5,-.12),p(R,-.3),p(R,.3),p(1.5,.12)],kind:'prop',two:true})}}
  return out}
 function drawSub3D(angle,wk=null){
  const m=S,L=m.look,mesh=meshCache[m.id]||(meshCache[m.id]=buildMesh(m)),P=PALS[L.pal].map(hexRgb);
@@ -319,7 +342,7 @@ function drawSub3D(angle,wk=null){
  const view=w=>[ox+scale*(w[0]*cyw+w[2]*syw),oy+scale*(w[1]*cpt-w[2]*cyw*spt),w[0]*d[0]+w[1]*d[1]+w[2]*d[2]];
  c.save();c.setTransform(dpr,0,0,dpr,0,0);if(state==='playing'&&t<invulnUntil&&!active('shield')&&Math.floor(t*14)%2)c.globalAlpha=.45;else if(state==='playing'&&active('silent'))c.globalAlpha=.42;
  // Headlamp beam; on a wreck it stutters out.
- const lampOn=!wk||(ambient-wk.born<1.8&&Math.random()<.45);
+ const lampOn=!L.turtle&&(!wk||(ambient-wk.born<1.8&&Math.random()<.45));
  const B=view(world([45,0,0])),E=view(world([270,0,0])),bl=Math.hypot(E[0]-B[0],E[1]-B[1])||1,nx=-(E[1]-B[1])/bl,ny=(E[0]-B[0])/bl,bw=46*ky*scale,b0=3*ky*scale;
  if(lampOn){c.globalCompositeOperation='screen';let g=c.createLinearGradient(B[0],B[1],E[0],E[1]);g.addColorStop(0,`rgba(172,226,212,${.12+night*.09})`);g.addColorStop(1,'#a2dfc600');path([[B[0]+nx*b0,B[1]+ny*b0],[E[0]+nx*bw,E[1]+ny*bw],[E[0]-nx*bw,E[1]-ny*bw],[B[0]-nx*b0,B[1]-ny*b0]],g);c.globalCompositeOperation='source-over'}
  const list=[];
@@ -332,12 +355,15 @@ function drawSub3D(angle,wk=null){
   const s=.25+.75*Math.max(0,nx*LIGHT[0]+ny*LIGHT[1]+nz*LIGHT[2]),spec=Math.max(0,(nx*hl[0]+ny*hl[1]+nz*hl[2])/hn)**24*.3;let col;
   if(f.kind==='hull'||f.kind==='sail'){const q=clamp((1-s)*5,0,4.999),i=Math.floor(q);col=P[i].map((v,j)=>mix(v,P[i+1][j],q-i));if(L.pal==='ru'&&f.kind==='hull'&&f.v[0][1]>8)col=col.map((v,j)=>mix(v,[120,40,32][j],.45))}
   else if(f.kind==='dark')col=[10,22,28];
+  else if(f.kind==='glass')col=[37,106,115];
   else col=(f.kind==='prop'?[139,154,131]:P[6]).map(v=>v*(.45+.8*s));
   if(wk)col=col.map((v,j)=>mix(v*.55,[70,48,38][j],.18));
   const pts=w.map(view);list.push({pts,z:pts.reduce((a,p)=>a+p[2],0)/n+(f.bias||0),fill:`rgb(${col.map(v=>Math.round(clamp(mix(v,235,spec),0,255))).join(',')})`});
  }
  list.sort((a,b)=>b.z-a.z);c.lineWidth=.6;c.lineJoin='round';
  for(const f of list){c.beginPath();f.pts.forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.closePath();c.fillStyle=f.fill;c.fill();c.strokeStyle=f.fill;c.stroke()}
+ // Turtle has a brass hatch and porthole instead of modern masts.
+ if(L.turtle){c.restore();return}
  // Masts and lights.
  const sp=SAILS[L.sail]||SAILS.std,top=Math.min(...sp.map(p=>p[1])),mx=(sp[1][0]+sp[sp.length-2][0])/2;
  const line=(a,b,wd,col)=>{const p=view(world(a)),q=view(world(b));c.strokeStyle=col;c.lineWidth=wd*kx*scale;c.beginPath();c.moveTo(p[0],p[1]);c.lineTo(q[0],q[1]);c.stroke()};
@@ -356,7 +382,7 @@ function drawAbilityFx(){
  c.restore();
 }
 function drawSub(){const angle=clamp(sub.v/650,-.22,.22)+tilt+(surfaced?Math.sin(ambient*1.9)*.02:0);if(!flat()){drawSub3D(angle);return}c.save();c.translate(sub.x,sub.y+(surfaced?Math.sin(ambient*2.3)*1.4:0));c.rotate(angle);if(state==='menu')c.scale(1.45,1.45);if(state==='playing'&&t<invulnUntil&&!active('shield')&&Math.floor(t*14)%2)c.globalAlpha=.45;else if(state==='playing'&&active('silent'))c.globalAlpha=.42;drawSubModel(S,true);c.restore()}
-function drawPreview(cv,m,w,h){const ctx=cv.getContext('2d');ctx.setTransform(cv.width/w,0,0,cv.height/h,0,0);ctx.clearRect(0,0,w,h);const saved=c;c=ctx;try{const k=Math.min(w/((m.hx/45)*128),h/((m.hy/17)*58));c.translate(w/2+2*k,h/2+12*k*(m.hy/17));c.scale(k,k);drawSubModel(m,false)}finally{c=saved}}
+function drawPreview(cv,m,w,h){const ctx=cv.getContext('2d');ctx.setTransform(cv.width/w,0,0,cv.height/h,0,0);ctx.clearRect(0,0,w,h);const saved=c;c=ctx;try{const k=Math.min(w/((m.hx/45)*140),h/((m.hy/17)*80));c.translate(w/2+2*k,h/2+12*k*(m.hy/17));c.scale(k,k);drawSubModel(m,false)}finally{c=saved}}
 function drawSurfaceFx(){
  for(const r of ripples){const k=(ambient-r.born)/1.6;c.strokeStyle=`rgba(225,245,240,${(1-k)*.5})`;c.lineWidth=1.4;c.beginPath();c.ellipse(r.x,SURFACE+2,r.w*(.6+k*1.6),5+k*7,0,0,TAU);c.stroke()}
  if(surfaced){c.strokeStyle='rgba(230,248,242,.55)';c.lineWidth=2;c.beginPath();c.moveTo(sub.x+S.hx*1.05,SURFACE+1);c.quadraticCurveTo(sub.x+S.hx*1.25,SURFACE-3,sub.x+S.hx*1.35,SURFACE+2);c.stroke();
