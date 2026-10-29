@@ -40,13 +40,23 @@ async function analyticsSync(){
 }
 async function analyticsRead(){
  if(analytics.reading)return analytics.reading;if(!lb.dir||lb.perm!=='granted'){analytics.note='Shared drive not connected. Showing available records and this computer’s backup.';analyticsRender();return}
- analytics.reading=(async()=>{analytics.note='Loading fleet activity…';analyticsRender();try{await analyticsSync();let dir;try{dir=await lb.dir.getDirectoryHandle('analytics')}catch(e){if(e.name!=='NotFoundError')throw e}const rows=new Map();let bad=0;if(dir)for await(const [name,handle]of dir.entries()){if(handle.kind!=='file'||!name.endsWith('.dat'))continue;try{const row=analyticsClean(JSON.parse(unseal(await (await handle.getFile()).text())));if(row)rows.set(row.id,row);else bad++}catch(_){bad++}}analytics.remote=rows;analytics.loaded=Date.now();analytics.note='Shared activity refreshed'+(bad?' · '+bad+' unreadable record(s) excluded.':'.')}catch(e){analytics.note='Shared drive unavailable. Showing cached activity; uploads keep retrying.'}finally{analytics.reading=null;analyticsRender()}})();return analytics.reading;
+ analytics.reading=(async()=>{analytics.note='Loading fleet activity…';analyticsRender();try{if(!await lbSync(false))throw Error('Leaderboard corrections could not be refreshed');await analyticsSync();let dir;try{dir=await lb.dir.getDirectoryHandle('analytics')}catch(e){if(e.name!=='NotFoundError')throw e}const rows=new Map();let bad=0;if(dir)for await(const [name,handle]of dir.entries()){if(handle.kind!=='file'||!name.endsWith('.dat'))continue;try{const row=analyticsClean(JSON.parse(unseal(await (await handle.getFile()).text())));if(row)rows.set(row.id,row);else bad++}catch(_){bad++}}analytics.remote=rows;analytics.loaded=Date.now();analytics.note='Shared activity refreshed'+(bad?' · '+bad+' unreadable record(s) excluded.':'.')}catch(e){analytics.note='Shared drive unavailable. Showing cached activity; uploads keep retrying.'}finally{analytics.reading=null;analyticsRender()}})();return analytics.reading;
 }
 function analyticsRows(){const rows=new Map(analytics.remote);for(const [id,r]of analytics.local)if(!rows.has(id)||r.rev>=rows.get(id).rev)rows.set(id,r);return [...rows.values()].filter(r=>analyticsNamed(r.name))}
 function analyticsRange(period,now=Date.now()){const d=new Date(now);d.setHours(0,0,0,0);if(period==='week')d.setDate(d.getDate()-(d.getDay()+6)%7);if(period==='month')d.setDate(1);return period==='all'?'0000-00-00':analyticsDay(+d)}
 function analyticsData(filters){
- const since=analyticsRange(filters.period),rows=analyticsRows(),known=new Set(rows.flatMap(r=>r.runs.map(x=>x.scoreId).filter(Boolean))),legacy=mergeEntries(lb.shared,lb.local).filter(e=>analyticsNamed(e.name)&&!known.has(e.id)).map(e=>({...e,mode:'legacy',outcome:'completed',at:e.at||Date.parse(e.date+'T12:00:00'),seconds:null,legacy:true}));
- let runs=[...rows.filter(r=>r.day>=since).flatMap(r=>r.runs.map(x=>({...x,name:r.name,day:r.day}))),...legacy.filter(r=>analyticsDay(r.at)>=since)];
+ const since=analyticsRange(filters.period),rows=analyticsRows(),admin=lb.admin;
+ // Apply shared corrections at read time so stale activity uploads and local
+ // score backups cannot resurrect a deleted run or override an edited score.
+ const tracked=rows.flatMap(r=>r.runs.map(x=>({...x,name:r.name,day:r.day}))),known=new Set(tracked.map(x=>x.scoreId).filter(Boolean));
+ const legacy=boardAdminEntries(mergeEntries(lb.shared,lb.local),admin).filter(e=>analyticsNamed(e.name)&&!known.has(e.id)).map(e=>({...e,mode:'legacy',outcome:'completed',at:e.at||Date.parse(e.date+'T12:00:00'),seconds:null,legacy:true}));
+ let runs=tracked.flatMap(r=>{
+  const correction=admin&&admin.entries&&admin.entries[r.scoreId||r.id];
+  if(!correction)return [r];
+  if(correction.value===null)return [];
+  const e=correction.value,at=e.at||Date.parse(e.date+'T12:00:00');
+  return [{...r,...e,id:r.id,at,day:analyticsDay(at)}];
+ }).concat(legacy).filter(r=>analyticsNamed(r.name)&&(r.day||analyticsDay(r.at))>=since);
  runs=runs.filter(r=>(!filters.player||r.name.toLowerCase()===filters.player)&&(!filters.mode||r.mode===filters.mode)&&(!filters.diff||r.diff===filters.diff));
  const ships=fleetOrdered().map(s=>{const all=runs.filter(r=>r.sub===s.id),done=all.filter(r=>['lost','won','completed'].includes(r.outcome)),timed=done.filter(r=>Number.isFinite(r.seconds)),points=done.reduce((n,r)=>n+(+r.score||0),0);return {id:s.id,name:s.name,uses:all.length,completed:done.length,points,average:done.length?points/done.length:0,distance:done.reduce((n,r)=>n+(+r.distance||0),0),duration:timed.length?timed.reduce((n,r)=>n+r.seconds,0)/timed.length:null,wins:done.filter(r=>r.outcome==='won').length,campaign:done.filter(r=>r.mode==='campaign').length}});
  const players=new Map(),daily=new Map();for(const r of rows){if(r.day<since||filters.player&&r.name.toLowerCase()!==filters.player)continue;const key=r.name.toLowerCase(),p=players.get(key)||{name:r.name,total:0,campaign:0,survival:0,menus:0,days:new Set()};p.days.add(r.day);for(const [mode,value]of Object.entries(r.seconds)){const v=Math.max(0,+value||0);p.total+=v;if(mode==='campaign')p.campaign+=v;else if(['survival','duel','practice'].includes(mode))p.survival+=v;else p.menus+=v;daily.set(r.day,(daily.get(r.day)||0)+v)}players.set(key,p)}

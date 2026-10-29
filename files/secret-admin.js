@@ -71,7 +71,7 @@ async function adminCommit(source,id,value){
   await owns();await writeText(BACKUP_FILE,seal(JSON.stringify(board)));await owns();await writeText(BOARD_FILE,seal(JSON.stringify(result)));await owns();
   const verified=await lbRead();if(JSON.stringify(verified.admin[type][id])!==JSON.stringify(correction))throw Error('The change could not be verified. Refresh the board before retrying.');
   lb.admin=verified.admin;lb.shared=verified.entries;lb.players=verified.players;
- }));lbChain=job.catch(()=>{});await job;lb.source='shared';renderBoard();if(panel==='ach')renderAch();
+ }));lbChain=job.catch(()=>{});await job;lb.source='shared';renderBoard();analyticsRender();if(panel==='ach')renderAch();
 }
 async function adminSave(remove){
  if(secretAdmin.busy||!secretAdmin.active)return;const source=secretAdmin.source,old=adminRows().find(r=>r.id===secretAdmin.id);if(remove&&!old)return;
