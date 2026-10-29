@@ -457,7 +457,4 @@ function renderDuelChip(){
  ch.classList.toggle('alert',!!(inc||mine));ch.classList.toggle('on',duelReady()&&!!duel.presenceAt&&!duel.beatError&&!duel.note&&!inc&&!mine);
  $('duelCount').textContent=inc||mine?'Duel (!)':'Duel';
 }
-setInterval(async()=>{
- await duelTick();
- if(duel.pendingRound&&!duel.action&&!duel.run&&duelReady()&&duelIdentity(duel.pendingRound.name)===duelIdentity(callsign())&&Date.now()-duel.lastRoundRetry>=15000)await duelPostRound();
-},POLL_MS);
+

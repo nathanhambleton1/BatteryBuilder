@@ -45,7 +45,7 @@ function backgroundSaveTick(){
  else if(pending().length)saveStatus('scores','queued','Shared drive not connected · '+pending().length+' upload(s) pending · Backup safe');
  if(lb.perm==='granted'&&prof.key&&!prof.syncJob)void profSync();
 }
-setInterval(backgroundSaveTick,15000);
+
 addEventListener('online',backgroundSaveTick);
 addEventListener('focus',backgroundSaveTick);
 addEventListener('storage',ev=>{if(ev.key&&(ev.key.startsWith(SCORE_PREFIX)||ev.key==='undertow.pending.v1')){lb.local=mergeEntries(lb.local,journalRows().map(r=>r.entry));backgroundSaveTick()}});

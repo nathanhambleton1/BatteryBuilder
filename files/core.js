@@ -144,8 +144,8 @@ const ACH_BY_ID=Object.fromEntries(ACHS.map(a=>[a.id,a]));
 // before sealing existed are converted once, then never accepted again.
 const SEALED=new Set(['undertow.ach.v1','undertow.best.v2','undertow.local.v1','undertow.mine.v1','undertow.pending.v1']);
 const PROFILE_PREFIX='undertow.p.', sealedKey=k=>SEALED.has(k)||k.startsWith(PROFILE_PREFIX)||k.startsWith('undertow.score.v2.');
-const store={get(k,f){try{const v=localStorage.getItem(k);if(v===null)return f;if(!sealedKey(k))return JSON.parse(v);const t=unseal(v);return t===null?f:JSON.parse(t)}catch(_){return f}},set(k,v){try{const t=JSON.stringify(v);localStorage.setItem(k,sealedKey(k)?seal(t):t);return true}catch(_){return false}}};
-try{if(!localStorage.getItem('undertow.sealed')){for(const k of SEALED){const v=localStorage.getItem(k);if(v!==null&&unseal(v)===null)localStorage.setItem(k,seal(v))}localStorage.setItem('undertow.sealed','1')}}catch(_){}
+const store={get(k,f){try{const v=localStorage.getItem("offline."+k);if(v===null)return f;if(!sealedKey(k))return JSON.parse(v);const t=unseal(v);return t===null?f:JSON.parse(t)}catch(_){return f}},set(k,v){try{const t=JSON.stringify(v);localStorage.setItem("offline."+k,sealedKey(k)?seal(t):t);return true}catch(_){return false}}};
+try{if(!localStorage.getItem('undertow.sealed')){for(const k of SEALED){const v=localStorage.getItem("offline."+k);if(v!==null&&unseal(v)===null)localStorage.setItem("offline."+k,seal(v))}localStorage.setItem('undertow.sealed','1')}}catch(_){}
 let W=innerWidth,H=innerHeight,dpr=1,quality=1,scale=1,vw=1,vh=1,camX=0,camY=-10;
 let state='menu', panel=null, practice=false, held=false, down=false, inputKeys=new Set(),pointerLift=false;
 let diffId=store.get('undertow.diff','officer'), subId=store.get('undertow.sub','gato');

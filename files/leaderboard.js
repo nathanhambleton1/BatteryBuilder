@@ -25,10 +25,10 @@ const GAME_DIR=(()=>{try{if(location.protocol!=='file:')return '';const p=decode
 // points at it once; the handle is kept in IndexedDB and access is re-asked on load if needed.
 const SHARED_DIR='your chosen shared folder', SHARED_NAME='shared folder';
 const sameDir=(a,b)=>!!a&&!!b&&a.replace(/\\+$/,'').toLowerCase()===b.replace(/\\+$/,'').toLowerCase();
-const lb={supported:typeof window.showDirectoryPicker==='function',dir:null,perm:'none',shared:[],players:{},admin:{entries:{},players:{}},achView:'path',achWho:'',local:(store.get('undertow.local.v1',[])||[]).map(cleanEntry).filter(Boolean),source:'shared',filter:'all',note:'',warn:'',gate:{ready:false,offline:false,msg:'',repick:false,busy:false},mine:new Set(store.get('undertow.mine.v1',[]))};
+const lb={supported:false,dir:null,perm:'none',shared:[],players:{},admin:{entries:{},players:{}},achView:'path',achWho:'',local:(store.get('undertow.local.v1',[])||[]).map(cleanEntry).filter(Boolean),source:'shared',filter:'all',note:'',warn:'',gate:{ready:false,offline:false,msg:'',repick:false,busy:false},mine:new Set(store.get('undertow.mine.v1',[]))};
 if(!lb.supported)lb.source='local';
 $('lbPath').textContent=SHARED_DIR+'\\'+BOARD_FILE;
-function idb(mode,fn){return new Promise((res,rej)=>{let open;try{open=indexedDB.open('undertow',1)}catch(e){rej(e);return}open.onupgradeneeded=()=>open.result.createObjectStore('kv');open.onerror=()=>rej(open.error);open.onsuccess=()=>{const db=open.result;let tx,req;try{tx=db.transaction('kv',mode);req=fn(tx.objectStore('kv'))}catch(e){db.close();rej(e);return}tx.oncomplete=()=>{db.close();res(req.result)};tx.onerror=tx.onabort=()=>{db.close();rej(tx.error)}}})}
+function idb(mode,fn){return new Promise((res,rej)=>{let open;try{open=indexedDB.open('undertow-offline',1)}catch(e){rej(e);return}open.onupgradeneeded=()=>open.result.createObjectStore('kv');open.onerror=()=>rej(open.error);open.onsuccess=()=>{const db=open.result;let tx,req;try{tx=db.transaction('kv',mode);req=fn(tx.objectStore('kv'))}catch(e){db.close();rej(e);return}tx.oncomplete=()=>{db.close();res(req.result)};tx.onerror=tx.onabort=()=>{db.close();rej(tx.error)}}})}
 const idbGet=k=>idb('readonly',s=>s.get(k)), idbSet=(k,v)=>idb('readwrite',s=>s.put(v,k)), idbDel=k=>idb('readwrite',s=>s.delete(k));
 const pending=()=>journalPending();
 async function readText(name,dir=lb.dir){return (await (await dir.getFileHandle(name)).getFile()).text()}
@@ -105,13 +105,7 @@ async function lbPick(repick){
  }catch(e){g.msg='Could not open the folder: '+(e&&e.message||e);return false}
  finally{g.busy=false;renderBoard();sfRender()}
 }
-async function sfPick(){
- const g=lb.gate,o={id:'undertow',mode:'readwrite'};let dir;
- try{try{const from=lb.dir||g.startIn;dir=await window.showDirectoryPicker(from?{...o,startIn:from}:o)}catch(e){if(e&&e.name==='AbortError')throw e;dir=await window.showDirectoryPicker(o)}}
- catch(e){if(e&&e.name==='AbortError'){g.msg=`No folder was picked. Pick ${SHARED_DIR}.`;return false}throw e}
- lb.warn='';lb.dir=dir;try{await idbSet('folder',dir)}catch(_){}
- return true;
-}
+async function sfPick(){return false}
 function sfShouldShow(){const g=lb.gate;return lb.supported&&g.ready&&!g.offline&&lb.perm!=='granted'&&state!=='playing'&&!(duel&&(duel.run||duel.watch))}
 function sfRender(){
  const g=lb.gate,box=$('sfGate'),was=!box.hidden,on=sfShouldShow();box.hidden=!on;if(!on)return;
