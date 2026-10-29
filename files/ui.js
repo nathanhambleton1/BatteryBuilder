@@ -11,7 +11,7 @@ function statRows(m){return [['SPEED',(m.speed-.88)/.26],['AGILITY',(m.agility-.
 function vesselCard(base,boat,selected,onSelect){
  const ok=fleetOpen(base.id),card=el('button','sub-card'),cv=el('canvas','mini');card.type='button';card.dataset.sub=base.id;card.disabled=!ok;card.classList.toggle('locked',!ok);card.setAttribute('aria-pressed',String(ok&&selected));
  cv.width=Math.round(240*dpr);cv.height=Math.round(64*dpr);const name=el('b','vessel-title',base.name.toUpperCase()+' CLASS');name.append(icon('i-check'));
- const status=el('span','vessel-status',!ok?'LOCKED · UNLOCKS AT LEVEL '+FLEET_LEVELS[base.id]:selected?'SELECTED':'AVAILABLE · LEVEL '+FLEET_LEVELS[base.id]);
+ const status=el('span','vessel-status',selected?'SELECTED':'AVAILABLE');
  const ability=el('div','ab');ability.append(el('small','ability-label','SPECIAL ABILITY · E'),el('b',null,base.ability.name),el('p',null,base.ability.desc),el('span','ability-recharge','RECHARGE · '+base.ability.cd+' SECONDS'));
  const stats=el('div','vessel-stats');for(const [label,v] of statRows(boat)){const row=el('div','stat'),bar=el('span'),fill=el('i');fill.style.width=Math.round(clamp(v,.08,1)*100)+'%';bar.append(fill);row.append(el('label',null,label),bar);stats.append(row)}
  card.append(cv,name,el('small','vessel-origin',base.origin+' / '+base.mark),status,el('p','vessel-description',base.desc),ability,stats);card.onclick=()=>{if(ok)onSelect()};drawPreview(cv,base,240,64);return card;

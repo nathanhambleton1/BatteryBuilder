@@ -84,8 +84,6 @@ const ACHS=[
  ['cathedral',1,'The Cathedral','Navigate an undersea cavern.',1,R=>R.cave],
  ['patrol',1,'Patrol Complete','Travel 2,000 m in one dive.',2000,R=>R.dist],
  ['tour',1,'Shipyard Tour','Dive in 4 different classes.',4,(R,L)=>L.subs],
- ['rated',1,'Rated','Reach level 5.',5,(R,L)=>L.lvl],
- ['duelist',1,'Duelist','Win a 1v1 duel.',1,(R,L)=>L.wins],
  ['airman',1,'Air Hound','Collect 50 air pockets across your career.',50,(R,L)=>L.air],
  ['commission',2,'Commissioned','Score 5,000 in one dive on Officer or above.',5000,R=>R.diff>=1?R.score:0],
  ['wolfpack',2,'Wolfpack','Sink 5 warships in one dive.',5,R=>R.ships],
@@ -94,10 +92,8 @@ const ACHS=[
  ['threader',2,'Needle Threader','Clear 100 minefields in one dive.',100,R=>R.gates],
  ['clean',2,'Clean Hull','Travel 2,500 m without taking a hit.',2500,R=>R.hits?0:R.dist],
  ['drydock',2,'Full Dry Dock','Dive in every class of boat.',SUBS.length,(R,L)=>L.subs],
- ['wardroom',2,'Wardroom','Reach level 10.',10,(R,L)=>L.lvl],
  ['regular',2,'Regular','Dive on 3 different days.',3,(R,L)=>L.days],
  ['interceptor',2,'Interceptor','Shoot down 30 incoming missiles across your career.',30,(R,L)=>L.ints],
- ['rival',2,'Rivalry','Finish 5 duels.',5,(R,L)=>L.duels],
  ['longpatrol',3,'Long Patrol','Travel 6,000 m in one dive.',6000,R=>R.dist],
  ['arsenal',3,'Master of Arms','Use the special ability of every class.',SUBS.length,(R,L)=>L.abil],
  ['ace',3,'Ace of the Deep','Sink 15 warships in one dive.',15,R=>R.ships],
@@ -105,10 +101,8 @@ const ACHS=[
  ['scourge',3,'Scourge of the Surface','Sink 250 warships across your career.',250,(R,L)=>L.ships],
  ['oldsalt',3,'Old Salt','Complete 150 dives.',150,(R,L)=>L.runs],
  ['leagues',3,'Twenty Thousand Leagues','Travel 250,000 m across your career.',250000,(R,L)=>L.dist],
- ['commander',3,'Commander','Reach level 20.',20,(R,L)=>L.lvl],
  ['devoted',3,'Devoted','Dive on 7 different days.',7,(R,L)=>L.days],
  ['marathon',3,'Marathon Watch','Spend 180 minutes submerged across your career.',180,(R,L)=>L.time],
- ['gladiator',3,'Gladiator','Win 10 duels.',10,(R,L)=>L.wins],
  ['admiralty',3,'The Admiralty','Complete 25 dives on Admiral.',25,(R,L)=>L.adm],
  ['demolition',3,'Demolition Crew','Destroy 200 mines with missiles across your career.',200,(R,L)=>L.mines],
  ['ghost',4,'Ghost','Travel 4,000 m in one dive without launching a missile.',4000,R=>R.fired?0:R.dist],
@@ -116,8 +110,6 @@ const ACHS=[
  ['admiral',4,'Fleet Admiral','Travel 6,000 m in one dive on Admiral.',6000,R=>R.diff>=3?R.dist:0],
  ['flawless',4,'Flawless','Travel 5,000 m on Captain or above without taking a hit.',5000,R=>R.diff>=2&&!R.hits?R.dist:0],
  ['legend',4,'Legend of the Deep','Score 40,000 in one dive.',40000,R=>R.score],
- ['flagofficer',4,'Flag Officer','Reach level 35.',35,(R,L)=>L.lvl],
- ['grandfleet',4,'Grand Fleet','Reach level 50.',50,(R,L)=>L.lvl],
  ['lifer',4,'Lifer','Dive on 20 different days.',20,(R,L)=>L.days],
  ['million',4,'Millionaire','Score 1,000,000 points across your career.',1000000,(R,L)=>L.score],
  ['fleetmaster',4,'Master of the Fleet','Travel 3,000 m in one dive with every class.',SUBS.length,(R,L)=>L.fleet],
@@ -162,7 +154,6 @@ let reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, soundOn=!!st
 // cm is the campaign mission being flown and cr its live state (campaign.js); null outside the campaign.
 let lastHud=-1,runX0=0,cm=null,cr=null;
 $('motion').textContent='Motion effects: '+(reduced?'reduced':'on');
-$('callsign').value=String(store.get('undertow.callsign','')).slice(0,16);
 function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,1.5)*quality;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);scale=Math.min(clamp(H/820,.3,1.22),W/650);vw=W/scale;vh=H/scale;}
 addEventListener('resize',()=>{resize();updateMenu()});resize();
 /* Each run builds its own world: a random chain of biomes (open shelf, shoals,
@@ -304,13 +295,11 @@ function reset(){
 }
 function score(){return Math.floor((distance+cleared*10+bonus)*D.score)}
 function show(id,visible){$(id).hidden=!visible}
-function callsign(){return $('callsign').value.replace(/[\u0000-\u001f]/g,'').trim().slice(0,16)||'Anonymous'}
-// A dive from the home screen needs a callsign. BEGIN DESCENT looks disabled until one is typed; a press without
-// one focuses the field and shows the inline message instead of starting.
-function callsignSet(){return callsign().toLowerCase()!=='anonymous'}
-function callsignState(){const ok=callsignSet(),l=$('launch');l.classList.toggle('locked',!ok);l.setAttribute('aria-disabled',String(!ok));if(ok){$('callsignMsg').hidden=true;$('callsign').classList.remove('err')}}
-function launchDive(){if(callsignSet())return start();const i=$('callsign');i.classList.remove('err');void i.offsetWidth;i.classList.add('err');$('callsignMsg').hidden=false;i.focus();callsignState()}
-function start(){initAudio();nextSong();store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch();ensureFleetSelection();if(cm){subId=campSubs().includes(camp.data.sub)?camp.data.sub:'gato';diffId=cm.diff;practice=false}if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}reset();run.xp0=profXp();state='playing';analyticsBegin();panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';show('restartPause',true);setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach','duel','camp','campDone'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
+function callsign(){return 'Player'}
+function callsignSet(){return true}
+function callsignState(){}
+function launchDive(){return start()}
+function start(){initAudio();nextSong();profSwitch();ensureFleetSelection();if(cm){subId=campSubs().includes(camp.data.sub)?camp.data.sub:'gato';diffId=cm.diff;practice=false}if(!practice){ach.st.subs[subId]=1;achSave()}try{getSelection().removeAllRanges()}catch(_){}reset();run.xp0=profXp();state='playing';analyticsBegin();panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';show('restartPause',true);setTimeout(ensureFx,60);$('hud').classList.remove('ended');['menu','footer','paused','help','over','board','hangar','ach','duel','camp','campDone'].forEach(id=>show(id,false));show('hud',true);show('pause',true);$('hint').style.opacity='1';$('toast').classList.remove('show');toast(practice?'PRACTICE DIVE':'DIVE COMMENCING / '+D.label.toUpperCase(),practice?'Explore freely. Damage and air loss are disabled.':'Guard your air and your hull. The first minefield is ahead.',3);last=performance.now();acc=0;}
 function home(){const wasCamp=campExit();state='menu';panel=null;duel.after=null;$('again').lastChild.textContent='DIVE AGAIN';clearInput();$('hud').classList.remove('ended');['paused','over','hud','pause','help','board','hangar','ach','duel'].forEach(id=>show(id,false));show('menu',true);show('footer',true);reset();updateMenu();if(wasCamp)openPanel('camp');}
 function clearInput(){held=false;down=false;pointerLift=false;inputKeys.clear();$('thrust').classList.remove('on')}
 function pause(){if(state!=='playing')return;state='paused';clearInput();show('paused',true);$('resume').focus()}

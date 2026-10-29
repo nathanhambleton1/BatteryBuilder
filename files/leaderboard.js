@@ -134,7 +134,6 @@ function describeSave(res){
  $('saveNote').textContent=msg;renderPlace(list,res==='shared');
 }
 function renderEarned(){const box=$('achEarned');box.textContent='';
- if(run.gain>0){const sp=document.createElement('span');sp.className='xp-gain';sp.append(svgIcon('i-medal'),'+'+run.gain.toLocaleString()+' XP / '+(run.promoted?'PROMOTED TO LEVEL '+run.promoted:'LEVEL '+levelOf(profXp())));box.append(sp)}
  for(const id of run.earned){const a=ACH_BY_ID[id],sp=document.createElement('span'),i=document.createElementNS('http://www.w3.org/2000/svg','svg'),u=document.createElementNS('http://www.w3.org/2000/svg','use');i.setAttribute('class','ic');u.setAttribute('href','#i-medal');i.append(u);sp.append(i,a.name.toUpperCase());box.append(sp)}}
 // Game over: your row on the board with up to two runs above and two below.
 function renderPlace(list,shared){
@@ -169,7 +168,7 @@ function renderAch(){
  $('achPathView').hidden=v!=='path';$('achFleetView').hidden=v!=='fleet';
  const held=other?other.ach:ach.un,n=ACHS.filter(a=>held[a.id]).length;
  const lvl=levelOf(other?other.xp||0:profXp());
- $('achNum').textContent=n+' / '+ACHS.length;$('achWho').textContent=(other?other.name.toUpperCase()+'\u2019S RECORD':'YOUR RECORD')+' / LEVEL '+lvl+' '+rankTitle(lvl);$('achBar').style.width=(n/ACHS.length*100)+'%';
+ $('achNum').textContent=n+' / '+ACHS.length;$('achWho').textContent=(other?other.name.toUpperCase()+'\u2019S RECORD':'YOUR RECORD');$('achBar').style.width=(n/ACHS.length*100)+'%';
  const path=$('achPath');path.textContent='';
  TIERS.forEach(([tn,sub],ti)=>{const list=ACHS.filter(a=>a.tier===ti),got=list.filter(a=>held[a.id]).length;
   const h=document.createElement('div');h.className='ach-tier';h.textContent=tn;const sm=document.createElement('small');sm.textContent=sub.toUpperCase()+' / '+got+' OF '+list.length;h.append(sm);path.append(h);

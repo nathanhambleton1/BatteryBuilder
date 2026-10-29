@@ -170,7 +170,7 @@ async function finish(){
  $('endScore').textContent=final.toLocaleString();$('endMeta').textContent=S.name.toUpperCase()+' CLASS / '+D.label.toUpperCase()+' / '+D.score+'x';
  $('endDistance').textContent=metres+' m';$('endShips').textContent=shipsSunk;$('endGates').textContent=cleared;$('endDepth').textContent=Math.floor(maxDepth)+' m';$('endAir').textContent=airCollected;$('endBest').textContent=best.toLocaleString();
  achCommit();
- if(!practice){const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;if(run.promoted)achPop({kind:'PROMOTED',name:'LEVEL '+l1+' / '+rankTitle(l1)})}
+ if(!practice){const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;}
  renderEarned();$('place').hidden=true;
  show('over',true);overAt=performance.now();$('hud').classList.add('ended');$('again').focus({preventScroll:true});
  const now=new Date(),entry=dived.practice?null:{id:now.getTime().toString(36)+Math.random().toString(36).slice(2,8),name:callsign(),score:final,distance:metres,sub:dived.sub,diff:dived.diff,ships:shipsSunk,date:now.toISOString().slice(0,10),at:now.getTime()};

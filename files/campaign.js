@@ -43,7 +43,7 @@ const camp={data:blankCamp(),saved:null,run:null,after:false,sel:-1,tab:'mission
 const campParts=k=>camp.data.earn[k]-camp.data.spent[k];
 const starCount=s=>(s&1)+(s>>1&1)+(s>>2&1);
 const campStars=()=>Object.values(camp.data.done).reduce((n,s)=>n+starCount(s),0);
-const campOpen=i=>i===0||!!camp.data.done[MISSIONS[i-1].id];
+const campOpen=i=>Number.isInteger(i)&&i>=0&&i<MISSIONS.length;
 const campBuilt=()=>Object.values(camp.data.up).reduce((n,v)=>n+v,0);
 // Boats the campaign has released: the Gato from the start, then one per milestone.
 function campSubs(){return fleetAvailable()}
@@ -89,7 +89,7 @@ function buildVents(){const v=[];for(let x=2200,k=0;x<cm.L-600;k++){x+=1300+hash
 function campLaunch(i,resume){
  const m=MISSIONS[i];if(!m||!campOpen(i))return;
  if(!callsignSet()){closePanel();launchDive();return}
- store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch();
+ profSwitch();
  if(!camp.saved)camp.saved={diffId,subId,practice};
  subId=campSubs().includes(camp.data.sub)?camp.data.sub:'gato';diffId=m.diff;practice=false;
  let cp=resume&&camp.data.cp&&camp.data.cp.m===m.id?camp.data.cp:null;
@@ -188,7 +188,7 @@ function campWin(){
  if(first&&m.reward)addParts(m.reward,true);
  if(m.boss)d.boss[m.boss.k]=1;if(m.race)d.races++;if(d.cp&&d.cp.m===m.id){d.cp=null;d.cpx=Date.now()}
  state='debrief';clearInput();show('pause',false);$('hint').style.opacity='0';
- achCommit();const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;if(run.promoted)achPop({kind:'PROMOTED',name:'LEVEL '+l1+' / '+rankTitle(l1)});
+ achCommit();const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;;
  achCheck();profDirty(false);
  R.result={stars,prev,first,newSub:campSubs().find(s=>!subsBefore.includes(s)),score:score(),secs:Math.round((R.time||0)+t)};
  toast('MISSION COMPLETE',m.name.toUpperCase(),3);csfx.win();
@@ -198,7 +198,7 @@ function campWin(){
 function campFinish(){
  if(state==='over')return;analyticsEnd('lost');state='over';const m=cm,R=camp.run;R.clean=false;R.deaths++;R.time=(R.time||0)+t;
  if(cr){cr.drone=null;cr.air=null;cr.foes=[]}
- achCommit();const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;if(run.promoted)achPop({kind:'PROMOTED',name:'LEVEL '+l1+' / '+rankTitle(l1)});
+ achCommit();const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;;
  $('overLabel').textContent='MISSION FAILED / '+m.name.toUpperCase();$('cause').textContent=deathCause;
  $('endScore').textContent=score().toLocaleString();$('endMeta').textContent=S.name.toUpperCase()+' CLASS / CAMPAIGN MISSION '+(m.i+1);
  $('endDistance').textContent=Math.floor(distance)+' m';$('endShips').textContent=shipsSunk;$('endGates').textContent=cleared;$('endDepth').textContent=Math.floor(maxDepth)+' m';$('endAir').textContent=airCollected;

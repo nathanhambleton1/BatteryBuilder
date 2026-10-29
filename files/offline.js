@@ -25,4 +25,8 @@ for(const id of ['duelOpen','duelChip','statsOpen','lbConnect','srcSeg','sfGate'
  const node=$(id);if(node){node.hidden=true;node.style.display='none'}
 }
 $('duelOpen').closest('.tile').style.display='none';
-$('ach').querySelector('p').textContent='Achievements, campaign progress, scores and settings are saved in this browser under your callsign. Clearing browser data removes your saves.';
+$('ach').querySelector('p').textContent='Earn medals as you play. All submarines and campaign missions are available from the start.';
+
+for(const id of ['boardOpen','statsOpen'])$(id).closest('.tile').style.display='none';
+for(const id of ['lbChip','overBoard','achSeg'])$(id).style.display='none';
+const offlineOpenPanel=openPanel;openPanel=id=>{if(['board','statistics','duel','sfGate'].includes(id))return;offlineOpenPanel(id)};

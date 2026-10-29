@@ -2,7 +2,7 @@
 const FLEET_LEVELS={gato:1,seawolf:5,type212:10,virginia:15,astute:22,ohio:28,akula:34,typhoon:45,turtle:75};
 const fleetOrdered=()=>[...SUBS].sort((a,b)=>FLEET_LEVELS[a.id]-FLEET_LEVELS[b.id]);
 const fleetLevel=()=>levelOf(profXp());
-const fleetOpen=id=>!!SUB_BY_ID[id]&&(fleetLevel()>=(FLEET_LEVELS[id]||1));
+const fleetOpen=id=>!!SUB_BY_ID[id];
 const fleetAvailable=()=>SUBS.filter(s=>fleetOpen(s.id)).map(s=>s.id);
 function ensureFleetSelection(){if(!fleetOpen(subId)){subId='gato';S=SUB_BY_ID.gato}if(!fleetOpen(camp.data.sub))camp.data.sub='gato'}
 let screenBombAt=-99;

@@ -90,13 +90,4 @@ function profInit(){
  else if(!migrated){prof.scores=lb.local.filter(e=>duelKey(e.name)===key).slice(0,PROFILE_RUNS);prof.at=Date.now();profSaveLocal()}
  else profApply(blankProfile(name));
 }
-function renderRank(){
- const x=profXp(),L=levelOf(x),lo=xpFor(L),hi=xpFor(L+1),max=L>=LEVEL_MAX;
- $('rankName').textContent='LEVEL '+L+' / '+rankTitle(L);
- $('rankXp').textContent=max?x.toLocaleString()+' XP':(x-lo).toLocaleString()+' / '+(hi-lo).toLocaleString()+' XP TO LEVEL '+(L+1);
- $('xpBar').style.width=(max?100:clamp((x-lo)/(hi-lo),0,1)*100)+'%';
- const connected=lb.dir&&lb.perm==='granted',n=prof.note;
- $('profNote').textContent=prof.key==='anonymous'?'Enter a callsign to keep your level, achievements and settings.':
-  n==='new'?(connected?'Looking for '+prof.name+' in the shared folder...':'New callsign. Connect the shared folder to load a saved profile or carry this one to other PCs.'):
-  n==='local'?(connected?'Profile loaded. Syncing with the shared folder...':'Profile loaded from this computer. Connect the shared folder to sync it.'):n;
-}
+function renderRank(){}

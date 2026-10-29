@@ -54,7 +54,7 @@ function renderMissions(body){
 }
 function campSubFor(id){const save=subId;subId=id;try{return campSub()}finally{subId=save}}
 function renderDock(body){
- body.append(el('p','cp-note','Earn player levels to unlock boats across every mode. The regular fleet unlocks by level 45. Turtle is the special level 75 unlock. Workshop upgrades apply to every campaign boat.'));
+ body.append(el('p','cp-note','All submarines and campaign missions are available. Workshop upgrades apply to every campaign boat.'));
  const list=el('div','subs');for(const base of fleetOrdered())list.append(vesselCard(base,campSubFor(base.id),camp.data.sub===base.id,()=>{camp.data.sub=base.id;camp.data.at=Date.now();profDirty(false);renderCamp()}));
  body.append(list);
 }
@@ -91,7 +91,7 @@ function showDebrief(){
  [['MISSION COMPLETE',1],['NO LOSSES',2],['JOURNAL PAGE',4]].forEach(([x,bit])=>{const r=el('div','cd-star'+(res.stars&bit?' got':''));r.append(icon('i-star'),el('span',null,x));if(res.stars&bit&&!(res.prev&bit))r.append(el('em',null,'NEW'));st.append(r)});
  const g=$('cdStats');g.textContent='';
  const mm=Math.floor(res.secs/60),ss=res.secs%60;
- for(const [k,v] of [['SCORE',res.score.toLocaleString()],['TIME',mm+':'+pad2(ss)],['SALVAGE',partsText(R.loot)||'NONE'],['XP',(run.gain>0?'+'+run.gain.toLocaleString():'0')+' / LV '+levelOf(profXp())]]){const b=el('div');b.append(el('label',null,k),el('strong',null,v));g.append(b)}
+ for(const [k,v] of [['SCORE',res.score.toLocaleString()],['TIME',mm+':'+pad2(ss)],['SALVAGE',partsText(R.loot)||'NONE']]){const b=el('div');b.append(el('label',null,k),el('strong',null,v));g.append(b)}
  const e=$('cdEarned');e.textContent='';
  if(res.first&&m.reward)e.append(el('span','xp-gain','FIRST-TIME REWARD / '+partsText(m.reward)));
  if(res.newSub){const sp=el('span','unlock');sp.append(icon('i-sub'),'NEW BOAT IN THE DRY DOCK / '+SUB_BY_ID[res.newSub].name.toUpperCase()+' CLASS');e.append(sp)}
