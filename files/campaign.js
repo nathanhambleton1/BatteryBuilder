@@ -43,7 +43,7 @@ const camp={data:blankCamp(),saved:null,run:null,after:false,sel:-1,tab:'mission
 const campParts=k=>camp.data.earn[k]-camp.data.spent[k];
 const starCount=s=>(s&1)+(s>>1&1)+(s>>2&1);
 const campStars=()=>Object.values(camp.data.done).reduce((n,s)=>n+starCount(s),0);
-const campOpen=i=>secretAdmin.active||i===0||!!camp.data.done[MISSIONS[i-1].id];
+const campOpen=i=>i===0||!!camp.data.done[MISSIONS[i-1].id];
 const campBuilt=()=>Object.values(camp.data.up).reduce((n,v)=>n+v,0);
 // Boats the campaign has released: the Gato from the start, then one per milestone.
 function campSubs(){return fleetAvailable()}
