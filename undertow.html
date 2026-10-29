@@ -88,7 +88,7 @@
 <button class="launch" id="boardClose">BACK <svg class="ic"><use href="#i-next"/></svg></button></div></section>
 <section class="view overlay" id="duel" hidden><div class="panel wide duel-mode">
 <header class="dm-head"><div><div class="eyebrow">FLEET EXERCISES / 1V1</div><h2>Duel mode</h2></div><div class="dm-me"><span class="dm-tag">YOUR CALLSIGN</span><b id="duelMe"></b><span class="dm-rec" id="duelRecordTop"></span></div></header>
-<div class="dm-line" id="duelLine"><i></i><div class="lb-status" id="duelStatus"></div></div>
+<div class="dm-line" id="duelLine"><i></i><div class="lb-status" id="duelStatus" role="status" aria-live="polite"></div></div>
 <div class="dm-flash" id="duelFlash" hidden></div>
 <p class="dm-intro">Take turns diving the same seeded course, one round each. The higher total after every round wins. While your rival dives you can watch their run live.</p>
 <div class="dm-grid">
@@ -105,7 +105,7 @@
 <section class="dm-sec" aria-labelledby="dmHiH"><h3 class="dm-h" id="dmHiH">HISTORY<span class="dm-n" id="duelRecord"></span></h3><div class="dm-list dm-scroll" id="duelHistory"></div></section>
 </div>
 </div>
-<footer class="dm-foot"><div id="duelFoot"></div><div class="lb-actions"><button id="duelConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button></div></footer>
+<footer class="dm-foot"><div id="duelFoot"></div><div class="lb-actions"><button id="duelRefresh"><svg class="ic"><use href="#i-refresh"/></svg><span>Refresh players</span></button><button id="duelConnect"><svg class="ic"><use href="#i-file"/></svg><span>Connect shared folder</span></button></div></footer>
 <button class="launch" id="duelClose">BACK <svg class="ic"><use href="#i-next"/></svg></button></div></section>
 <section class="view overlay" id="askBox" hidden role="dialog" aria-modal="true" aria-labelledby="askTitle"><div class="panel ask"><div class="eyebrow">CONFIRM</div><h2 id="askTitle"></h2><p id="askBody"></p><div class="ask-row"><button class="launch" id="askYes">Yes</button><button class="text-button" id="askNo">Cancel</button></div></div></section>
 <div class="watch-bar" id="watchBar" hidden><span id="watchText">WATCHING</span><button id="watchLeave">Leave</button></div>

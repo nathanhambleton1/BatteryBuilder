@@ -3,7 +3,7 @@
 $('launch').onclick=launchDive;$('again').onclick=againOrDuel;$('restartPause').onclick=()=>cm?campRetry():start();$('home').onclick=home;
 // Leaving a duel dive part-way ends the round with the score so far.
 $('quit').onclick=()=>{if(duel.run){show('paused',false);state='playing';deathCause='The dive was abandoned.';finish()}else home()};
-$('duelOpen').onclick=()=>openPanel('duel');$('duelChip').onclick=()=>openPanel('duel');$('duelClose').onclick=closePanel;$('duelConnect').onclick=()=>lbPick().then(duelTick);$('watchLeave').onclick=duelLeaveWatch;
+$('duelOpen').onclick=()=>openPanel('duel');$('duelChip').onclick=()=>openPanel('duel');$('duelClose').onclick=closePanel;$('duelConnect').onclick=()=>duelConnectionAction($('duelConnect'),async()=>{await lbPick();await duelTick()},'Connecting…');$('duelRefresh').onclick=()=>duelConnectionAction($('duelRefresh'),()=>duelTick(),'Refreshing…');$('watchLeave').onclick=duelLeaveWatch;
 document.querySelectorAll('#duelRoundSeg button').forEach(b=>b.onclick=()=>{duel.rounds=+b.dataset.r;profDirty(true);renderDuel()});
 document.querySelectorAll('#duelDiffSeg button').forEach(b=>b.onclick=()=>{duel.diff=b.dataset.diff;duel.diffSet=true;profDirty(true);renderDuel()});$('pause').onclick=pause;$('resume').onclick=resume;$('sound').onclick=toggleSound;$('music').onclick=toggleMusic;
 function setMission(p){practice=p;$('standard').setAttribute('aria-pressed',String(!p));$('practice').setAttribute('aria-pressed',String(p))}
