@@ -6,6 +6,7 @@
 .DESCRIPTION
     Right-click this file -> "Run with PowerShell" (Windows 11: "Show more options" first).
     Keep it next to MATLABLicenseAcquisition.m on the shared network drive.
+    If your PC blocks scripts, open PasteIntoPowerShell.txt instead and follow the steps in it.
 
     What it does:
       * Launches MATLAB and watches the window for a licensing error, killing and retrying
@@ -40,7 +41,10 @@ param(
     # Open the dashboard without starting a hunt (press H to start one).
     [switch]$DashboardOnly,
     # Print a single frame and exit (for testing).
-    [switch]$RenderOnce
+    [switch]$RenderOnce,
+    # Folder this script lives in. Only needed when it's run as pasted code (PasteIntoPowerShell.txt),
+    # where PowerShell can't tell where the file came from.
+    [string]$ScriptRoot = ''
 )
 
 Add-Type -AssemblyName UIAutomationClient
@@ -49,7 +53,7 @@ Add-Type -AssemblyName UIAutomationTypes
 # ---------------------------------------------------------------------------------------------
 # Paths and shared data layout
 # ---------------------------------------------------------------------------------------------
-$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+$ScriptDir = if ($ScriptRoot) { $ScriptRoot } elseif ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 if (-not $DataRoot) { $DataRoot = Join-Path $ScriptDir 'LicenseData' }
 $Me = $env:USERNAME
 $ClientId = "$($env:USERNAME)@$($env:COMPUTERNAME)"

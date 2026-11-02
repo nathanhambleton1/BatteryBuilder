@@ -1,0 +1,49 @@
+# =============================================================================================
+#  MATLAB License Hunter - launcher for PCs that block PowerShell scripts
+#
+#  1. Press Ctrl+A then Ctrl+C to copy everything in this file.
+#  2. Open PowerShell (Start menu -> type "PowerShell" -> Enter).
+#  3. Right-click inside the PowerShell window to paste, then press Enter.
+#
+#  The first time, it asks you to pick GrabMatlabLicense.ps1 on the shared drive.
+#  It also puts a "MATLAB License Hunter" shortcut on your desktop, so next time
+#  you can just double-click that instead of pasting.
+# =============================================================================================
+& {
+    $hunter = 'GrabMatlabLicense.ps1'
+    $saved = Join-Path $env:APPDATA 'MatlabLicenseHunter\path.txt'
+
+    # Where is the script? Remembered after the first run.
+    $path = $null
+    if (Test-Path $saved) { $path = (Get-Content -Path $saved -Raw).Trim() }
+    if (-not $path -or -not (Test-Path $path)) {
+        Add-Type -AssemblyName System.Windows.Forms
+        $dialog = New-Object System.Windows.Forms.OpenFileDialog
+        $dialog.Title = "Find $hunter on the shared drive"
+        $dialog.Filter = "$hunter|$hunter"
+        if ($dialog.ShowDialog() -ne 'OK') { Write-Host 'Cancelled - nothing was started.'; return }
+        $path = $dialog.FileName
+        New-Item -ItemType Directory -Path (Split-Path $saved) -Force | Out-Null
+        Set-Content -Path $saved -Value $path
+    }
+    $root = Split-Path $path
+
+    # Desktop shortcut that runs the script the same way (as code, not as a script file)
+    $shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'MATLAB License Hunter.lnk'
+    if (-not (Test-Path $shortcut)) {
+        $p = $path -replace "'", "''"
+        $r = $root -replace "'", "''"
+        $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
+        $link.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $link.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"& ([scriptblock]::Create([IO.File]::ReadAllText('$p'))) -ScriptRoot '$r'`""
+        $link.WorkingDirectory = $env:USERPROFILE
+        $matlab = Get-ChildItem 'C:\Program Files\MATLAB\R20*\bin\win64\MATLAB.exe' -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Select-Object -First 1
+        if ($matlab) { $link.IconLocation = "$($matlab.FullName),0" }
+        $link.Description = 'Hunts for a MATLAB license and shows team stats'
+        $link.Save()
+        Write-Host 'Added a "MATLAB License Hunter" shortcut to your desktop.'
+    }
+
+    & ([scriptblock]::Create([IO.File]::ReadAllText($path))) -ScriptRoot $root
+}
