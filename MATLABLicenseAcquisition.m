@@ -14,7 +14,10 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
     % toolbox logs on the shared drive.
     %
     % Note: MATLAB has no way to hand back a single toolbox license once it is checked out.
-    % Licenses are returned when MATLAB exits, which is what "Release All & Exit" does.
+    % Licenses are returned when MATLAB exits, which is what "Release All & Exit" does (MATLAB
+    % closes about a second after the release is confirmed).
+    %
+    % Both windows use the same dark terminal look as the PowerShell "MATLAB License Hunter".
     properties (Access = public)
         UIFigure      matlab.ui.Figure
         StartButton   matlab.ui.control.Button
@@ -32,14 +35,18 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
         DataRoot      char
     end
     properties (Constant, Access = private)
-        Background = [0.95 0.96 0.97];
-        Ink        = [0.13 0.15 0.19];
-        Muted      = [0.45 0.48 0.53];
-        Accent     = [0.89 0.45 0.13];   % MATLAB orange
-        Good       = [0.16 0.60 0.33];
-        Warn       = [0.90 0.58 0.10];
-        Bad        = [0.80 0.20 0.18];
-        Idle       = [0.70 0.72 0.75];
+        % Matches the PowerShell "MATLAB License Hunter" console
+        Background = [0.05 0.05 0.05];
+        Panel      = [0.09 0.09 0.09];
+        Border     = [0 0.53 0.69];      % teal (xterm 31)
+        Ink        = [0.93 0.93 0.93];
+        Muted      = [0.50 0.50 0.50];
+        Accent     = [1 0.53 0];         % MATLAB orange (xterm 208)
+        Good       = [0 0.85 0.25];
+        Warn       = [1 0.84 0];
+        Bad        = [1 0.25 0.25];
+        Idle       = [0.35 0.35 0.35];
+        Font       = 'Consolas';
     end
     properties (Access = private)
         FeatureOrder = {'simulink', 'simscape', 'simscape_battery', 'power_system_blocks', 'signal_toolbox'};
@@ -100,13 +107,13 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
         end
 
         function setStatus(app, i, state)
-            colors = struct('IDLE', app.Idle, 'WAITING', app.Warn, 'ACQUIRED', app.Good, 'SKIPPED', app.Idle);
+            % Bright badges with black text, like the console
+            colors = struct('IDLE', app.Idle, 'WAITING', app.Warn, 'ACQUIRED', app.Good, 'SKIPPED', app.Panel);
             label = app.StatusLabels(i);
             label.Text = state;
             label.BackgroundColor = colors.(state);
-            label.FontColor = [1 1 1];
+            label.FontColor = [0 0 0];
             if strcmp(state, 'SKIPPED')
-                label.BackgroundColor = app.Background;
                 label.FontColor = app.Muted;
                 app.CheckBoxes(i).FontColor = app.Muted;
             end
@@ -130,7 +137,7 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
                 app.AcquiredCaption.Text = 'ACQUIRED';
             else
                 app.AcquiredValue.FontColor = app.Good;
-                app.AcquiredCaption.Text = ['ALL IN AT ' char(app.AcquisitionTime, 'HH:mm')];
+                app.AcquiredCaption.Text = ['ALL IN AT ' char(app.AcquisitionTime, 'h:mm a')];
             end
         end
 
@@ -191,7 +198,28 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
                     app.appendRow(app.FeatureOrder{i}, 'RELEASED', round(seconds(datetime('now') - app.AppStartTime)));
                 end
             end
-            app.cleanup();
+            % Don't tear down or exit here: this can be running inside WatchTimer's own callback,
+            % and deleting a running timer / calling exit from inside it can crash or hang MATLAB on
+            % the way out, leaving half-written prefs that break every later start. So only stop
+            % the timers now, and let a one-shot timer delete the app and exit once this returns.
+            app.stopTimers();
+            if ~isempty(app.ReleaseButton) && isvalid(app.ReleaseButton)
+                app.ReleaseButton.Enable = 'off';
+            end
+            exitTimer = timer('ExecutionMode', 'singleShot', 'StartDelay', 1, ...
+                'TimerFcn', @(~, ~) app.deleteAndExit());
+            start(exitTimer);
+        end
+
+        function deleteAndExit(app)
+            % Runs from the one-shot timer: the other timers are stopped by now, so the
+            % destructor can safely delete them along with the windows
+            try
+                delete(app);
+            catch
+            end
+            % exit deletes this still-running one-shot timer; that's expected, so skip the warning
+            warning('off', 'MATLAB:timer:deleterunning');
             exit;
         end
 
@@ -204,13 +232,20 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
             end
         end
 
-        function cleanup(app)
+        function stopTimers(app)
+            % Stop only (never delete): safe to call from inside either timer's own callback
             app.stopProcess();
+            if ~isempty(app.WatchTimer) && isvalid(app.WatchTimer)
+                stop(app.WatchTimer);
+            end
+        end
+
+        function cleanup(app)
+            app.stopTimers();
             if ~isempty(app.Timer) && isvalid(app.Timer)
                 delete(app.Timer);
             end
             if ~isempty(app.WatchTimer) && isvalid(app.WatchTimer)
-                stop(app.WatchTimer);
                 delete(app.WatchTimer);
             end
             if ~isempty(app.StatsFigure) && isvalid(app.StatsFigure)
@@ -218,23 +253,52 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
             end
         end
 
-        function hg = addHeader(app, parent, titleText, subText, sideWidth)
-            % Dark title bar; column 2 (sideWidth wide) is left free for the caller
-            header = uipanel(parent, 'BackgroundColor', app.Ink, 'BorderType', 'none');
+        function hg = addHeader(app, parent, word1, word2, subText, sideWidth)
+            % Dark title bar with a thin teal rule under it; column 2 (sideWidth wide) is left
+            % free for the caller. The title is two words: word1 in orange, word2 light.
+            header = uipanel(parent, 'BackgroundColor', app.Background, 'BorderType', 'none');
+            outer = uigridlayout(header, [2 1], 'RowHeight', {'1x', 2}, 'Padding', [0 0 0 0], ...
+                'RowSpacing', 0, 'BackgroundColor', app.Background);
             logoPath = fullfile(fileparts(mfilename('fullpath')), 'assets', 'NNS Logo.png');
             logoWidth = 90 * isfile(logoPath);
-            hg = uigridlayout(header, [2 3], 'ColumnWidth', {'1x', sideWidth, logoWidth}, 'RowHeight', {'1x', 18}, ...
-                'Padding', [20 12 16 12], 'RowSpacing', 0, 'ColumnSpacing', 12, 'BackgroundColor', app.Ink);
-            titleLabel = uilabel(hg, 'Text', titleText, 'FontSize', 18, 'FontWeight', 'bold', 'FontColor', [1 1 1]);
-            titleLabel.Layout.Row = 1;
-            titleLabel.Layout.Column = 1;
-            sub = uilabel(hg, 'Text', subText, 'FontSize', 11, 'FontColor', [0.70 0.73 0.78]);
+            hg = uigridlayout(outer, [2 3], 'ColumnWidth', {'1x', sideWidth, logoWidth}, 'RowHeight', {'1x', 18}, ...
+                'Padding', [20 10 16 10], 'RowSpacing', 0, 'ColumnSpacing', 12, 'BackgroundColor', app.Background);
+            hg.Layout.Row = 1;
+            rule = uipanel(outer, 'BackgroundColor', app.Border, 'BorderType', 'none');
+            rule.Layout.Row = 2;
+
+            titleGrid = uigridlayout(hg, [1 2], 'ColumnWidth', {'fit', '1x'}, 'Padding', [0 0 0 0], ...
+                'ColumnSpacing', 8, 'BackgroundColor', app.Background);
+            titleGrid.Layout.Row = 1;
+            titleGrid.Layout.Column = 1;
+            uilabel(titleGrid, 'Text', word1, 'FontName', app.Font, 'FontSize', 15, 'FontWeight', 'bold', ...
+                'FontColor', app.Accent);
+            uilabel(titleGrid, 'Text', word2, 'FontName', app.Font, 'FontSize', 15, 'FontWeight', 'bold', ...
+                'FontColor', app.Ink);
+            sub = uilabel(hg, 'Text', subText, 'FontName', app.Font, 'FontSize', 11, 'FontColor', app.Muted);
             sub.Layout.Row = 2;
             sub.Layout.Column = 1;
             if logoWidth > 0
                 logo = uiimage(hg, 'ImageSource', logoPath);
                 logo.Layout.Row = [1 2];
                 logo.Layout.Column = 3;
+            end
+        end
+
+        function card = addCard(app, parent)
+            % Panel-coloured card with a teal line border (border properties vary by release)
+            card = uipanel(parent, 'BackgroundColor', app.Panel, 'BorderType', 'line');
+            try
+                card.BorderColor = app.Border;
+            catch
+                try
+                    card.HighlightColor = app.Border;
+                catch
+                end
+            end
+            try
+                card.BorderWidth = 1;
+            catch
             end
         end
 
@@ -343,22 +407,22 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
                 'Position', [pos(1) + 40, pos(2) - 80, 880, 570]);
             main = uigridlayout(app.StatsFigure, [3 1], 'RowHeight', {70, '1x', 176}, ...
                 'Padding', [0 0 0 0], 'RowSpacing', 0, 'BackgroundColor', app.Background);
-            hg = app.addHeader(main, 'Toolbox License Stats', ...
+            hg = app.addHeader(main, 'TOOLBOX', 'LICENSE STATS', ...
                 sprintf('Whole team  %s  6am-6pm  %s  %d requests from %d people', char(183), char(183), nRequests, nPeople), 90);
-            refresh = uibutton(hg, 'push', 'Text', 'Refresh', 'FontWeight', 'bold', ...
-                'BackgroundColor', [0.24 0.27 0.33], 'FontColor', [1 1 1], 'ButtonPushedFcn', @(~, ~) app.showToolboxStats());
+            refresh = uibutton(hg, 'push', 'Text', 'Refresh', 'FontName', app.Font, 'FontWeight', 'bold', ...
+                'BackgroundColor', [0.15 0.15 0.15], 'FontColor', app.Ink, 'ButtonPushedFcn', @(~, ~) app.showToolboxStats());
             refresh.Layout.Row = [1 2];
             refresh.Layout.Column = 2;
 
             if nRequests == 0
                 empty = uigridlayout(main, [1 1], 'Padding', [16 16 16 16], 'BackgroundColor', app.Background);
                 uilabel(empty, 'Text', 'No toolbox data yet. It fills in as people use the License Acquisition window.', ...
-                    'FontSize', 13, 'FontColor', app.Muted, 'HorizontalAlignment', 'center');
+                    'FontName', app.Font, 'FontSize', 13, 'FontColor', app.Muted, 'HorizontalAlignment', 'center');
                 return;
             end
 
-            % Restrained palette: MATLAB orange plus muted blue, green, purple, grey
-            colors = [app.Accent; 0.20 0.45 0.70; app.Good; 0.55 0.35 0.65; app.Muted];
+            % Console palette: MATLAB orange plus bright blue, green, purple, grey
+            colors = [app.Accent; 0.37 0.69 1; app.Good; 0.69 0.53 1; app.Muted];
             names = summary.Toolbox;
             k = numel(names);
 
@@ -390,29 +454,38 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
             ax2.XTickLabel = {'6a', '7a', '8a', '9a', '10a', '11a', '12p', '1p', '2p', '3p', '4p', '5p'};
             ax2.YGrid = 'on';
             title(ax2, 'Free right away, by hour (%)', 'FontWeight', 'bold', 'Color', app.Ink);
-            legend(ax2, names, 'Location', 'southoutside', 'Orientation', 'horizontal', 'Box', 'off', 'NumColumns', 3);
+            legend(ax2, names, 'Location', 'southoutside', 'Orientation', 'horizontal', 'Box', 'off', 'NumColumns', 3, ...
+                'TextColor', app.Ink, 'FontName', app.Font);
 
             tableArea = uigridlayout(main, [1 1], 'Padding', [16 0 16 14], 'BackgroundColor', app.Background);
             shown = summary(:, {'Toolbox', 'Requests', 'GotIt', 'GotPct', 'Instant', 'AvgWait', 'LongestWait', 'LastGot'});
-            uitable(tableArea, 'Data', shown, 'RowName', {}, 'FontSize', 12, 'RowStriping', 'on', ...
+            uitable(tableArea, 'Data', shown, 'RowName', {}, 'FontName', app.Font, 'FontSize', 12, 'RowStriping', 'on', ...
+                'BackgroundColor', [app.Panel; 0.13 0.13 0.13], 'ForegroundColor', app.Ink, ...
                 'ColumnName', {'Toolbox', 'Requests', 'Got it', 'Got it %', 'Free right away', 'Avg wait', 'Longest wait', 'Last got it'}, ...
                 'ColumnWidth', {190, 70, 60, 70, 110, 75, 95, 'auto'});
         end
 
         function ax = addChartAxes(app, parent)
-            card = uipanel(parent, 'BackgroundColor', [1 1 1], 'BorderType', 'none');
-            g = uigridlayout(card, [1 1], 'Padding', [8 8 12 8], 'BackgroundColor', [1 1 1]);
-            ax = uiaxes(g, 'Color', [1 1 1], 'XColor', app.Muted, 'YColor', app.Muted, 'FontSize', 11, 'Box', 'off');
+            card = app.addCard(parent);
+            g = uigridlayout(card, [1 1], 'Padding', [8 8 12 8], 'BackgroundColor', app.Panel);
+            ax = uiaxes(g, 'Color', app.Panel, 'XColor', app.Muted, 'YColor', app.Muted, 'GridColor', [0.35 0.35 0.35], ...
+                'FontName', app.Font, 'FontSize', 11, 'Box', 'off');
+            try
+                ax.BackgroundColor = app.Panel;   % newer releases only
+            catch
+            end
             ax.Toolbar.Visible = 'off';
             disableDefaultInteractivity(ax);
         end
 
         function [value, caption] = addTile(app, parent, captionText, initial)
-            tile = uipanel(parent, 'BackgroundColor', [1 1 1], 'BorderType', 'none');
+            tile = app.addCard(parent);
             g = uigridlayout(tile, [2 1], 'RowHeight', {16, '1x'}, 'Padding', [12 8 12 6], ...
-                'RowSpacing', 0, 'BackgroundColor', [1 1 1]);
-            caption = uilabel(g, 'Text', captionText, 'FontSize', 10, 'FontWeight', 'bold', 'FontColor', app.Muted);
-            value = uilabel(g, 'Text', initial, 'FontSize', 20, 'FontWeight', 'bold', 'FontColor', app.Ink);
+                'RowSpacing', 0, 'BackgroundColor', app.Panel);
+            caption = uilabel(g, 'Text', captionText, 'FontName', app.Font, 'FontSize', 10, 'FontWeight', 'bold', ...
+                'FontColor', app.Muted);
+            value = uilabel(g, 'Text', initial, 'FontName', app.Font, 'FontSize', 20, 'FontWeight', 'bold', ...
+                'FontColor', app.Ink);
         end
     end
     methods (Static, Access = private)
@@ -438,8 +511,7 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
     end
     methods (Access = protected)
         function setup(app)
-            warning('off', 'all');
-            figWidth = 440;
+            figWidth = 500;
             figHeight = 430;
             screenSize = get(0, 'ScreenSize');
             app.UIFigure = uifigure('Name', 'License Acquisition', 'Color', app.Background, 'Resize', 'off', ...
@@ -449,31 +521,31 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
                 'Padding', [0 0 0 0], 'RowSpacing', 0, 'BackgroundColor', app.Background);
 
             % Header bar
-            hg = app.addHeader(main, 'License Acquisition', ...
+            hg = app.addHeader(main, 'MATLAB', 'LICENSE ACQUISITION', ...
                 sprintf('%s  %s  MATLAB %s', app.ClientId, char(183), version('-release')), 112);
-            app.StatsButton = uibutton(hg, 'push', 'Text', 'Toolbox Stats', 'FontWeight', 'bold', ...
-                'BackgroundColor', [0.24 0.27 0.33], 'FontColor', [1 1 1], ...
+            app.StatsButton = uibutton(hg, 'push', 'Text', 'Toolbox Stats', 'FontName', app.Font, 'FontWeight', 'bold', ...
+                'BackgroundColor', [0.15 0.15 0.15], 'FontColor', app.Ink, ...
                 'Tooltip', 'Team stats for each toolbox license', 'ButtonPushedFcn', @(~, ~) app.showToolboxStats());
             app.StatsButton.Layout.Row = [1 2];
             app.StatsButton.Layout.Column = 2;
 
             % Toolbox list card
             body = uigridlayout(main, [1 1], 'Padding', [16 14 16 10], 'BackgroundColor', app.Background);
-            card = uipanel(body, 'BackgroundColor', [1 1 1], 'BorderType', 'none');
+            card = app.addCard(body);
             n = length(app.FeatureOrder);
             cg = uigridlayout(card, [n + 1, 2], 'ColumnWidth', {'1x', 96}, 'RowHeight', [{18}, repmat({26}, 1, n)], ...
-                'Padding', [16 10 16 12], 'RowSpacing', 6, 'BackgroundColor', [1 1 1]);
-            uilabel(cg, 'Text', 'TOOLBOX', 'FontSize', 10, 'FontWeight', 'bold', 'FontColor', app.Muted);
-            uilabel(cg, 'Text', 'STATUS', 'FontSize', 10, 'FontWeight', 'bold', 'FontColor', app.Muted, ...
+                'Padding', [16 10 16 12], 'RowSpacing', 6, 'BackgroundColor', app.Panel);
+            uilabel(cg, 'Text', 'TOOLBOX', 'FontName', app.Font, 'FontSize', 10, 'FontWeight', 'bold', 'FontColor', app.Muted);
+            uilabel(cg, 'Text', 'STATUS', 'FontName', app.Font, 'FontSize', 10, 'FontWeight', 'bold', 'FontColor', app.Muted, ...
                 'HorizontalAlignment', 'center');
             app.StatusLabels = gobjects(n, 1);
             app.CheckBoxes = gobjects(n, 1);
             for i = 1:n
                 rawName = app.FeatureOrder{i};
                 % Battery is opt-in: it's scarce, so only take it when you tick it
-                app.CheckBoxes(i) = uicheckbox(cg, 'Text', app.FeaturesMap(rawName), 'FontSize', 13, ...
+                app.CheckBoxes(i) = uicheckbox(cg, 'Text', app.FeaturesMap(rawName), 'FontName', app.Font, 'FontSize', 13, ...
                     'FontColor', app.Ink, 'Value', ~strcmp(rawName, 'simscape_battery'));
-                app.StatusLabels(i) = uilabel(cg, 'Text', 'IDLE', 'FontSize', 10, 'FontWeight', 'bold', ...
+                app.StatusLabels(i) = uilabel(cg, 'Text', 'IDLE', 'FontName', app.Font, 'FontSize', 10, 'FontWeight', 'bold', ...
                     'HorizontalAlignment', 'center');
                 app.setStatus(i, 'IDLE');
             end
@@ -487,12 +559,12 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
             % Actions
             actions = uigridlayout(main, [1 3], 'ColumnWidth', {'1x', 70, '1.3x'}, 'Padding', [16 12 16 14], ...
                 'ColumnSpacing', 10, 'BackgroundColor', app.Background);
-            app.StartButton = uibutton(actions, 'push', 'Text', 'Start', 'FontWeight', 'bold', 'FontSize', 13, ...
-                'BackgroundColor', app.Accent, 'FontColor', [1 1 1], 'ButtonPushedFcn', @(~, ~) app.startProcess());
-            app.StopButton = uibutton(actions, 'push', 'Text', 'Stop', 'FontSize', 13, 'Enable', 'off', ...
-                'BackgroundColor', [1 1 1], 'FontColor', app.Ink, 'ButtonPushedFcn', @(~, ~) app.stopProcess());
-            app.ReleaseButton = uibutton(actions, 'push', 'Text', 'Release All & Exit', 'FontSize', 13, ...
-                'BackgroundColor', [1 1 1], 'FontColor', app.Bad, 'Tooltip', 'Closes MATLAB, returning every license', ...
+            app.StartButton = uibutton(actions, 'push', 'Text', 'Start', 'FontName', app.Font, 'FontWeight', 'bold', ...
+                'FontSize', 13, 'BackgroundColor', app.Accent, 'FontColor', [0 0 0], 'ButtonPushedFcn', @(~, ~) app.startProcess());
+            app.StopButton = uibutton(actions, 'push', 'Text', 'Stop', 'FontName', app.Font, 'FontSize', 13, 'Enable', 'off', ...
+                'BackgroundColor', app.Panel, 'FontColor', app.Ink, 'ButtonPushedFcn', @(~, ~) app.stopProcess());
+            app.ReleaseButton = uibutton(actions, 'push', 'Text', 'Release All & Exit', 'FontName', app.Font, 'FontSize', 13, ...
+                'BackgroundColor', app.Panel, 'FontColor', app.Bad, 'Tooltip', 'Closes MATLAB, returning every license', ...
                 'ButtonPushedFcn', @(~, ~) app.releaseAndExit(true));
         end
         function startProcess(app)

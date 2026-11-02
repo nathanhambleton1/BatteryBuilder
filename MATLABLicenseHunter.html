@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MATLAB License Hunter</title>
+<!--
+  MATLAB License Hunter - details page.
+  Open it straight from the shared drive (double-click). It reads LicenseData/dashboard-data.js,
+  which GrabMatlabLicense.ps1 rewrites about every 30 s while anyone runs the hunter.
+  Everything is in this one file: no internet, no external fonts.
+
+  Adding a panel: write a render function that takes the model and returns HTML, then add an
+  entry to PANELS (search for "PANELS"). The model is built in buildModel().
+-->
+<style>
+:root {
+  --bg: #0c0c0c;
+  --panel-bg: #0c0c0c;
+  --text: #bcbcbc;
+  --bright: #eeeeee;
+  --soft: #d0d0d0;
+  --muted: #808080;
+  --dim: #444444;
+  --dimmer: #262626;
+  --border: #0087af;
+  --accent: #ff8700;
+  --green: #00ff00;
+  --red: #ff0000;
+  --yellow: #ffd700;
+  --blue: #5fafff;
+  --grey-badge: #808080;
+  --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 52px; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 var(--mono);
+  -webkit-text-size-adjust: 100%;
+}
+a { color: var(--blue); }
+.wrap { max-width: 1400px; margin: 0 auto; padding: 0 16px 40px; }
+b, strong { color: var(--bright); }
+code, kbd { font-family: var(--mono); color: var(--bright); }
+kbd { color: var(--accent); font-weight: bold; }
+.c-accent { color: var(--accent); } .c-green { color: var(--green); } .c-red { color: var(--red); }
+.c-yellow { color: var(--yellow); } .c-blue { color: var(--blue); } .c-muted { color: var(--muted); }
+.c-dim { color: var(--dim); } .c-bright { color: var(--bright); }
+
+/* ---------- header ---------- */
+header.top { border: 3px double var(--border); margin-top: 16px; padding: 14px 16px 12px; display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: flex-end; justify-content: space-between; }
+pre.banner {
+  margin: 0; line-height: 1; white-space: pre; overflow: hidden; max-width: 100%;
+  font-size: min(15px, calc((100vw - 48px) / 51));
+}
+.clockbox { text-align: right; white-space: nowrap; }
+.clockbox .date { color: #bcbcbc; }
+.clockbox .time { color: var(--bright); font-weight: bold; font-size: 1.15em; margin-left: 8px; }
+.clockbox .sub { color: var(--muted); font-size: 12px; }
+.statusbar { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 13px; color: var(--muted); }
+.statusbar .src { color: var(--text); }
+button, .btn {
+  font: bold 13px var(--mono); background: var(--dimmer); color: var(--bright);
+  border: 1px solid var(--border); padding: 3px 10px; cursor: pointer;
+}
+button:hover, .btn:hover { background: #303030; color: var(--accent); }
+input[type=file] { display: none; }
+
+/* ---------- nav ---------- */
+nav.tabs {
+  position: sticky; top: 0; z-index: 10; background: var(--bg);
+  border-bottom: 1px solid var(--dim); margin: 10px 0 22px; padding: 8px 0;
+  display: flex; flex-wrap: wrap; gap: 4px 2px;
+}
+nav.tabs a { color: var(--text); text-decoration: none; padding: 2px 10px; border: 1px solid transparent; }
+nav.tabs a:hover { color: var(--accent); border-color: var(--dim); }
+nav.tabs a .k { color: var(--accent); font-weight: bold; }
+
+/* ---------- panels ---------- */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 30px 16px; }
+.panel { position: relative; border: 3px double var(--border); padding: 18px 14px 12px; min-width: 0; background: var(--panel-bg); }
+.panel.wide { grid-column: 1 / -1; }
+.panel > h2 {
+  position: absolute; top: -0.8em; left: 12px; margin: 0; padding: 0 6px;
+  background: var(--bg); color: #ffffff; font-size: 14px; font-weight: bold; letter-spacing: .5px;
+  max-width: calc(100% - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.panel > h2 .hint { color: var(--muted); font-weight: normal; letter-spacing: 0; }
+.scroll { overflow-x: auto; max-width: 100%; }
+.empty { color: var(--muted); padding: 6px 0; }
+section.page { margin-bottom: 40px; }
+section.page > h1 { font-size: 15px; color: var(--accent); margin: 0 0 22px; letter-spacing: 1px; }
+section.page > h1::before { content: "\2550\2550 "; color: var(--border); }
+section.page > h1::after { content: " \2550\2550"; color: var(--border); }
+
+/* ---------- badges ---------- */
+.badge { display: inline-block; font-weight: bold; color: #000; padding: 0 6px; line-height: 1.35; white-space: nowrap; }
+.b-hunt { background: var(--accent); } .b-have { background: var(--green); }
+.b-grey { background: var(--grey-badge); } .b-red { background: var(--red); } .b-yellow { background: var(--yellow); }
+
+/* ---------- KPI tiles ---------- */
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px; }
+#notice .callout { margin: 0 0 28px; }
+.kpi { border: 1px solid var(--dim); padding: 6px 10px; min-width: 0; }
+.kpi .l { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+.kpi .v { color: var(--bright); font-size: 20px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .s { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- tables ---------- */
+table.t { border-collapse: collapse; width: 100%; }
+table.t th { color: var(--muted); font-weight: normal; text-align: left; font-size: 12px; text-transform: uppercase; padding: 2px 8px; border-bottom: 1px solid var(--dim); white-space: nowrap; }
+table.t td { padding: 3px 8px; white-space: nowrap; }
+table.t tr:nth-child(even) td { background: #121212; }
+table.t .n { text-align: right; }
+table.t.wrapcells td { white-space: normal; }
+
+/* ---------- bar chart ---------- */
+.bars { display: grid; grid-template-columns: repeat(12, minmax(22px, 1fr)); gap: 4px; align-items: end; min-width: 300px; }
+.bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 190px; }
+.bar .pct { font-size: 11px; color: var(--bright); white-space: nowrap; }
+.bar .fill { width: 100%; min-height: 2px; }
+.bar.none .fill { background: var(--dimmer); }
+.bar.now .fill { outline: 1px solid var(--bright); }
+.axis { display: grid; grid-template-columns: repeat(12, minmax(22px, 1fr)); gap: 4px; min-width: 300px; border-top: 1px solid var(--muted); padding-top: 3px; text-align: center; font-size: 11px; line-height: 1.15; }
+.axis .now { color: var(--accent); font-weight: bold; }
+.axis .cnt { color: var(--muted); }
+.legend { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; color: var(--muted); }
+.grad { display: inline-flex; vertical-align: middle; }
+.grad i { width: 12px; height: 12px; display: inline-block; }
+.sw { display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 4px; border: 1px solid var(--dim); }
+
+/* ---------- heat grids ---------- */
+table.heat { border-collapse: separate; border-spacing: 3px; }
+table.heat th { color: var(--muted); font-weight: normal; font-size: 11px; padding: 0 2px; text-align: center; white-space: nowrap; line-height: 1.15; }
+table.heat th.row { text-align: right; padding-right: 6px; font-size: 12px; }
+table.heat th.now { color: var(--accent); font-weight: bold; }
+table.heat td { width: 34px; min-width: 30px; height: 26px; text-align: center; font-size: 11px; color: #000; font-weight: bold; cursor: default; }
+table.heat td.none { background: var(--dimmer); color: var(--dim); font-weight: normal; }
+table.heat td.today-row { box-shadow: inset 0 0 0 1px var(--bright); }
+
+/* ---------- day rows ---------- */
+.days { display: grid; grid-template-columns: auto 1fr auto auto; gap: 3px 10px; align-items: center; font-size: 13px; }
+.days .d { color: var(--text); white-space: nowrap; }
+.days .d.today { color: var(--accent); font-weight: bold; }
+.days .track { background: #161616; height: 12px; min-width: 40px; position: relative; }
+.days .track span { position: absolute; left: 0; top: 0; bottom: 0; }
+.days .c { color: var(--muted); text-align: right; white-space: nowrap; }
+.days .r { text-align: right; white-space: nowrap; font-weight: bold; min-width: 4ch; }
+
+/* ---------- lists ---------- */
+.online { display: flex; flex-direction: column; gap: 6px; }
+.online .row { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.online .who { color: var(--bright); }
+.online .pc { color: var(--muted); }
+.recent td.g { font-weight: bold; text-align: center; }
+.recent td.det { white-space: normal; color: var(--muted); min-width: 16ch; }
+
+/* ---------- guide ---------- */
+.guide p { margin: 0 0 10px; }
+.guide ul, .guide ol { margin: 0 0 10px; padding-left: 22px; }
+.guide li { margin-bottom: 4px; }
+.guide h3 { color: var(--accent); font-size: 14px; margin: 14px 0 6px; }
+.guide h3:first-child { margin-top: 0; }
+.files td:first-child { color: var(--bright); white-space: nowrap; vertical-align: top; }
+table.t.files td, table.t.keys td { white-space: normal; vertical-align: top; }
+.keys td:first-child { white-space: nowrap; }
+.keys kbd { display: inline-block; border: 1px solid var(--accent); padding: 0 6px; }
+.callout { border-left: 3px solid var(--accent); padding: 6px 10px; background: #141414; margin: 8px 0 10px; }
+.callout.warn { border-left-color: var(--yellow); }
+.callout.missing { border-left-color: var(--red); }
+.term { background: #000; border: 1px solid var(--dim); padding: 6px 10px; color: var(--bright); white-space: pre-wrap; word-break: break-all; margin: 6px 0 10px; }
+
+footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); padding-top: 8px; }
+
+@media (max-width: 600px) {
+  body { font-size: 13px; }
+  .clockbox { text-align: left; }
+  .panel { padding: 16px 10px 10px; }
+  .bar { height: 150px; }
+  .bar .pct { font-size: 9px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kpi .v { font-size: 17px; }
+  .kpi .s { white-space: normal; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div style="min-width:0;max-width:100%">
+    <pre class="banner" id="banner" aria-label="MATLAB License Hunter"></pre>
+    <div class="statusbar" id="statusbar"><span class="c-muted">Loading team data&hellip;</span></div>
+  </div>
+  <div class="clockbox">
+    <div><span class="date" id="clockDate"></span><span class="time" id="clockTime"></span></div>
+    <div class="sub">shared team data &middot; 6 AM&ndash;6 PM work day</div>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Sections">
+  <a href="#live"><span class="k">&#9679;</span> Live stats</a>
+  <a href="#how">How it works</a>
+  <a href="#use">How to use</a>
+  <a href="#keys">Keys</a>
+  <a href="#trouble">Troubleshooting</a>
+</nav>
+
+<input type="file" id="folderInput" webkitdirectory directory multiple>
+
+<!-- =============================== LIVE STATS =============================== -->
+<section class="page" id="live">
+  <h1>LIVE STATS</h1>
+  <div id="notice"></div>
+  <div class="grid" id="panels"></div>
+</section>
+
+<!-- =============================== HOW IT WORKS =============================== -->
+<section class="page guide" id="how">
+  <h1>HOW IT WORKS</h1>
+  <div class="grid">
+    <div class="panel">
+      <h2>WHAT THIS IS</h2>
+      <p>We share a small number of <b>MATLAB seats</b>. When they are all taken, MATLAB just shows a licensing error and closes, and you are left trying again and again by hand.</p>
+      <p>The <b>License Hunter</b> does the retrying for you. It keeps launching MATLAB every few seconds until it gets a seat. As soon as MATLAB opens, MATLAB automatically runs <b>License Acquisition</b>, a small window that grabs the toolboxes you need (Simulink, Simscape, &hellip;) and waits for any that are busy.</p>
+      <p>Every attempt, by everyone, is written to the shared <code>LicenseData</code> folder. That is where all the numbers on this page come from, so over time the team can see <b>when during the day MATLAB is easiest to get</b>.</p>
+      <p class="c-muted">Stats only count the work day, 6 AM to 6 PM, Monday to Friday for the week view.</p>
+    </div>
+    <div class="panel">
+      <h2>THE FILES</h2>
+      <div class="scroll">
+      <table class="t files">
+        <tr><td>GrabMatlabLicense.ps1</td><td>The License Hunter itself. Runs in a PowerShell window, launches MATLAB until it gets a seat, and shows live team stats.</td></tr>
+        <tr><td>MATLABLicenseAcquisition.m</td><td>The License Acquisition window that opens inside MATLAB. Grabs the toolbox licenses and logs how long each one took.</td></tr>
+        <tr><td>PasteIntoPowerShell.txt</td><td>Backup way to start the hunter on PCs that block scripts. Also makes the desktop shortcut.</td></tr>
+        <tr><td>MATLABLicenseHunter.html</td><td>This page: the guide plus the detailed stats.</td></tr>
+        <tr><td>LicenseData\</td><td>The shared log folder. <code>attempts\</code> (MATLAB launches), <code>toolboxes\</code> (toolbox requests), <code>active\</code> (who has the hunter open right now) and <code>dashboard-data.js</code> (the snapshot this page reads). Please don't edit these by hand.</td></tr>
+      </table>
+      </div>
+    </div>
+    <div class="panel wide">
+      <h2>A TOUR OF THE POWERSHELL DASHBOARD</h2>
+      <div class="scroll">
+      <table class="t files">
+        <tr><td>Header</td><td>The banner, today's date and a live clock, plus your user@PC and the MATLAB version it found.</td></tr>
+        <tr><td>STATUS</td><td>What you are doing right now: <span class="badge b-hunt">HUNTING</span> (with the attempt number and how long you've been hunting), <span class="badge b-have">YOU HAVE MATLAB</span> (with your session time), <span class="badge b-grey">PAUSED</span> or <span class="badge b-grey">IDLE</span>.</td></tr>
+        <tr><td>TEAM STATS</td><td>Users, launches, how many got MATLAB, average hunt wait, best and worst hour, and who else has the hunter open.</td></tr>
+        <tr><td>AVAILABILITY BY HOUR</td><td>For each hour of the work day: what % of launches got MATLAB. Red is hard, green is easy.</td></tr>
+        <tr><td>WEEK BY HOUR</td><td>The same %, split by weekday (Mon&ndash;Fri), so you can see e.g. that Tuesday mornings are busy.</td></tr>
+        <tr><td>RECENT TEAM LAUNCHES / TOOLBOXES</td><td>The last launches as symbols (<span class="c-green">&#9679;</span> got it, <span class="c-red">&times;</span> denied, <span class="c-yellow">!</span> timeout/error) and a quick toolbox summary.</td></tr>
+        <tr><td>ACTIVITY</td><td>The last few things the hunter did on your PC.</td></tr>
+        <tr><td>Bottom line</td><td>The keys you can press right now. See <a href="#keys">Keys</a>.</td></tr>
+      </table>
+      </div>
+      <p style="margin-top:10px">This page shows the same data with more detail: per person, per day, per toolbox, and the full recent history.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== HOW TO USE =============================== -->
+<section class="page guide" id="use">
+  <h1>HOW TO USE</h1>
+  <div class="grid">
+    <div class="panel">
+      <h2>START THE HUNTER</h2>
+      <h3>The normal way</h3>
+      <ol>
+        <li>Open the shared folder that holds this page.</li>
+        <li>Right-click <code>GrabMatlabLicense.ps1</code> &rarr; <b>Run with PowerShell</b> (Windows 11: click <b>Show more options</b> first).</li>
+        <li>The dashboard opens and starts hunting. Leave the window open; it beeps when you get MATLAB.</li>
+      </ol>
+      <h3>If your PC blocks scripts</h3>
+      <p>If the window flashes and closes, or you see a red message about scripts being disabled:</p>
+      <ol>
+        <li>Open <code>PasteIntoPowerShell.txt</code> and press <kbd>Ctrl+A</kbd> then <kbd>Ctrl+C</kbd>.</li>
+        <li>Open PowerShell (Start menu &rarr; type <b>PowerShell</b> &rarr; Enter).</li>
+        <li>Right-click inside the PowerShell window to paste, then press <kbd>Enter</kbd>.</li>
+      </ol>
+      <h3>After the first time</h3>
+      <p>Either way puts a <b>MATLAB License Hunter</b> shortcut on your desktop. Just double-click that from now on.</p>
+    </div>
+    <div class="panel">
+      <h2>THE LICENSE ACQUISITION WINDOW</h2>
+      <p>Once MATLAB opens, a <b>License Acquisition</b> window appears inside MATLAB on its own.</p>
+      <ul>
+        <li><b>Tick the toolboxes</b> you need. <b>Simscape Battery</b> is unchecked by default; tick it only if you need it, so it stays free for others.</li>
+        <li><b>Start</b> grabs the ticked toolboxes. If one is busy it keeps waiting and grabs it as soon as a seat frees up. <b>Stop</b> stops waiting.</li>
+        <li><b>Release All &amp; Exit</b> closes MATLAB and gives everything back (it asks first; save your work).</li>
+        <li><b>Toolbox Stats</b> opens team-wide stats for each toolbox, the same numbers as the Toolboxes panel on this page.</li>
+      </ul>
+    </div>
+    <div class="panel wide">
+      <h2>GIVING LICENSES BACK</h2>
+      <p>MATLAB <b>cannot hand back a single toolbox</b>. Once you have Simulink, you keep it until MATLAB closes. <b>Everything is returned when MATLAB exits</b>, so when you're done for a while, please close MATLAB so someone else can use the seat. Any of these work:</p>
+      <ul>
+        <li>Press <kbd>R</kbd> in the hunter window and confirm the popup.</li>
+        <li>Click <b>Release All &amp; Exit</b> in the License Acquisition window.</li>
+        <li>Just close MATLAB normally.</li>
+      </ul>
+      <div class="callout warn">Save your work first. <kbd>K</kbd> (force-kill) does not ask MATLAB nicely, and anything unsaved is lost.</div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== KEYS =============================== -->
+<section class="page guide" id="keys">
+  <h1>KEYS</h1>
+  <div class="grid">
+    <div class="panel wide">
+      <h2>KEYS IN THE HUNTER WINDOW</h2>
+      <p class="c-muted">Only the keys that make sense right now are shown on the bottom line of the dashboard.</p>
+      <div class="scroll">
+      <table class="t keys">
+        <tr><th>Key</th><th>What it does</th></tr>
+        <tr><td><kbd>H</kbd></td><td><b>Hunt.</b> Start trying to get MATLAB (when idle).</td></tr>
+        <tr><td><kbd>P</kbd></td><td><b>Pause / resume</b> the hunt. Handy if you need to step away without losing your place.</td></tr>
+        <tr><td><kbd>R</kbd></td><td><b>Release MATLAB.</b> A popup asks you to confirm, then MATLAB is asked to close and <b>all</b> licenses go back to the pool.</td></tr>
+        <tr><td><kbd>K</kbd></td><td><b>Force-kill MATLAB.</b> Only if MATLAB is frozen. <span class="c-red">Unsaved work is lost.</span></td></tr>
+        <tr><td><kbd>D</kbd></td><td><b>Details.</b> Opens this page.</td></tr>
+        <tr><td><kbd>Q</kbd></td><td><b>Quit</b> the hunter (popup confirm). <kbd>Ctrl+C</kbd> does the same.</td></tr>
+      </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== TROUBLESHOOTING =============================== -->
+<section class="page guide" id="trouble">
+  <h1>TROUBLESHOOTING</h1>
+  <div class="grid">
+    <div class="panel">
+      <h2>SCRIPTS ARE BLOCKED</h2>
+      <p>Your PC doesn't allow running <code>.ps1</code> files. Use <code>PasteIntoPowerShell.txt</code> instead (see <a href="#use">How to use</a>). It runs the same hunter and makes a desktop shortcut that works on locked-down PCs.</p>
+    </div>
+    <div class="panel">
+      <h2>WINDOW TOO NARROW</h2>
+      <p>The dashboard needs a PowerShell window at least <b>118 columns</b> wide. Maximize the window, or drag it wider, and it redraws on its own.</p>
+    </div>
+    <div class="panel">
+      <h2>MATLAB NOT FOUND</h2>
+      <p>The hunter looks for the newest MATLAB under <code>C:\Program Files\MATLAB</code>. If yours is somewhere else, start it with the path:</p>
+      <div class="term">.\GrabMatlabLicense.ps1 -MatlabPath "D:\MATLAB\R2024b\bin\win64\MATLAB.exe"</div>
+    </div>
+    <div class="panel">
+      <h2>THIS PAGE ISN'T UPDATING</h2>
+      <p>This page reads <code>LicenseData\dashboard-data.js</code>, which is only rewritten while <b>someone is running the hunter</b>. If nobody is, the data goes stale. Click <b>Load LicenseData folder</b> at the top and pick the <code>LicenseData</code> folder to read the raw logs directly.</p>
+    </div>
+    <div class="panel wide">
+      <h2>MATLAB CRASHES EVERY TIME IT STARTS</h2>
+      <p>If MATLAB now shows the crash / "send feedback" screen every time it opens, its saved preferences have most likely been damaged (this can happen when MATLAB is closed hard while it is starting up). To fix it:</p>
+      <ol>
+        <li>Close MATLAB (and the hunter).</li>
+        <li>Press <kbd>Win+R</kbd>, type <code>%APPDATA%\MathWorks\MATLAB</code> and press Enter.</li>
+        <li>Rename the folder for your version, e.g. <code>R2024b</code> &rarr; <code>R2024b_old</code>.</li>
+        <li>Start MATLAB again. It rebuilds fresh preferences. (You can copy anything you miss, like favorites, back from the <code>_old</code> folder later.)</li>
+      </ol>
+      <p>The hunter now closes MATLAB gently where it can, and after any forced close it restores a snapshot of your preferences, so this should not keep happening.</p>
+      <div class="callout">Still crashing? It may be the graphics driver. Try starting MATLAB with <code>-softwareopengl</code> (add it to the end of the MATLAB shortcut's Target), or update your graphics driver.</div>
+    </div>
+  </div>
+</section>
+
+<footer>MATLAB License Hunter &middot; details page &middot; reads LicenseData\dashboard-data.js every 30 s</footer>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================================
+   Config
+   ===================================================================================== */
+const CFG = {
+  dataPath: 'LicenseData/dashboard-data.js',
+  reloadMs: 30000,
+  staleMs: 2 * 60 * 1000,
+  dayHours: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+  instantSec: 5,
+  recentCount: 40,
+  workDays: 14
+};
+const FEATURES = [
+  ['simulink', 'Simulink'],
+  ['simscape', 'Simscape'],
+  ['simscape_battery', 'Simscape Battery'],
+  ['power_system_blocks', 'Power System Blocks'],
+  ['signal_toolbox', 'Signal Processing Toolbox']
+];
+const GRAD = ['#ff0000', '#ff5f00', '#ff8700', '#ffaf00', '#ffd700', '#ffff00', '#d7ff00', '#afff00', '#87ff00', '#00ff00'];
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const LAUNCH_RESULTS = ['SUCCESS', 'DENIED', 'TIMEOUT', 'ERROR'];
+const HOUR_RESULTS = ['SUCCESS', 'DENIED', 'FULL'];   // what counts toward availability %
+
+/* =====================================================================================
+   Small helpers
+   ===================================================================================== */
+const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function rateColor(p) { return GRAD[Math.min(9, Math.max(0, Math.floor(p * 10)))]; }
+function pct(p) { return p == null || isNaN(p) ? '-' : Math.round(p * 100) + '%'; }
+function parseTime(s) {
+  // "2026-11-02T13:00:00" or "2026-11-02 13:00:00" (local time, no offset)
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/.exec(String(s || '').trim());
+  return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
+}
+function parseHuntId(s) {
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(String(s || '').trim());
+  return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
+}
+function dayStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function sameDay(a, b) { return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+function hour12(h) { return (h % 12 || 12) + ' ' + (h < 12 ? 'AM' : 'PM'); }
+function fmtTime(d, secs) {
+  if (!d) return '-';
+  const h = d.getHours(), m = String(d.getMinutes()).padStart(2, '0');
+  const s = secs ? ':' + String(d.getSeconds()).padStart(2, '0') : '';
+  return (h % 12 || 12) + ':' + m + s + ' ' + (h < 12 ? 'AM' : 'PM');
+}
+function fmtDate(d) { return DOW[d.getDay()] + ' ' + MON[d.getMonth()] + ' ' + d.getDate(); }
+function fmtWhen(d) {
+  // "2:05 PM" today, "Yesterday 2:05 PM", else "Mon Nov 2, 2:05 PM"
+  if (!d) return '-';
+  const now = new Date();
+  if (sameDay(d, now)) return fmtTime(d);
+  const y = new Date(now); y.setDate(y.getDate() - 1);
+  if (sameDay(d, y)) return 'Yesterday ' + fmtTime(d);
+  return fmtDate(d) + ', ' + fmtTime(d);
+}
+function fmtDur(sec) {
+  if (sec == null || isNaN(sec)) return '-';
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  if (h) return h + 'h' + String(m).padStart(2, '0') + 'm';
+  if (m) return m + 'm' + String(s).padStart(2, '0') + 's';
+  return s + 's';
+}
+function fmtAgo(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + ' min ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm ago';
+  return Math.floor(s / 86400) + ' days ago';
+}
+function mean(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; }
+function median(a) {
+  if (!a.length) return null;
+  const s = a.slice().sort((x, y) => x - y), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+function isDayHour(d) { return d && CFG.dayHours.indexOf(d.getHours()) >= 0; }
+function hourHead(h, nowH) {
+  return '<span' + (h === nowH ? ' class="now"' : '') + '>' + (h % 12 || 12) + '<br>' + (h < 12 ? 'AM' : 'PM') + '</span>';
+}
+function gradLegend() {
+  return '<span>0%</span><span class="grad">' + GRAD.map(c => '<i style="background:' + c + '"></i>').join('') + '</span><span>100%</span>';
+}
+
+/* =====================================================================================
+   Result styling (mirrors the console's glyphs)
+   ===================================================================================== */
+const RESULT_STYLE = {
+  SUCCESS: { g: '\u25CF', c: '#00ff00', label: 'got it' },
+  DENIED: { g: '\u00D7', c: '#ff0000', label: 'denied' },
+  FULL: { g: '\u00B7', c: '#ff8700', label: 'full' },
+  TIMEOUT: { g: '!', c: '#ffd700', label: 'timeout' },
+  ERROR: { g: '!', c: '#ffd700', label: 'error' },
+  SESSION_END: { g: '\u25A0', c: '#5fafff', label: 'session end' }
+};
+function resultStyle(r) { return RESULT_STYLE[r] || { g: '?', c: '#808080', label: String(r || '').toLowerCase() }; }
+function modeBadge(mode) {
+  switch (String(mode).toUpperCase()) {
+    case 'HUNT': return '<span class="badge b-hunt">HUNTING</span>';
+    case 'HAVE': return '<span class="badge b-have">IN MATLAB</span>';
+    case 'PAUSED': return '<span class="badge b-grey">PAUSED</span>';
+    default: return '<span class="badge b-grey">IDLE</span>';
+  }
+}
+
+/* =====================================================================================
+   Banner (same 2-row block font as the console)
+   ===================================================================================== */
+const FONT = {
+  M: ['#^_^#', '# ^ #'], A: ['_^#', '#^#'], T: ['^#^', ' # '], L: ['#  ', '#__'],
+  B: ['#__', '#_#'], I: ['#', '#'], C: ['#^^', '#__'], E: ['#^^', '##_'],
+  N: ['#_ #', '# ^#'], S: ['#^', '_#'], H: ['# #', '#^#'], U: ['# #', '#_#'],
+  R: ['#^#', '#^_'], ' ': ['  ', '  ']
+};
+function renderBanner() {
+  const words = [['MATLAB', '#ff8700'], ['LICENSE HUNTER', '#d0d0d0']];
+  const rows = ['', ''];
+  words.forEach(([text, color]) => {
+    for (let i = 0; i < 2; i++) {
+      const row = text.split('').map(ch => FONT[ch][i]).join(' ')
+        .replace(/#/g, '\u2588').replace(/\^/g, '\u2580').replace(/_/g, '\u2584');
+      rows[i] += '<span style="color:' + color + '">' + row + '</span>   ';
+    }
+  });
+  $('banner').innerHTML = rows.map(r => r.replace(/\s+$/, '')).join('\n');
+}
+
+/* =====================================================================================
+   Data sources
+   - live:   LicenseData/dashboard-data.js (written by the hunter), reloaded every 30 s
+   - folder: raw CSVs picked by hand with "Load LicenseData folder"
+   Both are normalized to { generated, by, online[], attempts[], toolboxes[], source }.
+   ===================================================================================== */
+const state = { live: null, liveMissing: false, folder: null, loading: false };
+
+function normalizeLive(raw) {
+  const attempts = (raw.attempts || []).map(a => ({
+    t: parseTime(a[0]), user: String(a[1] || ''), pc: String(a[2] || ''), hunt: String(a[3] || ''),
+    result: String(a[4] || '').toUpperCase(), sec: +a[5] || 0, detail: String(a[6] || '')
+  })).filter(a => a.t);
+  const toolboxes = (raw.toolboxes || []).map(r => ({
+    t: parseTime(r[0]), user: String(r[1] || ''), pc: String(r[2] || ''), session: String(r[3] || ''),
+    feature: String(r[4] || ''), event: String(r[5] || '').toUpperCase(), wait: +r[6] || 0
+  })).filter(r => r.t);
+  const online = (raw.online || []).map(o => ({ user: String(o[0] || ''), pc: String(o[1] || ''), mode: String(o[2] || 'IDLE').toUpperCase() }));
+  return { generated: parseTime(raw.generated), by: String(raw.by || ''), online, attempts, toolboxes, source: 'live' };
+}
+
+function loadLive() {
+  if (state.loading) return;
+  state.loading = true;
+  const old = $('dataScript');
+  if (old) old.remove();
+  window.LICENSE_DATA = undefined;
+  const s = document.createElement('script');
+  s.id = 'dataScript';
+  s.src = CFG.dataPath + '?t=' + Date.now();
+  s.onload = () => {
+    state.loading = false;
+    const raw = window.LICENSE_DATA;
+    if (raw && typeof raw === 'object') {
+      try { state.live = normalizeLive(raw); state.liveMissing = false; } catch (e) { console.warn('Bad dashboard data', e); }
+    }
+    // A half-written file (rare) just keeps the previous snapshot until the next reload.
+    if (!state.live) state.liveMissing = true;
+    renderAll();
+  };
+  s.onerror = () => {
+    state.loading = false;
+    state.liveMissing = true;
+    renderAll();
+  };
+  document.head.appendChild(s);
+}
+
+function splitCsv(text) { return String(text).split(/\r?\n/).slice(1).filter(l => l.trim()).map(l => l.split(',')); }
+
+async function loadFolder(fileList) {
+  const files = Array.from(fileList || []);
+  const pathOf = f => (f.webkitRelativePath || f.name).replace(/\\/g, '/');
+  const pick = re => files.filter(f => re.test(pathOf(f)));
+  const attemptFiles = pick(/(^|\/)attempts\/[^\/]+\.csv$/i);
+  const toolFiles = pick(/(^|\/)toolboxes\/[^\/]+\.csv$/i);
+  const activeFiles = pick(/(^|\/)active\/[^\/]+\.txt$/i);
+  if (!attemptFiles.length && !toolFiles.length) {
+    alert('No attempts\\*.csv or toolboxes\\*.csv found in that folder.\nPick the LicenseData folder next to GrabMatlabLicense.ps1.');
+    return;
+  }
+  const attempts = [], toolboxes = [], online = [];
+  for (const f of attemptFiles) {
+    for (const p of splitCsv(await f.text())) {
+      if (p.length < 9) continue;
+      const t = parseTime(p[0]);
+      if (!t) continue;
+      attempts.push({ t, user: p[1], pc: p[2], hunt: p[3], result: String(p[4]).toUpperCase(), sec: +p[5] || 0, detail: p.slice(8).join(' ') });
+    }
+  }
+  for (const f of toolFiles) {
+    for (const p of splitCsv(await f.text())) {
+      if (p.length < 7) continue;
+      const t = parseTime(p[0]);
+      if (!t) continue;
+      toolboxes.push({ t, user: p[1], pc: p[2], session: p[3], feature: p[4], event: String(p[5]).toUpperCase(), wait: +p[6] || 0 });
+    }
+  }
+  // Heartbeats: "<MODE>\t<attempt>\t<time>", fresh if touched in the last 60 s
+  for (const f of activeFiles) {
+    if (Date.now() - f.lastModified > 60000) continue;
+    const id = f.name.replace(/\.txt$/i, '');
+    let mode = 'IDLE';
+    try { mode = ((await f.text()).split('\t')[0] || 'IDLE').trim().toUpperCase(); } catch (e) { /* ignore */ }
+    online.push({ user: id.split('@')[0], pc: id.split('@')[1] || '', mode });
+  }
+  state.folder = { generated: new Date(), by: 'LicenseData folder (loaded by hand)', online, attempts, toolboxes, source: 'folder' };
+  renderAll();
+}
+
+function currentData() { return state.folder || state.live; }
+
+/* =====================================================================================
+   Stats (mirror of Get-Stats in GrabMatlabLicense.ps1, 6 AM - 6 PM only)
+   ===================================================================================== */
+function buildModel(data) {
+  const now = new Date();
+  const m = {
+    now, data,
+    users: new Set(), first: null,
+    launches: 0, success: 0, denied: 0, full: 0, fail: 0,
+    hourOk: new Array(24).fill(0), hourAll: new Array(24).fill(0),
+    heatOk: new Array(35 * 24).fill(0), heatAll: new Array(35 * 24).fill(0),   // [weekday 0..4 (Mon..Fri)][hour]
+    sessions: [], launchesToday: 0, successToday: 0,
+    hunts: [], waits: [], best: null, worst: null,
+    perUser: {}, days: [], recent: [], tool: null
+  };
+  if (!data) return m;
+  const attempts = data.attempts.slice().sort((a, b) => a.t - b.t);
+  const hunts = {};
+  const today = dayStart(now);
+  const userRow = u => m.perUser[u] || (m.perUser[u] = { user: u, launches: 0, got: 0, waits: [], sessions: 0, sessionSec: 0, lastGot: null, pcs: new Set() });
+
+  for (const r of attempts) {
+    if (!isDayHour(r.t)) continue;
+    if (!m.first) m.first = r.t;
+    m.users.add(r.user);
+    const h = r.t.getHours(), dow = r.t.getDay();
+    const wd = dow >= 1 && dow <= 5 ? dow - 1 : -1;
+    const u = userRow(r.user);
+    u.pcs.add(r.pc);
+    if (HOUR_RESULTS.indexOf(r.result) >= 0) {
+      m.hourAll[h]++;
+      if (wd >= 0) m.heatAll[wd * 24 + h]++;
+      if (r.result === 'SUCCESS') { m.hourOk[h]++; if (wd >= 0) m.heatOk[wd * 24 + h]++; }
+    }
+    if (r.result === 'SUCCESS') m.success++;
+    else if (r.result === 'DENIED') m.denied++;
+    else if (r.result === 'FULL') m.full++;
+    else if (r.result === 'SESSION_END') { m.sessions.push(r.sec); u.sessions++; u.sessionSec += r.sec; }
+    else m.fail++;
+    if (LAUNCH_RESULTS.indexOf(r.result) >= 0) {
+      m.launches++; u.launches++;
+      if (r.result === 'SUCCESS') { u.got++; u.lastGot = r.t; }
+      if (r.t >= today) { m.launchesToday++; if (r.result === 'SUCCESS') m.successToday++; }
+    }
+    if (r.hunt && r.result !== 'SESSION_END') {
+      const k = r.user + '|' + r.pc + '|' + r.hunt;
+      if (!hunts[k]) hunts[k] = { user: r.user, start: parseHuntId(r.hunt) || r.t, got: null };
+      if (r.result === 'SUCCESS' && !hunts[k].got) hunts[k].got = r.t;
+    }
+  }
+  m.hunts = Object.values(hunts);
+  for (const h of m.hunts) {
+    if (!h.got) continue;
+    const w = Math.max(0, (h.got - h.start) / 1000);
+    m.waits.push(w);
+    userRow(h.user).waits.push(w);
+  }
+
+  // Best / worst hour: any hour with >= 1 attempt; ties go to the hour with more attempts
+  for (const h of CFG.dayHours) {
+    const n = m.hourAll[h];
+    if (n < 1) continue;
+    const p = m.hourOk[h] / n;
+    if (!m.best || p > m.best.p || (p === m.best.p && n > m.best.n)) m.best = { h, p, n };
+    if (!m.worst || p < m.worst.p || (p === m.worst.p && n > m.worst.n)) m.worst = { h, p, n };
+  }
+  if (m.worst && m.best && m.worst.h === m.best.h) m.worst = null;
+
+  // Last N work days (Mon-Fri), oldest first
+  const d = new Date(today);
+  const days = [];
+  while (days.length < CFG.workDays) {
+    if (d.getDay() >= 1 && d.getDay() <= 5) days.push({ date: new Date(d), launches: 0, got: 0 });
+    d.setDate(d.getDate() - 1);
+  }
+  days.reverse();
+  const dayIdx = {};
+  days.forEach((x, i) => { dayIdx[x.date.toDateString()] = i; });
+  for (const r of attempts) {
+    if (!isDayHour(r.t) || LAUNCH_RESULTS.indexOf(r.result) < 0) continue;
+    const i = dayIdx[dayStart(r.t).toDateString()];
+    if (i == null) continue;
+    days[i].launches++;
+    if (r.result === 'SUCCESS') days[i].got++;
+  }
+  m.days = days;
+
+  m.recent = data.attempts.slice().sort((a, b) => b.t - a.t).slice(0, CFG.recentCount);
+  m.tool = buildToolStats(data.toolboxes);
+  return m;
+}
+
+// Mirror of toolboxStats() in MATLABLicenseAcquisition.m.
+// One "request" = one feature in one user|pc|session (WAITING/ACQUIRED rows), started 6 AM - 6 PM.
+function buildToolStats(rows) {
+  const groups = {};
+  for (const r of rows) {
+    if (r.event !== 'WAITING' && r.event !== 'ACQUIRED') continue;
+    const k = [r.user, r.pc, r.session, r.feature].join('|');
+    const g = groups[k] || (groups[k] = { feature: r.feature, user: r.user, start: r.t, got: false, wait: null });
+    if (r.t < g.start) g.start = r.t;
+    if (r.event === 'ACQUIRED') { g.got = true; g.wait = g.wait == null ? r.wait : Math.max(g.wait, r.wait); }
+  }
+  const reqs = Object.values(groups).filter(g => isDayHour(g.start));
+  const people = new Set(reqs.map(g => g.user));
+  const out = FEATURES.map(([id, name]) => {
+    const mine = reqs.filter(g => g.feature === id);
+    const got = mine.filter(g => g.got);
+    const instant = got.filter(g => g.wait <= CFG.instantSec);
+    const hourly = CFG.dayHours.map(h => {
+      const inH = mine.filter(g => g.start.getHours() === h);
+      return inH.length ? { n: inH.length, ok: inH.filter(g => g.got && g.wait <= CFG.instantSec).length } : null;
+    });
+    let lastGot = null;
+    for (const g of got) {
+      const at = new Date(g.start.getTime() + g.wait * 1000);
+      if (!lastGot || at > lastGot) lastGot = at;
+    }
+    return {
+      id, name, requests: mine.length, got: got.length,
+      gotPct: mine.length ? got.length / mine.length : null,
+      instantPct: mine.length ? instant.length / mine.length : null,
+      avgWait: mean(got.map(g => g.wait)),
+      maxWait: got.length ? Math.max.apply(null, got.map(g => g.wait)) : null,
+      lastGot, hourly
+    };
+  });
+  return { features: out, requests: reqs.length, people: people.size };
+}
+
+/* =====================================================================================
+   Panels. Each render function takes the model and returns the panel body HTML.
+   To add a panel: write renderX(m) and add { id, title, hint, wide, render } here.
+   ===================================================================================== */
+const PANELS = [
+  { id: 'kpis', title: 'TEAM STATS', hint: '6 AM - 6 PM', wide: true, render: renderKpis },
+  { id: 'online', title: "WHO'S ON NOW", hint: 'hunter open', render: renderOnline },
+  { id: 'hours', title: 'AVAILABILITY BY HOUR', hint: '% of attempts that got MATLAB', render: renderHours },
+  { id: 'heat', title: 'WEEK BY HOUR', hint: 'same %, by weekday', render: renderHeat },
+  { id: 'days', title: 'LAST 14 WORK DAYS', hint: 'launches and success rate', render: renderDays },
+  { id: 'users', title: 'PER USER', wide: true, render: renderUsers },
+  { id: 'tools', title: 'TOOLBOXES', hint: 'one request = one toolbox in one MATLAB session', wide: true, render: renderTools },
+  { id: 'recent', title: 'RECENT ATTEMPTS', hint: 'newest first', wide: true, render: renderRecent }
+];
+
+function kpi(label, value, sub, color) {
+  return '<div class="kpi"><div class="l">' + esc(label) + '</div><div class="v"' + (color ? ' style="color:' + color + '"' : '') + '>' +
+    esc(value) + '</div><div class="s">' + (sub || '&nbsp;') + '</div></div>';
+}
+
+function renderKpis(m) {
+  if (!m.launches && !m.sessions.length) return '<div class="empty">No attempts logged during work hours yet.</div>';
+  const rate = m.launches ? m.success / m.launches : null;
+  const longest = m.waits.length ? Math.max.apply(null, m.waits) : null;
+  const t = [];
+  t.push(kpi('Users', m.users.size, 'have used the hunter'));
+  t.push(kpi('Tracking since', m.first ? fmtDate(m.first) : '-', m.first ? fmtTime(m.first) : ''));
+  t.push(kpi('Launches', m.launches.toLocaleString(), esc(m.denied + ' denied \u00B7 ' + m.fail + ' timeout/error')));
+  t.push(kpi('Got MATLAB', m.success.toLocaleString(), 'success rate <b style="color:' + (rate == null ? '#808080' : rateColor(rate)) + '">' + pct(rate) + '</b>'));
+  t.push(kpi('Avg hunt wait', fmtDur(mean(m.waits)), m.waits.length + ' hunt' + (m.waits.length === 1 ? '' : 's') + ' that got in'));
+  t.push(kpi('Median / longest', fmtDur(median(m.waits)) + ' / ' + fmtDur(longest), 'hunt wait'));
+  t.push(kpi('Avg session', fmtDur(mean(m.sessions)), m.sessions.length + ' session' + (m.sessions.length === 1 ? '' : 's') + ' ended'));
+  t.push(kpi('Best hour', m.best ? hour12(m.best.h) : '-', m.best ? pct(m.best.p) + ' of ' + m.best.n : '', m.best ? rateColor(m.best.p) : null));
+  if (m.worst) t.push(kpi('Worst hour', hour12(m.worst.h), pct(m.worst.p) + ' of ' + m.worst.n, rateColor(m.worst.p)));
+  t.push(kpi('Launches today', m.launchesToday, m.successToday + ' got MATLAB'));
+  return '<div class="kpis">' + t.join('') + '</div>';
+}
+
+function renderOnline(m) {
+  const list = (m.data && m.data.online) || [];
+  if (!list.length) return '<div class="empty">Nobody has the hunter open right now.</div>';
+  const order = { HUNT: 0, HAVE: 1, PAUSED: 2, IDLE: 3 };
+  const sorted = list.slice().sort((a, b) => (order[a.mode] ?? 9) - (order[b.mode] ?? 9) || a.user.localeCompare(b.user));
+  const count = mode => list.filter(o => o.mode === mode).length;
+  return '<div class="c-muted" style="margin-bottom:8px">Users: <b>' + list.length + '</b> &middot; ' +
+    '<span class="c-accent">' + count('HUNT') + ' hunting</span> &middot; <span class="c-green">' + count('HAVE') + ' in MATLAB</span></div>' +
+    '<div class="online">' + sorted.map(o => '<div class="row">' + modeBadge(o.mode) + ' <span class="who">' + esc(o.user) +
+      '</span><span class="pc">' + esc(o.pc) + '</span></div>').join('') + '</div>';
+}
+
+function renderHours(m) {
+  const nowH = m.now.getHours();
+  const max = 85;   // leave room for the % label above the tallest bar
+  const bars = CFG.dayHours.map(h => {
+    const n = m.hourAll[h], ok = m.hourOk[h];
+    const p = n ? ok / n : null;
+    const tip = hour12(h) + ': ' + (n ? ok + ' of ' + n + ' got it (' + pct(p) + ')' : 'no attempts yet');
+    const height = p == null ? 2 : Math.max(3, Math.round(p * max));
+    return '<div class="bar' + (n ? '' : ' none') + (h === nowH ? ' now' : '') + '" title="' + esc(tip) + '">' +
+      '<span class="pct">' + (n ? pct(p) : '') + '</span>' +
+      '<div class="fill" style="height:' + height + '%;' + (n ? 'background:' + rateColor(p) : '') + '"></div></div>';
+  }).join('');
+  const axis = CFG.dayHours.map(h => '<div>' + hourHead(h, nowH) + '<br><span class="cnt">' + (m.hourAll[h] || '\u00B7') + '</span></div>').join('');
+  return '<div class="scroll"><div class="bars">' + bars + '</div><div class="axis">' + axis + '</div></div>' +
+    '<div class="legend">' + gradLegend() + '<span>bottom number = attempts in that hour</span><span><span class="sw" style="background:#262626"></span>no attempts yet</span></div>';
+}
+
+function renderHeat(m) {
+  const nowH = m.now.getHours(), nowWd = m.now.getDay() - 1;
+  let html = '<div class="scroll"><table class="heat"><tr><th></th>' +
+    CFG.dayHours.map(h => '<th' + (h === nowH ? ' class="now"' : '') + '>' + (h % 12 || 12) + '<br>' + (h < 12 ? 'AM' : 'PM') + '</th>').join('') + '</tr>';
+  for (let wd = 0; wd < 5; wd++) {
+    const name = DOW[wd + 1];
+    html += '<tr><th class="row' + (wd === nowWd ? ' now' : '') + '">' + name + '</th>';
+    for (const h of CFG.dayHours) {
+      const n = m.heatAll[wd * 24 + h], ok = m.heatOk[wd * 24 + h];
+      const cur = wd === nowWd && h === nowH ? ' today-row' : '';
+      if (!n) {
+        html += '<td class="none' + cur + '" title="' + esc(name + ' ' + hour12(h) + ': no attempts yet') + '">\u00B7</td>';
+      } else {
+        const p = ok / n;
+        html += '<td class="' + cur.trim() + '" style="background:' + rateColor(p) + '" title="' +
+          esc(name + ' ' + hour12(h) + ': ' + ok + ' of ' + n + ' got it (' + pct(p) + ')') + '">' + Math.round(p * 100) + '</td>';
+      }
+    }
+    html += '</tr>';
+  }
+  html += '</table></div>';
+  return html + '<div class="legend">' + gradLegend() +
+    '<span><span class="sw" style="background:#262626"></span>empty = no attempts yet in that slot</span>' +
+    '<span>numbers are %; hover a cell for details</span></div>';
+}
+
+function renderDays(m) {
+  if (!m.days.some(d => d.launches)) return '<div class="empty">No launches in the last ' + CFG.workDays + ' work days.</div>';
+  const max = Math.max.apply(null, m.days.map(d => d.launches)) || 1;
+  const today = m.now;
+  let html = '<div class="days">';
+  for (const d of m.days.slice().reverse()) {
+    const p = d.launches ? d.got / d.launches : null;
+    const color = p == null ? '#444444' : rateColor(p);
+    html += '<span class="d' + (sameDay(d.date, today) ? ' today' : '') + '">' + fmtDate(d.date) + '</span>' +
+      '<span class="track" title="' + esc(fmtDate(d.date) + ': ' + d.got + ' of ' + d.launches + ' launches got MATLAB') + '">' +
+      '<span style="width:' + (d.launches / max * 100) + '%;background:' + color + '"></span></span>' +
+      '<span class="c">' + (d.launches ? d.got + '/' + d.launches : '-') + '</span>' +
+      '<span class="r" style="color:' + color + '">' + pct(p) + '</span>';
+  }
+  return html + '</div><div class="legend"><span>bar length = launches that day, color = success rate</span></div>';
+}
+
+function renderUsers(m) {
+  const rows = Object.values(m.perUser).sort((a, b) => b.launches - a.launches || a.user.localeCompare(b.user));
+  if (!rows.length) return '<div class="empty">No users yet.</div>';
+  const onlineUsers = new Set(((m.data && m.data.online) || []).map(o => o.user));
+  return '<div class="scroll"><table class="t"><tr><th>User</th><th class="n">Launches</th><th class="n">Got it</th><th class="n">Rate</th>' +
+    '<th class="n">Avg hunt</th><th class="n">Sessions</th><th class="n">MATLAB time</th><th>Last got it</th></tr>' +
+    rows.map(u => {
+      const p = u.launches ? u.got / u.launches : null;
+      return '<tr><td><b>' + esc(u.user) + '</b>' + (onlineUsers.has(u.user) ? ' <span class="c-green" title="hunter open now">\u25CF</span>' : '') +
+        ' <span class="c-muted">' + esc(Array.from(u.pcs).join(', ')) + '</span></td>' +
+        '<td class="n">' + u.launches + '</td><td class="n">' + u.got + '</td>' +
+        '<td class="n" style="color:' + (p == null ? '#808080' : rateColor(p)) + '">' + pct(p) + '</td>' +
+        '<td class="n">' + fmtDur(mean(u.waits)) + '</td><td class="n">' + u.sessions + '</td>' +
+        '<td class="n">' + (u.sessions ? fmtDur(u.sessionSec) : '-') + '</td><td>' + fmtWhen(u.lastGot) + '</td></tr>';
+    }).join('') + '</table></div>';
+}
+
+function renderTools(m) {
+  const t = m.tool;
+  if (!t || !t.requests) return '<div class="empty">No toolbox data yet. It fills in as people use the License Acquisition window in MATLAB.</div>';
+  const pc = p => p == null ? '<span class="c-muted">-</span>' : '<span style="color:' + rateColor(p) + '">' + pct(p) + '</span>';
+  let html = '<div class="c-muted" style="margin-bottom:8px">' + t.requests + ' requests from ' + t.people + ' ' + (t.people === 1 ? 'person' : 'people') +
+    ' &middot; "free right away" = got it within ' + CFG.instantSec + 's, i.e. a seat was open when asked</div>';
+  html += '<div class="scroll"><table class="t"><tr><th>Toolbox</th><th class="n">Requests</th><th class="n">Got it</th><th class="n">Got %</th>' +
+    '<th class="n">Free right away</th><th class="n">Avg wait</th><th class="n">Longest wait</th><th>Last got it</th></tr>' +
+    t.features.map(f => '<tr><td><b>' + esc(f.name) + '</b></td><td class="n">' + f.requests + '</td><td class="n">' + f.got + '</td>' +
+      '<td class="n">' + pc(f.gotPct) + '</td><td class="n">' + pc(f.instantPct) + '</td>' +
+      '<td class="n">' + fmtDur(f.avgWait) + '</td><td class="n">' + fmtDur(f.maxWait) + '</td><td>' + fmtWhen(f.lastGot) + '</td></tr>').join('') +
+    '</table></div>';
+  // By-hour "free right away" grid
+  const nowH = m.now.getHours();
+  html += '<div style="margin:16px 0 4px" class="c-bright"><b>FREE RIGHT AWAY BY HOUR</b> <span class="c-muted">% of requests that got the toolbox within ' + CFG.instantSec + 's</span></div>';
+  html += '<div class="scroll"><table class="heat"><tr><th></th>' +
+    CFG.dayHours.map(h => '<th' + (h === nowH ? ' class="now"' : '') + '>' + (h % 12 || 12) + '<br>' + (h < 12 ? 'AM' : 'PM') + '</th>').join('') + '</tr>';
+  for (const f of t.features) {
+    html += '<tr><th class="row">' + esc(f.name) + '</th>';
+    f.hourly.forEach((c, i) => {
+      const h = CFG.dayHours[i];
+      if (!c) { html += '<td class="none" title="' + esc(f.name + ' ' + hour12(h) + ': no requests yet') + '">\u00B7</td>'; return; }
+      const p = c.ok / c.n;
+      html += '<td style="background:' + rateColor(p) + '" title="' + esc(f.name + ' ' + hour12(h) + ': ' + c.ok + ' of ' + c.n + ' free right away (' + pct(p) + ')') + '">' + Math.round(p * 100) + '</td>';
+    });
+    html += '</tr>';
+  }
+  return html + '</table></div><div class="legend">' + gradLegend() + '<span><span class="sw" style="background:#262626"></span>no requests yet</span></div>';
+}
+
+function renderRecent(m) {
+  if (!m.recent.length) return '<div class="empty">No attempts yet.</div>';
+  const legend = Object.keys(RESULT_STYLE).map(k => '<span><b style="color:' + RESULT_STYLE[k].c + '">' + RESULT_STYLE[k].g + '</b> ' + RESULT_STYLE[k].label + '</span>').join('');
+  return '<div class="scroll"><table class="t recent"><tr><th>Time</th><th>User</th><th>PC</th><th></th><th>Result</th><th class="n">Secs</th><th>Detail</th></tr>' +
+    m.recent.map(r => {
+      const s = resultStyle(r.result);
+      const secs = r.result === 'SESSION_END' ? fmtDur(r.sec) : (r.sec ? r.sec + 's' : '');
+      return '<tr><td>' + fmtWhen(r.t) + '</td><td><b>' + esc(r.user) + '</b></td><td class="c-muted">' + esc(r.pc) + '</td>' +
+        '<td class="g" style="color:' + s.c + '">' + s.g + '</td><td style="color:' + s.c + '">' + esc(r.result) + '</td>' +
+        '<td class="n">' + secs + '</td><td class="det">' + esc(r.detail) + '</td></tr>';
+    }).join('') + '</table></div><div class="legend">' + legend + '</div>';
+}
+
+/* =====================================================================================
+   Page rendering
+   ===================================================================================== */
+function renderStatusBar() {
+  const d = currentData();
+  const bar = $('statusbar');
+  const loadBtn = '<button type="button" data-act="folder">Load LicenseData folder</button>';
+  if (!d) {
+    bar.innerHTML = state.liveMissing
+      ? '<span class="badge b-red">NO DATA</span><span>dashboard-data.js not found</span>' + loadBtn
+      : '<span class="c-muted">Loading team data&hellip;</span>';
+    return;
+  }
+  const age = Date.now() - (d.generated ? d.generated.getTime() : 0);
+  const stale = d.source === 'live' && age > CFG.staleMs;
+  let html = d.source === 'folder'
+    ? '<span class="badge b-yellow">FROM FOLDER</span>'
+    : (stale ? '<span class="badge b-yellow">STALE</span>' : '<span class="badge b-have">LIVE</span>');
+  html += '<span class="src">data as of <b>' + (d.generated ? fmtWhen(d.generated) : '?') + '</b>' +
+    (d.generated ? ' <span class="c-muted">(' + fmtAgo(age) + ')</span>' : '') + ' from <b>' + esc(d.by || '?') + '</b></span>';
+  html += d.source === 'folder' ? '<button type="button" data-act="live">Back to live file</button>' + loadBtn : loadBtn;
+  bar.innerHTML = html;
+}
+
+function renderNotice() {
+  const d = currentData();
+  let html = '';
+  if (!d && state.liveMissing) {
+    html = '<div class="callout missing"><b>No live data file yet.</b> This page reads <code>LicenseData\\dashboard-data.js</code>, which the License Hunter writes ' +
+      'while anyone on the team is running it. Start the hunter (see <a href="#use">How to use</a>), or click ' +
+      '<button type="button" data-act="folder">Load LicenseData folder</button> and pick the <code>LicenseData</code> folder to read the raw logs directly. ' +
+      '<span class="c-muted">This page checks again every 30 s.</span></div>';
+  } else if (d && d.source === 'live' && d.generated && Date.now() - d.generated.getTime() > CFG.staleMs) {
+    html = '<div class="callout warn"><b>This data is old.</b> Nobody seems to be running the hunter right now, so the snapshot isn\'t being refreshed. ' +
+      'For the newest numbers, <button type="button" data-act="folder">Load LicenseData folder</button>.</div>';
+  }
+  $('notice').innerHTML = html;
+}
+
+function renderPanels() {
+  const m = buildModel(currentData());
+  const host = $('panels');
+  // Build panel shells once, then only refresh their bodies
+  if (!host.children.length) {
+    host.innerHTML = PANELS.map(p => '<div class="panel' + (p.wide ? ' wide' : '') + '" id="panel-' + p.id + '"><h2>' + esc(p.title) +
+      (p.hint ? ' <span class="hint">' + esc(p.hint) + '</span>' : '') + '</h2><div class="body"></div></div>').join('');
+  }
+  for (const p of PANELS) {
+    const body = document.querySelector('#panel-' + p.id + ' .body');
+    try { body.innerHTML = p.render(m); } catch (e) { console.error(p.id, e); body.innerHTML = '<div class="empty c-red">Could not draw this panel: ' + esc(e.message) + '</div>'; }
+  }
+}
+
+function renderAll() { renderStatusBar(); renderNotice(); renderPanels(); }
+
+function tickClock() {
+  const now = new Date();
+  $('clockDate').textContent = DOW[now.getDay()] + ' ' + MON[now.getMonth()] + ' ' + now.getDate() + ' ' + now.getFullYear();
+  $('clockTime').textContent = fmtTime(now, true);
+}
+
+/* =====================================================================================
+   Wiring
+   ===================================================================================== */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  if (b.dataset.act === 'folder') $('folderInput').click();
+  if (b.dataset.act === 'live') { state.folder = null; renderAll(); loadLive(); }
+});
+$('folderInput').addEventListener('change', e => { loadFolder(e.target.files).catch(err => alert('Could not read that folder: ' + err.message)); e.target.value = ''; });
+
+renderBanner();
+tickClock();
+renderAll();
+loadLive();
+setInterval(tickClock, 1000);
+setInterval(renderStatusBar, 5000);              // keep "x s ago" / stale flag fresh
+setInterval(loadLive, CFG.reloadMs);
+setInterval(() => { if (state.folder) renderPanels(); }, 60000);
+</script>
+</body>
+</html>
