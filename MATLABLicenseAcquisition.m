@@ -8,20 +8,33 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
     % checkout is logged to LicenseData\toolboxes\<user>@<pc>.csv on the shared drive, and a
     % LicenseData\active\<user>@<pc>.ready file tells the PowerShell dashboard MATLAB is up.
     %
+    % Simscape Battery is unchecked by default; tick it if you need it.
+    %
     % Note: MATLAB has no way to hand back a single toolbox license once it is checked out.
     % Licenses are returned when MATLAB exits, which is what "Release All & Exit" does.
     properties (Access = public)
         UIFigure      matlab.ui.Figure
-        StatusPanel   matlab.ui.container.Panel
         StartButton   matlab.ui.control.Button
         StopButton    matlab.ui.control.Button
         ReleaseButton matlab.ui.control.Button
-        GraphButton   matlab.ui.control.Button
         Timer         timer
         WatchTimer    timer
         LogoImage     matlab.ui.control.Image
-        MetricsLabel  matlab.ui.control.Label
+        ElapsedValue  matlab.ui.control.Label
+        ChecksValue   matlab.ui.control.Label
+        AcquiredValue matlab.ui.control.Label
+        AcquiredCaption matlab.ui.control.Label
         DataRoot      char
+    end
+    properties (Constant, Access = private)
+        Background = [0.95 0.96 0.97];
+        Ink        = [0.13 0.15 0.19];
+        Muted      = [0.45 0.48 0.53];
+        Accent     = [0.89 0.45 0.13];   % MATLAB orange
+        Good       = [0.16 0.60 0.33];
+        Warn       = [0.90 0.58 0.10];
+        Bad        = [0.80 0.20 0.18];
+        Idle       = [0.70 0.72 0.75];
     end
     properties (Access = private)
         FeatureOrder = {'simulink', 'simscape', 'simscape_battery', 'power_system_blocks', 'signal_toolbox'};
@@ -30,7 +43,6 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
             {'Simulink', 'Simscape', 'Simscape Battery', 'Power System Blocks', 'Signal Processing Toolbox'});
         StatusLabels
         CheckBoxes
-        NameLabels
         AttemptCount = 0;
         StartTime
         AcquisitionTime
@@ -48,14 +60,12 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
             for i = 1:length(app.FeatureOrder)
                 feature = app.FeatureOrder{i};
                 if ~app.CheckBoxes(i).Value
-                    app.StatusLabels(i).Text = 'SKIPPED';
-                    app.StatusLabels(i).FontColor = [0.5 0.5 0.5];
-                    app.NameLabels(i).FontColor = [0.5 0.5 0.5];
+                    app.setStatus(i, 'SKIPPED');
                     app.logEvent(i, 'SKIPPED');
                     continue;
                 end
 
-                app.NameLabels(i).FontColor = [0 0 0];
+                app.CheckBoxes(i).FontColor = app.Ink;
 
                 % A checked-out license stays ours until MATLAB exits, so don't ask again
                 if strcmp(app.StatusLabels(i).Text, 'ACQUIRED')
@@ -67,12 +77,10 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
                     isAcquired = false;
                 end
                 if isAcquired
-                    app.StatusLabels(i).Text = 'ACQUIRED';
-                    app.StatusLabels(i).FontColor = [0 0.6 0];
+                    app.setStatus(i, 'ACQUIRED');
                     app.logEvent(i, 'ACQUIRED');
                 else
-                    app.StatusLabels(i).Text = 'WAITING';
-                    app.StatusLabels(i).FontColor = [0.8 0 0];
+                    app.setStatus(i, 'WAITING');
                     app.logEvent(i, 'WAITING');
                     allAcquired = false;
                 end
@@ -80,14 +88,44 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
             if allAcquired && isempty(app.AcquisitionTime)
                 app.AcquisitionTime = currentTime;
             end
-            if isempty(app.AcquisitionTime)
-                elapsedTime = currentTime - app.StartTime;
-                app.MetricsLabel.Text = sprintf('Elapsed Time: %s | Total Checks: %d', char(elapsedTime), app.AttemptCount);
-            else
-                finalElapsed = app.AcquisitionTime - app.StartTime;
-                app.MetricsLabel.Text = sprintf('All acquired at: %s\nTotal Time: %s | Total Checks: %d', ...
-                    char(app.AcquisitionTime), char(finalElapsed), app.AttemptCount);
+            app.updateMetrics(currentTime);
+            if ~isempty(app.AcquisitionTime)
                 app.stopProcess();
+            end
+        end
+
+        function setStatus(app, i, state)
+            colors = struct('IDLE', app.Idle, 'WAITING', app.Warn, 'ACQUIRED', app.Good, 'SKIPPED', app.Idle);
+            label = app.StatusLabels(i);
+            label.Text = state;
+            label.BackgroundColor = colors.(state);
+            label.FontColor = [1 1 1];
+            if strcmp(state, 'SKIPPED')
+                label.BackgroundColor = app.Background;
+                label.FontColor = app.Muted;
+                app.CheckBoxes(i).FontColor = app.Muted;
+            end
+        end
+
+        function updateMetrics(app, currentTime)
+            if isempty(app.AcquisitionTime)
+                elapsed = currentTime - app.StartTime;
+            else
+                elapsed = app.AcquisitionTime - app.StartTime;
+            end
+            elapsed.Format = 'hh:mm:ss';
+            app.ElapsedValue.Text = char(elapsed);
+            app.ChecksValue.Text = sprintf('%d', app.AttemptCount);
+
+            wanted = [app.CheckBoxes.Value];
+            got = strcmp({app.StatusLabels.Text}, 'ACQUIRED');
+            app.AcquiredValue.Text = sprintf('%d / %d', nnz(got & wanted), nnz(wanted));
+            if isempty(app.AcquisitionTime)
+                app.AcquiredValue.FontColor = app.Ink;
+                app.AcquiredCaption.Text = 'ACQUIRED';
+            else
+                app.AcquiredValue.FontColor = app.Good;
+                app.AcquiredCaption.Text = ['ALL IN AT ' char(app.AcquisitionTime, 'HH:mm')];
             end
         end
 
@@ -134,7 +172,7 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
                 choice = uiconfirm(app.UIFigure, ...
                     ['This closes MATLAB and returns ALL of its licenses (MATLAB and every toolbox). ' ...
                      'Save your work first.'], 'Release licenses', ...
-                    'Options', {'Release & Exit', 'Cancel'}, 'DefaultOption', 2, 'CancelOption', 2);
+                    'Options', {'Release & Exit', 'Cancel'}, 'DefaultOption', 2, 'CancelOption', 2, 'Icon', 'warning');
                 if ~strcmp(choice, 'Release & Exit')
                     return;
                 end
@@ -171,50 +209,80 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
                 delete(app.WatchTimer);
             end
         end
+
+        function [value, caption] = addTile(app, parent, captionText, initial)
+            tile = uipanel(parent, 'BackgroundColor', [1 1 1], 'BorderType', 'none');
+            g = uigridlayout(tile, [2 1], 'RowHeight', {16, '1x'}, 'Padding', [12 8 12 6], ...
+                'RowSpacing', 0, 'BackgroundColor', [1 1 1]);
+            caption = uilabel(g, 'Text', captionText, 'FontSize', 10, 'FontWeight', 'bold', 'FontColor', app.Muted);
+            value = uilabel(g, 'Text', initial, 'FontSize', 20, 'FontWeight', 'bold', 'FontColor', app.Ink);
+        end
     end
     methods (Access = protected)
         function setup(app)
             warning('off', 'all');
-            figWidth = 500;
-            figHeight = 500;
+            figWidth = 440;
+            figHeight = 430;
             screenSize = get(0, 'ScreenSize');
-            screenWidth = screenSize(3);
-            screenHeight = screenSize(4);
-            left = (screenWidth - figWidth) / 2;
-            bottom = (screenHeight - figHeight) / 2;
-            app.UIFigure = uifigure('Name', 'License Acquisition Manager', 'Position', [left bottom figWidth figHeight], ...
+            app.UIFigure = uifigure('Name', 'License Acquisition', 'Color', app.Background, 'Resize', 'off', ...
+                'Position', [(screenSize(3) - figWidth) / 2, (screenSize(4) - figHeight) / 2, figWidth, figHeight], ...
                 'CloseRequestFcn', @(~, ~) app.onClose());
-            appPath = fileparts(mfilename('fullpath'));
-            logoPath = fullfile(appPath, 'assets', 'NNS Logo.png');
+            main = uigridlayout(app.UIFigure, [4 1], 'RowHeight', {70, '1x', 76, 58}, ...
+                'Padding', [0 0 0 0], 'RowSpacing', 0, 'BackgroundColor', app.Background);
+
+            % Header bar
+            header = uipanel(main, 'BackgroundColor', app.Ink, 'BorderType', 'none');
+            hg = uigridlayout(header, [2 2], 'ColumnWidth', {'1x', 90}, 'RowHeight', {'1x', 18}, ...
+                'Padding', [20 10 16 12], 'RowSpacing', 0, 'BackgroundColor', app.Ink);
+            uilabel(hg, 'Text', 'License Acquisition', 'FontSize', 18, 'FontWeight', 'bold', 'FontColor', [1 1 1]);
+            logoPath = fullfile(fileparts(mfilename('fullpath')), 'assets', 'NNS Logo.png');
             if isfile(logoPath)
-                app.LogoImage = uiimage(app.UIFigure, 'Position', [150 400 200 80], 'ImageSource', logoPath);
+                app.LogoImage = uiimage(hg, 'ImageSource', logoPath);
+                app.LogoImage.Layout.Row = [1 2];
+                app.LogoImage.Layout.Column = 2;
             end
-            app.StatusPanel = uipanel(app.UIFigure, 'Position', [25 220 450 150], 'BorderType', 'none');
-            app.StatusLabels = gobjects(length(app.FeatureOrder), 1);
-            app.CheckBoxes = gobjects(length(app.FeatureOrder), 1);
-            app.NameLabels = gobjects(length(app.FeatureOrder), 1);
-            uilabel(app.StatusPanel, 'Text', 'Enable', 'FontWeight', 'bold', 'Position', [20 130 60 22]);
-            uilabel(app.StatusPanel, 'Text', 'Feature', 'FontWeight', 'bold', 'Position', [100 130 180 22]);
-            uilabel(app.StatusPanel, 'Text', 'Status', 'FontWeight', 'bold', 'Position', [300 130 130 22]);
-            for i = 1:length(app.FeatureOrder)
-                yPos = 130 - (i * 25);
+            sub = uilabel(hg, 'Text', sprintf('%s  %s  MATLAB %s', app.ClientId, char(183), version('-release')), ...
+                'FontSize', 11, 'FontColor', [0.70 0.73 0.78]);
+            sub.Layout.Row = 2;
+            sub.Layout.Column = 1;
+
+            % Toolbox list card
+            body = uigridlayout(main, [1 1], 'Padding', [16 14 16 10], 'BackgroundColor', app.Background);
+            card = uipanel(body, 'BackgroundColor', [1 1 1], 'BorderType', 'none');
+            n = length(app.FeatureOrder);
+            cg = uigridlayout(card, [n + 1, 2], 'ColumnWidth', {'1x', 96}, 'RowHeight', [{18}, repmat({26}, 1, n)], ...
+                'Padding', [16 10 16 12], 'RowSpacing', 6, 'BackgroundColor', [1 1 1]);
+            uilabel(cg, 'Text', 'TOOLBOX', 'FontSize', 10, 'FontWeight', 'bold', 'FontColor', app.Muted);
+            uilabel(cg, 'Text', 'STATUS', 'FontSize', 10, 'FontWeight', 'bold', 'FontColor', app.Muted, ...
+                'HorizontalAlignment', 'center');
+            app.StatusLabels = gobjects(n, 1);
+            app.CheckBoxes = gobjects(n, 1);
+            for i = 1:n
                 rawName = app.FeatureOrder{i};
-                displayName = app.FeaturesMap(rawName);
-                app.CheckBoxes(i) = uicheckbox(app.StatusPanel, 'Text', '', 'Position', [20 yPos 40 22], 'Value', 1);
-                app.NameLabels(i) = uilabel(app.StatusPanel, 'Text', displayName, 'Position', [100 yPos 180 22]);
-                app.StatusLabels(i) = uilabel(app.StatusPanel, 'Text', 'IDLE', 'Position', [300 yPos 130 22]);
+                % Battery is opt-in: it's scarce, so only take it when you tick it
+                app.CheckBoxes(i) = uicheckbox(cg, 'Text', app.FeaturesMap(rawName), 'FontSize', 13, ...
+                    'FontColor', app.Ink, 'Value', ~strcmp(rawName, 'simscape_battery'));
+                app.StatusLabels(i) = uilabel(cg, 'Text', 'IDLE', 'FontSize', 10, 'FontWeight', 'bold', ...
+                    'HorizontalAlignment', 'center');
+                app.setStatus(i, 'IDLE');
             end
-            app.MetricsLabel = uilabel(app.UIFigure, 'Text', 'Elapsed Time: 0 | Total Checks: 0', 'Position', [50 140 400 44], 'HorizontalAlignment', 'center');
-            app.StartButton = uibutton(app.UIFigure, 'push', 'Text', 'Start Acquisition', ...
-                'Position', [120 70 120 30], 'ButtonPushedFcn', @(btn, event) app.startProcess());
-            app.StopButton = uibutton(app.UIFigure, 'push', 'Text', 'Stop', ...
-                'Position', [260 70 120 30], 'Enable', 'off', 'ButtonPushedFcn', @(btn, event) app.stopProcess());
-            app.ReleaseButton = uibutton(app.UIFigure, 'push', 'Text', 'Release All & Exit MATLAB', ...
-                'Position', [120 25 260 30], 'FontColor', [0.7 0 0], ...
-                'ButtonPushedFcn', @(btn, event) app.releaseAndExit(true));
-            app.GraphButton = uibutton(app.UIFigure, 'push', 'Text', '📈', ...
-                'Position', [455 460 30 30], 'Tooltip', 'Team license analytics', ...
-                'ButtonPushedFcn', @(btn, event) LicenseAnalytics(app.DataRoot));
+
+            % Metric tiles
+            tiles = uigridlayout(main, [1 3], 'Padding', [16 0 16 0], 'ColumnSpacing', 10, 'BackgroundColor', app.Background);
+            app.ElapsedValue = app.addTile(tiles, 'ELAPSED', '00:00:00');
+            app.ChecksValue = app.addTile(tiles, 'CHECKS', '0');
+            [app.AcquiredValue, app.AcquiredCaption] = app.addTile(tiles, 'ACQUIRED', '-');
+
+            % Actions
+            actions = uigridlayout(main, [1 3], 'ColumnWidth', {'1x', 70, '1.3x'}, 'Padding', [16 12 16 14], ...
+                'ColumnSpacing', 10, 'BackgroundColor', app.Background);
+            app.StartButton = uibutton(actions, 'push', 'Text', 'Start', 'FontWeight', 'bold', 'FontSize', 13, ...
+                'BackgroundColor', app.Accent, 'FontColor', [1 1 1], 'ButtonPushedFcn', @(~, ~) app.startProcess());
+            app.StopButton = uibutton(actions, 'push', 'Text', 'Stop', 'FontSize', 13, 'Enable', 'off', ...
+                'BackgroundColor', [1 1 1], 'FontColor', app.Ink, 'ButtonPushedFcn', @(~, ~) app.stopProcess());
+            app.ReleaseButton = uibutton(actions, 'push', 'Text', 'Release All & Exit', 'FontSize', 13, ...
+                'BackgroundColor', [1 1 1], 'FontColor', app.Bad, 'Tooltip', 'Closes MATLAB, returning every license', ...
+                'ButtonPushedFcn', @(~, ~) app.releaseAndExit(true));
         end
         function startProcess(app)
             app.stopProcess();
@@ -227,8 +295,7 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
             app.SessionId = char(datetime('now', 'Format', 'yyyyMMddHHmmss'));
             app.LoggedState = repmat({''}, 1, length(app.FeatureOrder));
             for i = 1:length(app.FeatureOrder)
-                app.StatusLabels(i).Text = 'IDLE';
-                app.StatusLabels(i).FontColor = [0 0 0];
+                app.setStatus(i, 'IDLE');
             end
             app.StartButton.Enable = 'off';
             app.StopButton.Enable = 'on';

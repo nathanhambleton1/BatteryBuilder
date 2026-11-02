@@ -4,22 +4,22 @@
     right in the PowerShell window.
 
 .DESCRIPTION
-    Right-click this file -> "Run with PowerShell" (Windows 11: "Show more options" first),
-    or double-click GrabMatlabLicense.cmd.
+    Right-click this file -> "Run with PowerShell" (Windows 11: "Show more options" first).
+    Keep it next to MATLABLicenseAcquisition.m on the shared network drive.
 
     What it does:
-      * If the license server can be queried (lmutil lmstat), it watches the seat count and only
-        launches MATLAB when a seat is free. Otherwise it launches MATLAB and watches the window
-        for a licensing error, killing and retrying until it gets in.
+      * Launches MATLAB and watches the window for a licensing error, killing and retrying
+        until it gets in.
       * Once MATLAB starts, MATLAB auto-runs MATLABLicenseAcquisition.m, which grabs the toolbox
-        licenses (Simulink, Simscape, Simscape Battery, ...) and logs them too.
+        licenses (Simulink, Simscape, ...) and logs them too.
       * Every attempt by every user is logged to the shared LicenseData folder next to this script,
-        so the dashboard shows when during the day/week MATLAB is actually obtainable.
+        so the dashboard shows when during the work day (6am-6pm) MATLAB is actually obtainable.
 
     Keys:  [H] hunt  [P] pause/resume  [R] release MATLAB (asks MATLAB to quit)  [K] kill MATLAB  [Q] quit
 
-.EXAMPLE
-    .\GrabMatlabLicense.ps1 -LicenseServer 27000@flexlm01
+    Releasing licenses: MATLAB can't hand back a single toolbox license; everything is returned
+    only when MATLAB exits ([R] here, or "Release All & Exit" in the MATLAB window).
+
 .EXAMPLE
     .\GrabMatlabLicense.ps1 -DashboardOnly
 #>
@@ -29,20 +29,12 @@ param(
     [string]$MatlabPath = '',
     # Shared tracking folder. Blank = .\LicenseData next to this script (put the script on the network drive).
     [string]$DataRoot = '',
-    # FlexLM server as port@host. Blank = auto-detect from MLM_LICENSE_FILE or MATLAB's license files.
-    [string]$LicenseServer = '',
-    # lmutil.exe. Blank = MATLAB\etc\win64\lmutil.exe if it exists.
-    [string]$LmutilPath = '',
-    # Seconds between MATLAB launches when no seat monitor is available.
+    # Seconds between MATLAB launches.
     [int]$RetryDelaySeconds = 5,
-    # Seconds between license server checks.
-    [int]$SeatPollSeconds = 15,
     # Give up on a single launch after this long.
     [int]$LaunchTimeoutSeconds = 180,
     # Without the MATLAB auto-run script: seconds the MATLAB window must be up with no error to count as success.
     [int]$ConfirmSeconds = 15,
-    # Features shown in the live seat panel (FlexLM feature names).
-    [string[]]$SeatFeatures = @('MATLAB', 'SIMULINK', 'Simscape', 'Simscape_Battery'),
     # Don't auto-run MATLABLicenseAcquisition inside MATLAB.
     [switch]$NoAutoRun,
     # Open the dashboard without starting a hunt (press H to start one).
@@ -75,6 +67,7 @@ $ReadyFile     = Join-Path $Dirs.Active "$ClientId.ready"
 $ReleaseFile   = Join-Path $Dirs.Active "$ClientId.release"
 $AttemptHeader = 'Timestamp,User,Computer,Hunt,Result,Seconds,SeatsUsed,SeatsTotal,Detail'
 $Inv = [Globalization.CultureInfo]::InvariantCulture
+$DayHours = 6..17   # analytics only cover the 6am-6pm work day
 
 $LicenseErrorPatterns = @(
     '*Licensing Error*', '*License Manager Error*', '*licensed number of users*',
@@ -82,7 +75,7 @@ $LicenseErrorPatterns = @(
 )
 
 # ---------------------------------------------------------------------------------------------
-# MATLAB / license server discovery
+# MATLAB discovery
 # ---------------------------------------------------------------------------------------------
 function Find-Matlab {
     $installs = Get-ChildItem -Path 'C:\Program Files\MATLAB' -Directory -Filter 'R20*' -ErrorAction SilentlyContinue |
@@ -94,49 +87,15 @@ function Find-Matlab {
     return $null
 }
 
-function Find-Lmutil {
-    $candidates = @($LmutilPath)
-    if ($MatlabRoot) {
-        $candidates += Join-Path $MatlabRoot 'etc\win64\lmutil.exe'
-        $candidates += Join-Path $MatlabRoot 'bin\win64\lmutil.exe'
-    }
-    foreach ($c in $candidates) { if ($c -and (Test-Path $c)) { return $c } }
-    $cmd = Get-Command lmutil.exe -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
-    return $null
-}
-
-function Find-LicenseServer {
-    foreach ($v in @($env:MLM_LICENSE_FILE, $env:LM_LICENSE_FILE)) {
-        if (-not $v) { continue }
-        foreach ($part in $v -split ';') { if ($part -match '^\d+@\S+$') { return $part } }
-    }
-    if (-not $MatlabRoot) { return $null }
-    $licDir = Join-Path $MatlabRoot 'licenses'
-    foreach ($f in Get-ChildItem -Path $licDir -File -Include '*.lic', '*.dat' -Recurse -ErrorAction SilentlyContinue) {
-        foreach ($line in Get-Content -Path $f.FullName -ErrorAction SilentlyContinue) {
-            if ($line -match '^\s*SERVER\s+(\S+)\s+\S+\s*(\d*)') {
-                $port = if ($matches[2]) { $matches[2] } else { '27000' }
-                return "$port@$($matches[1])"
-            }
-            if ($line -match '^\s*(\d+@[\w\.\-]+)\s*$') { return $matches[1] }
-        }
-    }
-    return $null
-}
-
 if (-not $MatlabPath) { $MatlabPath = Find-Matlab }
 $MatlabRoot = if ($MatlabPath) { Split-Path (Split-Path (Split-Path $MatlabPath)) } else { $null }
-$Lmutil = Find-Lmutil
-if (-not $LicenseServer) { $LicenseServer = Find-LicenseServer }
-$SeatOn = [bool]($Lmutil -and $LicenseServer)
 
 # ---------------------------------------------------------------------------------------------
 # State
 # ---------------------------------------------------------------------------------------------
 $S = @{
     Mode = 'IDLE'            # IDLE | HUNT | HAVE
-    Phase = 'WAIT'           # (HUNT) WAIT | SEATS | LAUNCH
+    Phase = 'WAIT'           # (HUNT) WAIT | LAUNCH
     Paused = $false
     Quit = $false
     Attempt = 0
@@ -153,15 +112,6 @@ $S = @{
     SessionStart = $null
     LastResult = ''
     LastDetail = ''
-    LastFullLog = [datetime]::MinValue
-    Seats = @{}
-    SeatTime = [datetime]::MinValue
-    SeatError = $null
-    SeatProc = $null
-    SeatStarted = $null
-    SeatWantAfter = $null
-    SeatOut = Join-Path $env:TEMP "lmstat_$PID.txt"
-    SeatErr = Join-Path $env:TEMP "lmstat_$PID.err"
     Rows = @()
     Tool = @()
     Stats = $null
@@ -233,36 +183,25 @@ $Font = @{
     'N' = @('#_ #', '# ^#'); 'S' = @('#^', '_#'); 'H' = @('# #', '#^#'); 'U' = @('# #', '#_#')
     'R' = @('#^#', '#^_'); ' ' = @('  ', '  ')
 }
-function New-Banner([string]$text) {
-    $rows = @('', '')
-    foreach ($ch in $text.ToCharArray()) {
-        $pat = $Font[[string]$ch]
-        for ($i = 0; $i -lt 2; $i++) { $rows[$i] += $pat[$i] + ' ' }
-    }
-    $pal = @(51, 50, 44, 38, 39, 33, 69, 63, 99, 135, 171, 207, 206, 205)
-    $width = $rows[0].Length
-    $out = @()
-    foreach ($r in $rows) {
-        $sb = New-Object System.Text.StringBuilder
-        for ($x = 0; $x -lt $r.Length; $x++) {
-            $c = $r[$x]
-            if ($c -eq ' ') { [void]$sb.Append(' '); continue }
-            $glyph = switch ($c) { '#' { $G.Full } '^' { U 0x2580 } '_' { U 0x2584 } }
-            $col = $pal[[int][math]::Floor($x / $width * $pal.Count)]
-            [void]$sb.Append("$E[38;5;$($col)m$glyph")
+# Renders (text, color) pairs side by side, one flat color per word.
+function New-Banner([object[]]$words) {
+    $out = @('', '')
+    foreach ($w in $words) {
+        for ($i = 0; $i -lt 2; $i++) {
+            $row = (($w.Text.ToCharArray() | ForEach-Object { $Font[[string]$_][$i] }) -join ' ')
+            $row = $row.Replace('#', $G.Full).Replace('^', (U 0x2580)).Replace('_', (U 0x2584))
+            $out[$i] += (C $row $w.Color) + '   '
         }
-        [void]$sb.Append("$E[0m")
-        $out += $sb.ToString()
     }
     $out
 }
-$Banner = New-Banner 'MATLAB LICENSE HUNTER'
+$Banner = New-Banner @(@{ Text = 'MATLAB'; Color = 208 }, @{ Text = 'LICENSE HUNTER'; Color = 252 })
 
 # ---------------------------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------------------------
 function Add-Log([string]$kind, [string]$msg) {
-    $col = switch ($kind) { 'GOT' { 46 } 'DENY' { 196 } 'WARN' { 220 } 'ERR' { 196 } 'SEAT' { 208 } default { 75 } }
+    $col = switch ($kind) { 'GOT' { 46 } 'DENY' { 196 } 'WARN' { 220 } 'ERR' { 196 } default { 75 } }
     $S.Log.Add("$(C (Get-Date).ToString('HH:mm:ss') 244) $(C $kind.PadRight(4) $col) $msg")
     while ($S.Log.Count -gt 50) { $S.Log.RemoveAt(0) }
 }
@@ -281,13 +220,10 @@ function Add-SharedLine([string]$path, [string]$header, [string]$line) {
 }
 
 function Write-Attempt([string]$result, [double]$seconds, [string]$detail) {
-    $used = ''; $total = ''
-    $m = $S.Seats['MATLAB']
-    if ($m -and ((Get-Date) - $S.SeatTime).TotalSeconds -lt 120) { $used = $m.Used; $total = $m.Total }
     $clean = ($detail -replace '[,\r\n"]', ' ').Trim()
     if ($clean.Length -gt 120) { $clean = $clean.Substring(0, 120) }
-    $line = '{0},{1},{2},{3},{4},{5},{6},{7},{8}' -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss', $Inv),
-        $env:USERNAME, $env:COMPUTERNAME, $S.HuntId, $result, [int][math]::Round($seconds), $used, $total, $clean
+    $line = '{0},{1},{2},{3},{4},{5},,,{6}' -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss', $Inv),
+        $env:USERNAME, $env:COMPUTERNAME, $S.HuntId, $result, [int][math]::Round($seconds), $clean
     [void](Add-SharedLine $MyAttemptFile $AttemptHeader $line)
     $S.NextData = Get-Date
 }
@@ -358,6 +294,7 @@ function Get-Stats($rows) {
     $hunts = @{}
     $today = (Get-Date).Date
     foreach ($r in ($rows | Sort-Object T)) {
+        if ($DayHours -notcontains $r.T.Hour) { continue }
         if (-not $st.First) { $st.First = $r.T }
         $st.Users[$r.User] = 1
         $h = $r.T.Hour
@@ -422,69 +359,6 @@ function Update-Heartbeat {
     if ((Get-Date) -lt $S.NextBeat) { return }
     $S.NextBeat = (Get-Date).AddSeconds(30)
     try { [IO.File]::WriteAllText($HeartbeatFile, "$($S.Mode)`t$($S.Attempt)`t$((Get-Date).ToString('s'))") } catch {}
-}
-
-# ---------------------------------------------------------------------------------------------
-# License server (lmutil lmstat) - runs in the background so the UI never freezes
-# ---------------------------------------------------------------------------------------------
-function Start-SeatQuery {
-    if (-not $SeatOn -or $S.SeatProc) { return }
-    try {
-        $S.SeatProc = Start-Process -FilePath $Lmutil -ArgumentList @('lmstat', '-a', '-c', $LicenseServer) `
-            -RedirectStandardOutput $S.SeatOut -RedirectStandardError $S.SeatErr -WindowStyle Hidden -PassThru
-        $S.SeatStarted = Get-Date
-    } catch {
-        $S.SeatError = "lmutil failed: $($_.Exception.Message)"
-        $S.SeatTime = Get-Date
-    }
-}
-
-function Read-Lmstat([string]$text) {
-    $feat = @{}
-    $cur = $null
-    foreach ($line in $text -split "`r?`n") {
-        if ($line -match '^Users of ([^:]+):\s*\(Total of (\d+) licenses? issued;\s*Total of (\d+) licenses? in use\)') {
-            $cur = @{ Name = $matches[1]; Total = [int]$matches[2]; Used = [int]$matches[3]; Holders = New-Object System.Collections.ArrayList }
-            $feat[$cur.Name.ToUpper()] = $cur
-            continue
-        }
-        if ($line -match '^Users of ') { $cur = $null; continue }
-        if ($cur -and $line -match '^\s{2,}(\S+)\s+(\S+)\s.*start\s+\w+\s+(\d+)/(\d+)\s+(\d+):(\d+)') {
-            $now = Get-Date
-            try {
-                $start = Get-Date -Year $now.Year -Month ([int]$matches[3]) -Day ([int]$matches[4]) -Hour ([int]$matches[5]) -Minute ([int]$matches[6]) -Second 0
-                if ($start -gt $now.AddHours(1)) { $start = $start.AddYears(-1) }
-            } catch { $start = $null }
-            [void]$cur.Holders.Add(@{ User = $matches[1]; Host = $matches[2]; Start = $start })
-        }
-    }
-    $feat
-}
-
-function Update-Seats {
-    if (-not $SeatOn) { return }
-    if ($S.SeatProc) {
-        if ($S.SeatProc.HasExited) {
-            $S.SeatProc = $null
-            $S.SeatTime = Get-Date
-            $text = ''
-            try { $text = Read-SharedFile $S.SeatOut } catch {}
-            $seats = Read-Lmstat $text
-            if ($seats.ContainsKey('MATLAB')) {
-                $S.Seats = $seats; $S.SeatError = $null
-            } else {
-                $firstErr = ($text -split "`r?`n" | Where-Object { $_ -match 'error|cannot|failed' } | Select-Object -First 1)
-                $S.SeatError = if ($firstErr) { $firstErr.Trim() } else { 'lmstat returned no MATLAB data' }
-            }
-        } elseif (((Get-Date) - $S.SeatStarted).TotalSeconds -gt 30) {
-            try { $S.SeatProc.Kill() } catch {}
-            $S.SeatProc = $null
-            $S.SeatTime = Get-Date
-            $S.SeatError = 'lmstat timed out'
-        }
-    } elseif (((Get-Date) - $S.SeatTime).TotalSeconds -ge $SeatPollSeconds) {
-        Start-SeatQuery
-    }
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -566,7 +440,7 @@ function Start-Hunt {
     $S.HuntId = (Get-Date).ToString('yyyyMMddHHmmss', $Inv)
     $S.HuntStart = Get-Date
     $S.HuntStrip.Clear()
-    Add-Log 'INFO' "Hunt started$(if ($SeatOn) { " (watching seats on $LicenseServer)" })"
+    Add-Log 'INFO' 'Hunt started'
 }
 
 function Start-MatlabLaunch {
@@ -602,7 +476,7 @@ function Fail-Launch([string]$result, [string]$detail) {
     $S.HuntStrip.Add($result)
     Add-Log $(if ($result -eq 'DENIED') { 'DENY' } else { 'WARN' }) "#$($S.Attempt) $result - $detail"
     $S.Phase = 'WAIT'
-    $S.NextAt = (Get-Date).AddSeconds($(if ($SeatOn) { [math]::Min($RetryDelaySeconds, $SeatPollSeconds) } else { $RetryDelaySeconds }))
+    $S.NextAt = (Get-Date).AddSeconds($RetryDelaySeconds)
 }
 
 function Complete-Success([string]$detail) {
@@ -622,31 +496,7 @@ function Update-Hunt {
             if ($S.Paused) { $S.NextAt = $now.AddSeconds(1); return }
             if ($now -lt $S.NextAt) { return }
             if (Get-ExistingMatlab) { Start-Hunt; return }
-            if ($SeatOn -and -not $S.SeatError) {
-                $S.Phase = 'SEATS'
-                $S.SeatWantAfter = $now
-                if (-not $S.SeatProc) { $S.SeatTime = [datetime]::MinValue; Start-SeatQuery }
-            } else {
-                Start-MatlabLaunch
-            }
-        }
-        'SEATS' {
-            if ($S.SeatTime -lt $S.SeatWantAfter) { return }
-            $m = $S.Seats['MATLAB']
-            if (-not $S.SeatError -and $m -and $m.Used -ge $m.Total) {
-                $S.HuntStrip.Add('FULL')
-                $S.LastResult = 'FULL'; $S.LastDetail = "$($m.Used)/$($m.Total) seats in use"
-                if (($now - $S.LastFullLog).TotalSeconds -ge 60) {
-                    Write-Attempt 'FULL' 0 $S.LastDetail
-                    $S.LastFullLog = $now
-                    Add-Log 'SEAT' "All $($m.Total) MATLAB seats taken - waiting"
-                }
-                $S.Phase = 'WAIT'
-                $S.NextAt = $now.AddSeconds($SeatPollSeconds)
-            } else {
-                if ($m) { Add-Log 'SEAT' "$($m.Total - $m.Used) seat(s) free - going for it!" }
-                Start-MatlabLaunch
-            }
+            Start-MatlabLaunch
         }
         'LAUNCH' {
             $elapsed = ($now - $S.LaunchTime).TotalSeconds
@@ -749,14 +599,19 @@ $Features = @(
     @{ Id = 'simscape_battery'; Short = 'Battery' }, @{ Id = 'power_system_blocks'; Short = 'PwrSys' },
     @{ Id = 'signal_toolbox'; Short = 'Signal' }
 )
-$SeatNames = @{ MATLAB = 'MATLAB'; SIMULINK = 'Simulink'; SIMSCAPE = 'Simscape'; SIMSCAPE_BATTERY = 'Simscape Battery';
-                POWER_SYSTEM_BLOCKS = 'Power Sys Blocks'; SIGNAL_TOOLBOX = 'Signal Processing' }
+$Accent = 208
 
+# One 4-column cell per work-day hour: "6a  7a  ... 12p 1p ... 5p"
 function Get-HourLabels([int]$offset) {
-    $chars = (' ' * 48).ToCharArray()
-    for ($h = 0; $h -lt 24; $h += 3) { $t = '{0:00}' -f $h; $chars[$h * 2] = $t[0]; $chars[$h * 2 + 1] = $t[1] }
-    (' ' * $offset) + (C (-join $chars) 244)
+    $nowH = (Get-Date).Hour
+    $cells = foreach ($h in $DayHours) {
+        $t = "$(if ($h % 12) { $h % 12 } else { 12 })$(if ($h -lt 12) { 'a' } else { 'p' })".PadRight(4)
+        if ($h -eq $nowH) { Bold $t $Accent } else { C $t 244 }
+    }
+    (' ' * $offset) + ($cells -join '')
 }
+
+function Format-Hour([int]$h) { "$(if ($h % 12) { $h % 12 } else { 12 })$(if ($h -lt 12) { 'am' } else { 'pm' })" }
 
 function Get-StatusLines {
     $now = Get-Date
@@ -773,10 +628,8 @@ function Get-StatusLines {
             $l += ' ' + $(switch ($S.Phase) {
                 'WAIT'   {
                     if ($S.Paused) { C 'Paused - press P to resume' 244 }
-                    elseif ($S.LastResult -eq 'FULL') { C "All seats taken - re-checking in $([math]::Max(0, [int]($S.NextAt - $now).TotalSeconds))s" 208 }
                     else { C "Next try in $([math]::Max(0, [int]($S.NextAt - $now).TotalSeconds))s" 250 }
                 }
-                'SEATS'  { C 'Asking the license server for a free seat...' 75 }
                 'LAUNCH' {
                     $el = [int]($now - $S.LaunchTime).TotalSeconds
                     if ($S.MainSeenAt) { C "MATLAB window is up - waiting for startup signal ($el s)" 154 }
@@ -805,98 +658,73 @@ function Get-StatusLines {
     $l
 }
 
-function Get-SeatLines {
-    $l = @()
-    if (-not $SeatOn) {
-        $l += " $(Bold 'LIVE SEATS' 255)  $(C 'off' 244)"
-        $l += ' ' + (C 'No license server found, so MATLAB is launched blind.' 250)
-        $l += ' ' + (C 'Run with -LicenseServer 27000@yourserver to watch' 244)
-        $l += ' ' + (C 'seats and only launch when one is free.' 244)
-        $l += ' ' + (C "(needs lmutil.exe: $(if ($Lmutil) { 'found' } else { 'not found' }))" 244)
-        $l += ''
-        return $l
+function Get-TeamLines {
+    $st = $S.Stats
+    $since = if ($st.First) { $st.First.ToString('MMM d') } else { '-' }
+    $rate = if ($st.Launch) { '{0:P0}' -f ($st.Success / $st.Launch) } else { '-' }
+    $wait = if ($st.AvgWait) { Fmt-Dur $st.AvgWait } else { '-' }
+    $sess = if ($st.SessN) { Fmt-Dur ($st.SessSum / $st.SessN) } else { '-' }
+    $l = @(" $(Bold 'TEAM STATS' 255)  $(C "$($st.Users.Count) users $($G.Mid) since $since $($G.Mid) 6am-6pm" 244)")
+    $l += " $(Bold (Fmt-N $st.Launch) 255) launches    $(Bold (Fmt-N $st.Success) 46) got MATLAB ($rate)"
+    $l += " Avg hunt $(Bold $wait 255)    Avg session $(Bold $sess 255)"
+    if ($st.Best) {
+        $l += " Best hour $(Bold (Format-Hour $st.Best.H) 46) $(C ('{0:P0}' -f $st.Best.P) 244)    Worst $(Bold (Format-Hour $st.Worst.H) 196) $(C ('{0:P0}' -f $st.Worst.P) 244)"
+    } else {
+        $l += ' ' + (C 'Best/worst hour show up after a few attempts' 244)
     }
-    $age = if ($S.SeatTime -gt [datetime]::MinValue) { "$([int]((Get-Date) - $S.SeatTime).TotalSeconds)s ago" } else { 'querying...' }
-    $l += " $(Bold 'LIVE SEATS' 255)  $(C "$LicenseServer  updated $age" 244)"
-    if ($S.SeatError) { $l += ' ' + (C $S.SeatError 196) }
-    foreach ($f in $SeatFeatures) {
-        $seat = $S.Seats[$f.ToUpper()]
-        $name = $SeatNames[$f.ToUpper()]; if (-not $name) { $name = $f }
-        if (-not $seat) { $l += " $($name.PadRight(17))$(C 'no data' 240)"; continue }
-        $pct = if ($seat.Total) { $seat.Used / $seat.Total } else { 1 }
-        $fill = [int][math]::Round($pct * 16)
-        $col = if ($seat.Used -ge $seat.Total) { 196 } elseif ($pct -ge 0.8) { 220 } else { 46 }
-        $tag = if ($seat.Used -ge $seat.Total) { C 'FULL' 196 } else { C "$($seat.Total - $seat.Used) free" 46 }
-        $l += " $($name.PadRight(17))$(C ($G.Full * $fill) $col)$(C ($G.Light * (16 - $fill)) 238) $("$($seat.Used)/$($seat.Total)".PadLeft(7)) $tag"
-    }
-    $m = $S.Seats['MATLAB']
-    if ($m -and $m.Holders.Count) {
-        $now = Get-Date
-        $top = $m.Holders | Where-Object { $_.Start } | Sort-Object { $_.Start } | Select-Object -First 4 |
-            ForEach-Object { "$($_.User) $(C (Fmt-Dur ($now - $_.Start).TotalSeconds) 244)" }
-        $l += " $(C 'Longest held:' 250) $($top -join '  ')"
-    }
-    $l | Select-Object -First 6
+    $l += " You today $(Bold $st.MineToday 255) launches"
+    $l
 }
 
 function Get-ChartLines {
     $st = $S.Stats
-    $hdr = " $(Bold 'AVAILABILITY BY HOUR' 255) $(C 'got-it %' 244)"
-    if ($st.Best) {
-        $hdr += "  $(C 'best' 244) $(C ('{0:00}h {1:P0}' -f $st.Best.H, $st.Best.P) 46) $(C 'worst' 244) $(C ('{0:00}h {1:P0}' -f $st.Worst.H, $st.Worst.P) 196)"
-    }
-    $l = @($hdr)
+    $l = @(" $(Bold 'AVAILABILITY BY HOUR' 255)  $(C '% of attempts that got MATLAB' 244)")
     for ($row = 0; $row -lt 8; $row++) {
         $b = 7 - $row
         $label = if ($row % 2 -eq 0) { ('{0}%' -f ((8 - $row) * 25 / 2)).PadLeft(4) } else { '    ' }
         $sb = New-Object System.Text.StringBuilder
         [void]$sb.Append(' ' + (C $label 244) + (C $G.AxV 240))
-        for ($h = 0; $h -lt 24; $h++) {
+        foreach ($h in $DayHours) {
             $n = $st.HourAll[$h]
             if ($n -eq 0) {
-                [void]$sb.Append($(if ($b -eq 0) { C "$($G.Mid) " 238 } else { '  ' }))
+                [void]$sb.Append($(if ($b -eq 0) { C " $($G.Mid)  " 238 } else { '    ' }))
                 continue
             }
             $p = $st.HourOk[$h] / $n
             $fill = [math]::Max(0, [math]::Min(8, [int][math]::Round($p * 64) - $b * 8))
             if ($b -eq 0 -and $fill -eq 0) { $fill = 1 }
-            $col = RateColor $p
-            if ($n -lt 3) { $col = 240 }
-            [void]$sb.Append((C $Eighths[$fill] $col) + ' ')
+            $col = if ($n -lt 3) { 240 } else { RateColor $p }
+            [void]$sb.Append((C ($Eighths[$fill] * 3) $col) + ' ')
         }
         $l += $sb.ToString()
     }
-    $axis = ($G.AxH * 48).ToCharArray()
-    $axis[(Get-Date).Hour * 2] = $G.Up[0]
-    $axisStr = (C (-join $axis[0..((Get-Date).Hour * 2 - 1)]) 240) + (C $G.Up 226) + (C (-join $axis[((Get-Date).Hour * 2 + 1)..47]) 240)
-    if ((Get-Date).Hour -eq 0) { $axisStr = (C $G.Up 226) + (C (-join $axis[1..47]) 240) }
-    $l += '      ' + $axisStr
+    $axis = $G.AxH * 48
+    $i = [array]::IndexOf([int[]]$DayHours, (Get-Date).Hour)
+    if ($i -ge 0) { $axis = (C $axis.Substring(0, $i * 4 + 1) 240) + (C $G.Up $Accent) + (C $axis.Substring($i * 4 + 2) 240) }
+    else { $axis = C $axis 240 }
+    $l += '      ' + $axis
     $l += Get-HourLabels 6
     $l
 }
 
-function Get-TeamLines {
+function Get-HeatLines {
     $st = $S.Stats
-    $since = if ($st.First) { $st.First.ToString('MMM d') } else { '-' }
-    $rate = if ($st.Launch) { '{0:P0}' -f ($st.Success / $st.Launch) } else { '-' }
-    $l = @(" $(Bold 'TEAM STATS' 255)  $(C "$($st.Users.Count) users, since $since" 244)")
-    $l += " $(Bold (Fmt-N $st.Launch) 255) launches  $(Bold (Fmt-N $st.Success) 46) got MATLAB ($rate)  $(Bold (Fmt-N $st.Full) 208) full checks"
-    $wait = if ($st.AvgWait) { Fmt-Dur $st.AvgWait } else { '-' }
-    $sess = if ($st.SessN) { Fmt-Dur ($st.SessSum / $st.SessN) } else { '-' }
-    $l += " Avg hunt $(Bold $wait 255)  Avg session $(Bold $sess 255)  You today $(Bold $st.MineToday 255)"
+    $l = @(" $(Bold 'WEEK BY HOUR' 255)  $(C 'same %, split by weekday' 244)")
     $l += Get-HourLabels 5
     $days = @('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
     $today = ([int](Get-Date).DayOfWeek + 6) % 7
     for ($d = 0; $d -lt 7; $d++) {
         $sb = New-Object System.Text.StringBuilder
-        [void]$sb.Append(' ' + (C $days[$d] $(if ($d -eq $today) { 226 } else { 250 })) + ' ')
-        for ($h = 0; $h -lt 24; $h++) {
+        [void]$sb.Append(' ' + $(if ($d -eq $today) { Bold $days[$d] $Accent } else { C $days[$d] 250 }) + ' ')
+        foreach ($h in $DayHours) {
             $n = $st.HeatAll[$d * 24 + $h]
-            if ($n -eq 0) { [void]$sb.Append((C "$($G.Mid)$($G.Mid)" 237)); continue }
-            [void]$sb.Append((C ($G.Full * 2) (RateColor ($st.HeatOk[$d * 24 + $h] / $n))))
+            if ($n -eq 0) { [void]$sb.Append((C " $($G.Mid)  " 237)); continue }
+            [void]$sb.Append((C ($G.Full * 3) (RateColor ($st.HeatOk[$d * 24 + $h] / $n))) + ' ')
         }
         $l += $sb.ToString()
     }
+    $l += ''
+    $l += "     $(C '0%' 244) $(($Grad | ForEach-Object { C $G.Full $_ }) -join '') $(C '100%' 244)    $(C "$($G.Mid) no data" 238)"
     $l
 }
 
@@ -932,7 +760,7 @@ function Get-BottomLeftLines {
 }
 
 function Get-FooterKeys {
-    $k = { param($key, $label) "$(Bold "[$key]" 226)$(C $label 250)" }
+    $k = { param($key, $label) "$(Bold "[$key]" $Accent)$(C $label 250)" }
     $parts = @()
     if ($S.Mode -eq 'IDLE') { $parts += & $k 'H' ' Hunt' }
     if ($S.Mode -eq 'HUNT') { $parts += & $k 'P' $(if ($S.Paused) { ' Resume' } else { ' Pause' }) }
@@ -968,16 +796,16 @@ function Build-Frame {
     }
     $sep = C ($G.LT + $G.H * $LW + $G.X + $G.H * $RW + $G.RT) $bc
 
-    & $add2 @(Get-StatusLines) @(Get-SeatLines) 6
+    & $add2 @(Get-StatusLines) @(Get-TeamLines) 6
     $lines.Add($sep)
-    & $add2 @(Get-ChartLines) @(Get-TeamLines) 11
+    & $add2 @(Get-ChartLines) @(Get-HeatLines) 11
     $lines.Add($sep)
     $log = @(" $(Bold 'ACTIVITY' 255)") + @($S.Log | Select-Object -Last 3 | ForEach-Object { " $_" })
     & $add2 @(Get-BottomLeftLines) $log 4
 
     $keys = Get-FooterKeys
     $fill = [math]::Max(0, $LW - 1 - (VisLen $keys))
-    $right = " $(if ($SeatOn) { 'seat monitor on' } else { 'seat monitor off' }) "
+    $right = ' shared team data '
     $rfill = [math]::Max(0, $RW - 1 - $right.Length)
     $lines.Add((C ($G.BL + $G.H) $bc) + $keys + (C ($G.H * $fill + $G.BT + $G.H * $rfill) $bc) + (C $right 244) + (C ($G.H + $G.BR) $bc))
     $lines
@@ -1001,10 +829,6 @@ function Show-Frame {
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 if ($RenderOnce) {
     Update-Data
-    if ($SeatOn) {
-        Start-SeatQuery
-        while ($S.SeatProc) { Start-Sleep -Milliseconds 200; Update-Seats }
-    }
     Add-Log 'INFO' 'Render test'
     Show-Frame
     return
@@ -1042,7 +866,6 @@ try {
     while (-not $S.Quit) {
         try {
             Read-Keys
-            Update-Seats
             switch ($S.Mode) { 'HUNT' { Update-Hunt } 'HAVE' { Update-Have } }
             Update-Data
             Update-Heartbeat
@@ -1058,8 +881,7 @@ try {
     }
 } finally {
     if ($S.Mode -eq 'HUNT' -and $S.Phase -eq 'LAUNCH' -and $S.Proc) { Stop-MatlabTree }
-    if ($S.SeatProc) { try { $S.SeatProc.Kill() } catch {} }
-    Remove-Item -Path $HeartbeatFile, $S.SeatOut, $S.SeatErr -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $HeartbeatFile -Force -ErrorAction SilentlyContinue
     [Console]::Write("$E[?25h$E[?1049l")
     [Console]::TreatControlCAsInput = $false
     Write-Host "MATLAB License Hunter closed. $(if ($S.Mode -eq 'HAVE') { 'MATLAB is still running.' })"
