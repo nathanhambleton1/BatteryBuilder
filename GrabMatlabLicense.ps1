@@ -122,6 +122,8 @@ $S = @{
     Online = @()
     NextData = Get-Date
     NextBeat = Get-Date
+    BeatMode = ''
+    ShareSkew = [timespan]::Zero
     ConfirmKey = ''
     ConfirmUntil = Get-Date
     ReleaseAt = $null
@@ -340,10 +342,12 @@ function ConvertTo-HuntTime([string]$hunt, [datetime]$fallback) {
     return $fallback
 }
 
+# Other people with the dashboard open. File times come from the network share's clock, so the
+# cutoff is shifted by the skew measured on our own heartbeat.
 function Get-Online {
-    $cut = (Get-Date).AddSeconds(-90)
+    $cut = (Get-Date) + $S.ShareSkew - [timespan]::FromSeconds(45)
     foreach ($f in Get-ChildItem -Path $Dirs.Active -Filter '*.txt' -File -ErrorAction SilentlyContinue) {
-        if ($f.LastWriteTime -lt $cut) { continue }
+        if ($f.BaseName -eq $ClientId -or $f.LastWriteTime -lt $cut) { continue }
         $mode = 'IDLE'
         try { $mode = ((Read-SharedFile $f.FullName) -split "`t")[0].Trim() } catch {}
         [pscustomobject]@{ Id = $f.BaseName; User = ($f.BaseName -split '@')[0]; Mode = $mode }
@@ -360,9 +364,15 @@ function Update-Data {
 }
 
 function Update-Heartbeat {
-    if ((Get-Date) -lt $S.NextBeat) { return }
-    $S.NextBeat = (Get-Date).AddSeconds(30)
-    try { [IO.File]::WriteAllText($HeartbeatFile, "$($S.Mode)`t$($S.Attempt)`t$((Get-Date).ToString('s'))") } catch {}
+    # Write right away when our mode changes, otherwise every 15s
+    $mode = if ($S.Paused) { 'PAUSED' } else { $S.Mode }
+    if ((Get-Date) -lt $S.NextBeat -and $mode -eq $S.BeatMode) { return }
+    $S.NextBeat = (Get-Date).AddSeconds(15)
+    $S.BeatMode = $mode
+    try {
+        [IO.File]::WriteAllText($HeartbeatFile, "$mode`t$($S.Attempt)`t$((Get-Date).ToString('s'))")
+        $S.ShareSkew = (Get-Item $HeartbeatFile).LastWriteTime - (Get-Date)
+    } catch {}
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -658,7 +668,7 @@ function Get-StatusLines {
     $hunting = @($S.Online | Where-Object { $_.Mode -eq 'HUNT' })
     $having = @($S.Online | Where-Object { $_.Mode -eq 'HAVE' })
     $names = (($hunting | ForEach-Object { $_.User }) | Select-Object -Unique) -join ', '
-    $l += " Team now     $(Bold $hunting.Count 208) hunting  $(Bold $having.Count 46) in MATLAB  $(C $names 244)"
+    $l += " Others now   $(Bold $hunting.Count 208) hunting  $(Bold $having.Count 46) in MATLAB  $(C $names 244)"
     $l
 }
 
