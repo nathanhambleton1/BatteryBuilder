@@ -11,7 +11,7 @@ The shared folder is only used when a player clicks:
 
 Nothing touches the drive on a timer, on focus or when the page closes. Between saves everything is kept in the browser; closing the tab with unsaved scores asks first.
 
-A page cannot open a folder by its path, so the first Save on each computer and browser asks once for the shared folder (`G:\Nathan Hambleton\Submarine Photos\New Folder`, set as `SHARED_DIR` in `files/leaderboard.js`). It is remembered: after that, Save and Refresh only show the browser's Allow prompt (choose "Allow on every visit" to skip even that). The admin console has **Change shared folder** if it ever moves.
+A page cannot open a folder by its path, so the first Save on each computer and browser asks once for the shared folder (`G:\Nathan Hambleton\Submarine Photos\Undertow`, set as `SHARED_DIR` in `files/leaderboard.js`). It is remembered: after that, Save and Refresh only show the browser's Allow prompt (choose "Allow on every visit" to skip even that). The admin console has **Change shared folder** if it ever moves.
 
 ## Files in the shared folder
 

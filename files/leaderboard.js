@@ -24,7 +24,7 @@ const PAGE_NAME=(()=>{try{return decodeURIComponent(location.pathname.split('/')
 const GAME_DIR=(()=>{try{if(location.protocol!=='file:')return '';const p=decodeURIComponent(location.pathname);return (location.host?'\\\\'+location.host:'')+p.slice(0,p.lastIndexOf('/')+1).replace(/^\/([A-Za-z]:)/,'$1').replace(/\//g,'\\')}catch(_){return ''}})();
 // The one folder the whole team shares. A page cannot open a folder by path, so each PC/browser
 // points at it once; the handle is kept in IndexedDB and access is re-asked on load if needed.
-const SHARED_DIR='G:\\Nathan Hambleton\\Submarine Photos\\New Folder', SHARED_NAME='shared folder';
+const SHARED_DIR='G:\\Nathan Hambleton\\Submarine Photos\\Undertow', SHARED_NAME='shared folder';
 const sameDir=(a,b)=>!!a&&!!b&&a.replace(/\\+$/,'').toLowerCase()===b.replace(/\\+$/,'').toLowerCase();
 const lb={supported:typeof window.showDirectoryPicker==='function',dir:null,perm:'none',loaded:0,shared:[],players:{},admin:{entries:{},players:{},aliases:{}},achView:'path',achWho:'',local:(store.get('undertow.local.v1',[])||[]).map(cleanEntry).filter(Boolean),source:'shared',filter:'all',note:'',warn:'',gate:{ready:false,offline:false,msg:'',repick:false,busy:false},mine:new Set(store.get('undertow.mine.v1',[]))};
 if(!lb.supported)lb.source='local';
