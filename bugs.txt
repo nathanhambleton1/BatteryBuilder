@@ -1,0 +1,6 @@
+-remove the cmd open thing where it tracks your computer username we can just have them enter their name thats fine how we used to do it. that also means removing the text on the home screen regarding that. that also means we can remove the feature from the admin panel to migrate users
+-remove all the stats panel and any of the data saving to that we want to remove as much as possible and the stats stuff is to much data to ahve to remove the button, popup, and saves regarding stats. Also let me know what folders i needs from save, there are analytics data files profiles bin.dat bin.dat.bak and bin.dat.bak.crswap.
+-we should also set a limit for how often you can save maybe only every 60seconds before you have a cool down.
+-i dont want to manaully have to enter the path folder for where to have the data saved it should be hard coded and anytime you want to load or save anything it just automaticly has the chrome of edge popup asking to allow the folder i dont ever want to have to search through the file explorer again
+-remove the quick view leaderboard when you die cause i dont want that to read anything when we dont want it to
+-when you click save or refresh they should operate indepenndtially so if you click one it should never do both of them unless it is required
