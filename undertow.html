@@ -39,6 +39,9 @@
 <div id="grain"></div><div id="vignette"></div><div id="flash"></div>
 <header class="topbar"><div class="brand"><svg viewBox="0 0 36 36" fill="none" aria-hidden="true"><circle cx="18" cy="18" r="15" stroke="#b1d6ca" stroke-width=".7"/><path d="M5 18h26M18 3v30" stroke="#b1d6ca" stroke-width=".5"/><path d="m11 22 7-13 7 13-7-4z" stroke="#d8e9dd" fill="#d8e9dd11"/></svg><div>UNDERTOW<small>FLEET SUBMARINE COMMAND</small></div></div><nav class="tools" aria-label="Game settings"><button type="button" class="icon" id="helpOpen" aria-label="Open briefing" title="Briefing: controls, boats and tactics"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r=".7" fill="currentColor" stroke="none"/></svg></button><button class="icon" id="music" aria-label="Play music" title="Music (N)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/><path id="musicSlash" d="M3 3l18 18"/></svg></button><button class="icon" id="sound" aria-label="Enable sound" title="Sound (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 9h4l5-4v14l-5-4H4z"/><path id="soundWaves" d="m17 9 5 6m0-6-5 6"/></svg></button><button class="icon" id="fullscreen" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button><button class="icon" id="pause" aria-label="Pause game" title="Pause (P / Esc)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14M16 5v14"/></svg></button></nav></header>
 <section class="view" id="menu"><div class="intro"><div class="eyebrow">FLEET COMMAND / OPERATION DEEP STRIKE</div><h1>UNDERTOW<span class="subhead">DEEP STRIKE</span></h1><p class="lead">Thread the minefields. Outrun the warships hunting from above.<br>Guard your air, guard your hull, and never stop moving.</p>
+<div class="home-card id-card"><div class="callsign"><label class="row-label" for="callsign">CALLSIGN</label><input id="callsign" maxlength="16" placeholder="Your name for the leaderboard" autocomplete="off" spellcheck="false" aria-describedby="callsignMsg" required></div>
+<div class="cs-msg" id="callsignMsg" role="alert" hidden><svg class="ic"><use href="#i-warn"/></svg><span>ENTER A CALLSIGN TO DIVE</span></div>
+<div class="rank"><div><b id="rankName">LEVEL 1</b> &nbsp;/&nbsp; <span id="rankXp"></span></div><span class="xp"><i id="xpBar"></i></span><small id="profNote"></small></div></div>
 <div class="home-card setup-card"><div class="mode-row" id="diffRow"><span class="row-label">DIFFICULTY</span><button data-diff="cadet">Cadet</button><button data-diff="officer">Officer</button><button data-diff="captain">Captain</button><button data-diff="admiral">Admiral</button></div>
 <div class="mode-row"><span class="row-label">MISSION</span><button id="standard" aria-pressed="true">Normal mode</button><button id="practice" aria-pressed="false">Practice / no damage</button></div>
 <div class="vessel-row"><canvas class="mini" id="thumb" width="224" height="76"></canvas><div><b id="vesselName">VIRGINIA CLASS</b><small id="vesselOrigin">UNITED STATES / 2004</small></div><button id="hangarOpen"><svg class="ic"><use href="#i-sub"/></svg>Change</button></div></div>
@@ -48,7 +51,7 @@
 <div class="tile duel-tile"><button class="tile-btn" id="duelOpen"><svg class="ic"><use href="#i-duel"/></svg><span class="tile-t"><b id="duelCount">Duel</b><small>1v1 against other sailors</small></span><svg class="ic go"><use href="#i-next"/></svg></button><button class="lb-chip" id="duelChip" hidden><i></i><span>1V1 DUELS</span></button></div>
 <div class="tile"><button class="tile-btn" id="boardOpen"><svg class="ic"><use href="#i-trophy"/></svg><span class="tile-t"><b>Leaderboard</b><small>Top scores across the fleet</small></span><svg class="ic go"><use href="#i-next"/></svg></button><button class="lb-chip" id="lbChip"><i></i><span>SHARED LEADERBOARD NOT CONNECTED</span></button></div>
 <div class="tile"><button class="tile-btn" id="statsOpen"><svg class="ic"><use href="#i-trophy"/></svg><span class="tile-t"><b>Statistics</b><small>Fleet balance and player activity</small></span><svg class="ic go"><use href="#i-next"/></svg></button></div>
-<div class="tile"><button class="tile-btn" id="achOpen"><svg class="ic"><use href="#i-medal"/></svg><span class="tile-t"><b id="achCount">Achievements</b><small>Medals and challenges</small></span><svg class="ic go"><use href="#i-next"/></svg></button></div>
+<div class="tile"><button class="tile-btn" id="achOpen"><svg class="ic"><use href="#i-medal"/></svg><span class="tile-t"><b id="achCount">Achievements</b><small>Medals and your level path</small></span><svg class="ic go"><use href="#i-next"/></svg></button></div>
 
 <div class="legend"><div><b><span class="key">SPACE</span> RISE</b><small>Release to descend</small></div><div><b><span class="key">E</span> ABILITY</b></div><div><b><span class="key">F</span> MISSILE</b></div><div><b><span class="key">A</span><span class="key">D</span> ORBIT</b></div><div><b><span class="key">C</span> 3D CAM</b></div></div></aside></section>
 <footer class="foot" id="footer"><span>VESSEL <strong id="footVessel">VIRGINIA / SSN-774</strong><span class="desktop"> &nbsp; / &nbsp; ENDLESS PATROL</span></span><span>BEST SCORE <strong id="best">0</strong> &nbsp; / &nbsp; BUILD <strong id="build"></strong></span></footer>
@@ -134,12 +137,12 @@
 <script src="files/drone-world.js"></script>
 <script src="files/campaign-expedition.js"></script>
 <script src="files/campaign-ui.js"></script>
-
+<script src="files/secret-admin.js"></script>
 <script src="files/score-journal.js"></script>
 <script src="files/combat-upgrades.js"></script>
 <script src="files/turtle-era.js"></script>
 <script src="files/analytics.js"></script>
-<script src="files/offline.js"></script>
+<script src="files/manual-save.js"></script>
 <script src="files/main.js"></script>
 </body>
 </html>

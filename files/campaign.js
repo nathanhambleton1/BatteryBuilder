@@ -188,7 +188,7 @@ function campWin(){
  if(first&&m.reward)addParts(m.reward,true);
  if(m.boss)d.boss[m.boss.k]=1;if(m.race)d.races++;if(d.cp&&d.cp.m===m.id){d.cp=null;d.cpx=Date.now()}
  state='debrief';clearInput();show('pause',false);$('hint').style.opacity='0';
- achCommit();const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;;
+ achCommit();const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;if(run.promoted)achPop({kind:'PROMOTED',name:'LEVEL '+l1+' / '+rankTitle(l1)});
  achCheck();profDirty(false);
  R.result={stars,prev,first,newSub:campSubs().find(s=>!subsBefore.includes(s)),score:score(),secs:Math.round((R.time||0)+t)};
  toast('MISSION COMPLETE',m.name.toUpperCase(),3);csfx.win();
@@ -198,7 +198,7 @@ function campWin(){
 function campFinish(){
  if(state==='over')return;analyticsEnd('lost');state='over';const m=cm,R=camp.run;R.clean=false;R.deaths++;R.time=(R.time||0)+t;
  if(cr){cr.drone=null;cr.air=null;cr.foes=[]}
- achCommit();const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;;
+ achCommit();const x=profXp(),l0=levelOf(run.xp0),l1=levelOf(x);run.gain=x-run.xp0;run.promoted=l1>l0?l1:0;if(run.promoted)achPop({kind:'PROMOTED',name:'LEVEL '+l1+' / '+rankTitle(l1)});
  $('overLabel').textContent='MISSION FAILED / '+m.name.toUpperCase();$('cause').textContent=deathCause;
  $('endScore').textContent=score().toLocaleString();$('endMeta').textContent=S.name.toUpperCase()+' CLASS / CAMPAIGN MISSION '+(m.i+1);
  $('endDistance').textContent=Math.floor(distance)+' m';$('endShips').textContent=shipsSunk;$('endGates').textContent=cleared;$('endDepth').textContent=Math.floor(maxDepth)+' m';$('endAir').textContent=airCollected;

@@ -4,7 +4,8 @@
    progress, lifetime totals (and so their level), best score, their own top runs, duel
    history, and the level, mission, boat and duel settings they last used. It is kept
    sealed in this browser and in profiles\<callsign>.dat in the shared folder, so
-   entering a callsign on any PC loads that sailor's record. When both copies exist they
+   the same sailor on any PC gets the same record. The shared copy is only read and
+   written when the player presses Save (manual-save.js). When both copies exist they
    merge: achievements and runs are unions, totals and bests take the larger value, and
    settings come from whichever copy changed them last. */
 const PROFILE_DIR='profiles';
@@ -42,20 +43,22 @@ function profApply(p,settings=state==='menu'&&!cm){
  if(panel==='duel')renderDuel();if(panel==='ach')renderAch();if(panel==='board')renderBoard();if(panel==='camp')renderCamp();campTile();
 }
 const profSaveLocal=()=>{const ok=store.set(PROFILE_PREFIX+prof.key,profSnapshot());if(!ok)saveStatus('profile','error','Profile could not be saved locally: storage is unavailable.');return ok};
-// Saved here at once; the shared copy follows a moment later so a burst of changes is one write.
-function profDirty(settings){if(!prof.key)return;if(settings)prof.at=Date.now();profSaveLocal();clearTimeout(prof.timer);prof.timer=setTimeout(()=>profSync(),2500)}
+// Saved in this browser at once; the shared copy waits for the next Save.
+function profDirty(settings){if(!prof.key)return;if(settings)prof.at=Date.now();profSaveLocal();saveMarkChanged()}
 /* Reads the shared copy, merges it with this one, writes the result back if it differs,
    then takes in anything new (progress from another PC). Runs one at a time. */
 async function profSync(){
  const key=prof.key,snap=profSnapshot();
  if(!key||key==='anonymous'||!lb.dir||lb.perm!=='granted')return false;
  if(prof.syncJob&&prof.syncKey===key)return prof.syncJob.then(()=>true,()=>false);
- prof.pulled=true;saveStatus('profile','busy','Saving progress to the shared drive…');
+ prof.pulled=true;saveStatus('profile','busy','Saving progress and preferences…');
  const job=prof.chain.then(async()=>{
   const dir=await lb.dir.getDirectoryHandle(PROFILE_DIR,{create:true}),file=key+'.dat';let remote=null;
   try{const text=unseal(await readText(file,dir));if(text)remote=cleanProfile(JSON.parse(text),snap.name)}catch(e){if(!e||e.name!=='NotFoundError')throw e}
   const merged=remote?mergeProfiles(snap,remote):snap;
-  if(!remote||JSON.stringify(merged)!==JSON.stringify(remote))for(let i=0;;i++){try{await writeText(file,seal(JSON.stringify(merged)),dir);break}catch(e){if(i>=4)throw e;await sleep(200*(i+1)+Math.random()*200)}}
+  // Merging can reorder keys without changing anything, so compare with keys sorted to skip needless writes.
+  const canon=v=>Array.isArray(v)?v.map(canon):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canon(v[k])])):v;
+  if(!remote||JSON.stringify(canon(merged))!==JSON.stringify(canon(remote)))for(let i=0;;i++){try{await writeText(file,seal(JSON.stringify(merged)),dir);break}catch(e){if(i>=4)throw e;await sleep(200*(i+1)+Math.random()*200)}}
   return {merged,found:!!remote};
  });
  prof.chain=job.catch(()=>{});prof.syncJob=job;prof.syncKey=key;
@@ -67,27 +70,37 @@ async function profSync(){
   else if(prof.note==='new'||prof.note==='local'||!prof.note)prof.note='Profile saved to the shared folder.';
   // Runs this sailor posted from a PC that never reached bin.dat.
   const miss=now.scores.filter(e=>!lb.admin.entries[e.id]&&!included(lb.shared,e)&&!pending().some(q=>q.id===e.id));
-  if(miss.length){for(const e of miss)journalWrite(e);lbSync(false)}
-  saveStatus('profile','done','Progress saved to the shared drive');renderRank();return true;
- }catch(e){saveStatus('profile','queued','Progress upload pending · Retrying automatically · Backup safe');if(prof.key===key){prof.pulled=false;prof.note='The shared profile could not be reached ('+(e&&e.message||e)+'). Progress is kept on this computer and syncs later.';renderRank()}return false}finally{if(prof.syncJob===job)prof.syncJob=null}
+  // They are posted by the board step of the same Save.
+  for(const e of miss)journalWrite(e);
+  saveStatus('profile','done','Progress and preferences saved');renderRank();return true;
+ }catch(e){saveStatus('profile','error','Progress not saved: '+(e&&e.message||e));if(prof.key===key){prof.pulled=false;prof.note='The shared profile could not be reached ('+(e&&e.message||e)+'). Progress is kept on this computer; press Save to try again.';renderRank()}return false}finally{if(prof.syncJob===job)prof.syncJob=null}
 }
-// Called when the callsign changes: save the old sailor, then load the new one.
+// Called when the callsign changes: keep the old sailor in this browser, then load the new one.
 function profSwitch(){
  const name=callsign(),key=duelKey(name);if(key===prof.key)return false;analyticsTick();analytics.context=null;
- if(prof.key){clearTimeout(prof.timer);profSaveLocal();profSync()}
+ if(prof.key)profSaveLocal();
  prof.key=key;prof.name=name;prof.pulled=false;prof.at=0;
  const local=store.get(PROFILE_PREFIX+key,null);
  const p=local?cleanProfile(local,name):blankProfile(name);p.name=name;
  prof.note=key==='anonymous'?'':local?'local':'new';
- profApply(p);if(!local)profSaveLocal();profSync();renderRank();return true;
+ profApply(p);if(!local)profSaveLocal();renderRank();renderSaveStatus();return true;
 }
 // First load. The first time profiles exist, what this browser already holds belongs to its saved callsign.
 function profInit(){
  const name=callsign(),key=duelKey(name),local=store.get(PROFILE_PREFIX+key,null);
- let migrated=false;try{migrated=!!localStorage.getItem('undertow.profiles');localStorage.setItem('undertow.profiles','1')}catch(_){}
+ let migrated=false;try{migrated=!!localStorage.getItem('offline.undertow.profiles');localStorage.setItem('offline.undertow.profiles','1')}catch(_){}
  prof.key=key;prof.name=name;prof.note=key==='anonymous'?'':'local';
  if(local)profApply(cleanProfile(local,name));
  else if(!migrated){prof.scores=lb.local.filter(e=>duelKey(e.name)===key).slice(0,PROFILE_RUNS);prof.at=Date.now();profSaveLocal()}
  else profApply(blankProfile(name));
 }
-function renderRank(){}
+function renderRank(){
+ const x=profXp(),L=levelOf(x),lo=xpFor(L),hi=xpFor(L+1),max=L>=LEVEL_MAX;
+ $('rankName').textContent='LEVEL '+L+' / '+rankTitle(L);
+ $('rankXp').textContent=max?x.toLocaleString()+' XP':(x-lo).toLocaleString()+' / '+(hi-lo).toLocaleString()+' XP TO LEVEL '+(L+1);
+ $('xpBar').style.width=(max?100:clamp((x-lo)/(hi-lo),0,1)*100)+'%';
+ const n=prof.note;
+ $('profNote').textContent=prof.key==='anonymous'?'Open the game with Play Undertow.cmd to sign in with your Windows name, or enter a callsign.':
+  n==='new'?'New on this computer. Press Save to load your progress from the shared folder.':
+  n==='local'?'Progress on this computer. Press Save to sync it with the shared folder.':n;
+}
