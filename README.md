@@ -1,20 +1,29 @@
 # UNDERTOW (manual-save edition)
 
-Keep `undertow.html`, the `files/` folder and `Play Undertow.cmd` together. Players double-click **Play Undertow.cmd**: it opens the game signed in with their Windows user name (`%USERNAME%`), so nobody types a callsign. Opening `undertow.html` directly still works and reuses the last name the launcher passed on that PC; without one, a callsign can be typed.
+Open `undertow.html` with the `files/` folder beside it, in Microsoft Edge or Google Chrome, and enter a callsign.
 
 ## Saving
 
 The shared folder is only used when a player clicks:
 
-- **Save** (top right, or Ctrl+S) sends everything in one pass: the player's profile (medals, XP, campaign, last-used difficulty/boat/mode), any new scores to the shared leaderboard (`bin.dat`), and their activity record (`analytics\`). A Save with nothing new reads two files and writes none.
-- **Refresh** on the Leaderboard, Statistics and admin screens reads the latest copy.
+- **Save** (top right, or Ctrl+S) sends the player's profile (medals, XP, campaign, last-used difficulty/boat/mode) and, only when there is a new score or medal, posts to the shared leaderboard (`bin.dat`). Save can be used once a minute.
+- **Refresh** on the Leaderboard and admin screens only reads `bin.dat`.
 
-Nothing touches the drive on a timer, on focus or when the page closes. Between saves, everything is kept in the browser; the button shows a count of unsaved scores, and closing the tab with unsaved scores asks first. The first Save asks for the shared folder (pick the one holding `bin.dat`); the browser remembers it, so later saves at most ask to allow access again.
+Nothing touches the drive on a timer, on focus or when the page closes. Between saves everything is kept in the browser; closing the tab with unsaved scores asks first.
 
-The files are the same ones the network edition used, so all earlier scores, medals and profiles are back.
+A page cannot open a folder by its path, so the first Save on each computer and browser asks once for the shared folder (`G:\Nathan Hambleton\Submarine Photos\New Folder`, set as `SHARED_DIR` in `files/leaderboard.js`). It is remembered: after that, Save and Refresh only show the browser's Allow prompt (choose "Allow on every visit" to skip even that). The admin console has **Change shared folder** if it ever moves.
+
+## Files in the shared folder
+
+- `bin.dat` — the leaderboard, medals/XP per player and admin corrections. Needed.
+- `bin.dat.bak` — copy of the last good `bin.dat`. Keep it as the backup.
+- `profiles\` — one file per callsign. Needed.
+- `bin.dat.lock` — appears for a moment while someone saves.
+
+No longer used: `analytics\` (statistics were removed). `bin.dat.bak.crswap` is a temporary file Chrome/Edge leave behind when a write is interrupted; it can be deleted when nobody is saving.
 
 ## Admin
 
-Tap the build number in the footer five times (or press ↑↑↓↓←→←→BA on the menu) and enter the service password. Besides editing scores, medals/XP and profiles, **Username migration** maps an old typed callsign to a Windows user name: its scores, medals and activity count for the new name, and its saved profile can be merged in (totals add up; the previous profile is kept as `<name>.backup.dat`).
+Tap the build number in the footer five times (or press ↑↑↓↓←→←→BA on the menu) and enter the service password to edit scores, medals/XP and profiles.
 
-Duels are not included, since they need the shared folder polled continuously. Every submarine and campaign mission is unlocked. Use Microsoft Edge or Google Chrome. The network edition remains on the `simulation` branch.
+Duels and statistics are not included. Every submarine and campaign mission is unlocked. The network edition remains on the `simulation` branch.

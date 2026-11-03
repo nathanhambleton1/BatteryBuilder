@@ -100,7 +100,7 @@ function renderRank(){
  $('rankXp').textContent=max?x.toLocaleString()+' XP':(x-lo).toLocaleString()+' / '+(hi-lo).toLocaleString()+' XP TO LEVEL '+(L+1);
  $('xpBar').style.width=(max?100:clamp((x-lo)/(hi-lo),0,1)*100)+'%';
  const n=prof.note;
- $('profNote').textContent=prof.key==='anonymous'?'Open the game with Play Undertow.cmd to sign in with your Windows name, or enter a callsign.':
+ $('profNote').textContent=prof.key==='anonymous'?'Enter a callsign to keep your level, achievements and settings.':
   n==='new'?'New on this computer. Press Save to load your progress from the shared folder.':
   n==='local'?'Progress on this computer. Press Save to sync it with the shared folder.':n;
 }

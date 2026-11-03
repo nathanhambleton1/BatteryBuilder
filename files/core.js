@@ -164,12 +164,7 @@ let reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, soundOn=!!st
 // cm is the campaign mission being flown and cr its live state (campaign.js); null outside the campaign.
 let lastHud=-1,runX0=0,cm=null,cr=null;
 $('motion').textContent='Motion effects: '+(reduced?'reduced':'on');
-// The Windows sign-in name, handed over by "Play Undertow.cmd" as #user=<name>. It is remembered so the
-// page still knows the player when opened directly; only without either does the typed callsign apply.
-const OS_USER=(()=>{let n='';try{const m=/[#&]user=([^&]*)/.exec(location.hash);if(m){n=decodeURIComponent(m[1]);history.replaceState(null,'',location.pathname+location.search)}}catch(_){}
- n=n.replace(/[\u0000-\u001f]/g,'').trim().slice(0,16);if(n)store.set('undertow.osuser',n);else n=String(store.get('undertow.osuser','')||'').slice(0,16);return n})();
-$('callsign').value=OS_USER||String(store.get('undertow.callsign','')).slice(0,16);
-if(OS_USER){$('callsign').readOnly=true;$('callsign').title='Your Windows user name';document.querySelector('label[for=callsign]').textContent='SIGNED IN AS'}
+$('callsign').value=String(store.get('undertow.callsign','')).slice(0,16);
 function resize(){W=innerWidth;H=innerHeight;dpr=Math.min(devicePixelRatio||1,1.5)*quality;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);scale=Math.min(clamp(H/820,.3,1.22),W/650);vw=W/scale;vh=H/scale;}
 addEventListener('resize',()=>{resize();updateMenu()});resize();
 /* Each run builds its own world: a random chain of biomes (open shelf, shoals,

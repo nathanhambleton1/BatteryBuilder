@@ -1,24 +1,29 @@
 'use strict';
 /* ---- Manual save ------------------------------------------------------------
    This edition only touches the shared folder when a player clicks. Between clicks,
-   scores (score journal), profile, medals, preferences (profile) and activity
-   (analytics) build up in this browser. Save sends all of it in one pass:
-     1. profile   profiles\<name>.dat: read, merge, write only if it changed
-     2. scores    bin.dat: read; only when something is new, lock, merge, write, verify
-     3. activity  analytics\<session>.dat: write each changed record and read it back
-   Refresh on the Leaderboard, Statistics and admin screens only reads. Nothing runs
-   on a timer, on focus or on page close, so an idle game never touches the drive. */
-const saveJob={busy:false,at:Math.max(0,+store.get('undertow.saved-at',0)||0),changed:Math.max(0,+store.get('undertow.changed-at',0)||0),openTimer:0};
+   scores (score journal), profile, medals and preferences (profile) build up in this
+   browser. Save sends them in one pass, at most once a minute:
+     1. profile   profiles\<callsign>.dat: read, merge, write only if it changed
+     2. scores    bin.dat: only with a new score or medal: read, lock, merge, write, verify
+   Refresh on the Leaderboard and admin screens only reads bin.dat; Save never refreshes
+   the board unless it has to post to it. Nothing runs on a timer, on focus or on page
+   close, so an idle game never touches the drive. */
+const saveJob={busy:false,at:Math.max(0,+store.get('undertow.saved-at',0)||0),changed:Math.max(0,+store.get('undertow.changed-at',0)||0),tried:Math.max(0,+store.get('undertow.save-tried-at',0)||0),openTimer:0,tick:0};
+const SAVE_COOLDOWN=60000;
+// Seconds until Save may run again (kept across reloads, so reopening the game does not skip it).
+const saveWait=()=>Math.max(0,Math.ceil((saveJob.tried+SAVE_COOLDOWN-Date.now())/1000));
 const FOLDER_ACCESS={mode:'readwrite'};
 function saveMarkChanged(){saveJob.changed=Date.now();store.set('undertow.changed-at',saveJob.changed);renderSaveStatus()}
-// Called from a click (the browser only asks for folder access during one). Uses the remembered
-// folder when there is one, otherwise lets the player choose it.
+/* Called from a click. A web page cannot open a folder by its path, so each browser is pointed at
+   SHARED_DIR once; the folder is remembered (IndexedDB) and from then on Save, Refresh and admin
+   edits only bring up the browser's own "Allow" prompt. The folder window opens again only if the
+   remembered folder can no longer be used, or from the admin console's Change shared folder. */
 async function saveFolder(){
  if(!lb.supported){lb.note='This browser cannot use shared folders. Use Microsoft Edge or Google Chrome.';return false}
- if(!lb.dir)return lbPick();
- try{if(await lb.dir.queryPermission(FOLDER_ACCESS)==='granted'||await lb.dir.requestPermission(FOLDER_ACCESS)==='granted'){lb.perm='granted';return true}}
- catch(e){lb.note='The remembered folder could not be opened ('+(e&&e.message||e)+'). Choose it again from the Leaderboard screen.';return false}
- lb.perm='prompt';lb.note='Folder access was not allowed. Press Save again and choose Allow (or Allow on every visit).';return false;
+ if(lb.dir)try{if(await lb.dir.queryPermission(FOLDER_ACCESS)==='granted'||await lb.dir.requestPermission(FOLDER_ACCESS)==='granted'){lb.perm='granted';return true}lb.perm='prompt';lb.note='Folder access was not allowed. Press the button again and choose Allow (or Allow on every visit).';return false}
+ catch(_){lb.dir=null}
+ if(!confirm('One-time setup for this computer: in the next window, open\n\n'+SHARED_DIR+'\n\nand choose Select Folder. The game remembers it, so after this you only see the browser\'s Allow prompt.'))return false;
+ return lbPick();
 }
 // Choose the shared folder. One without the leaderboard is probably the wrong one, so starting a new board there must be deliberate.
 async function lbPick(){
@@ -30,7 +35,7 @@ async function lbPick(){
  lb.dir=dir;lb.perm='granted';lb.note='';lb.source='shared';try{await idbSet('folder',dir)}catch(_){}
  renderBoard();renderSaveStatus();return true;
 }
-// Read-only: the latest bin.dat, for the Leaderboard, Statistics and admin screens.
+// Read-only: the latest bin.dat, for the Leaderboard and admin screens.
 async function boardRefresh(){
  if(saveJob.busy)return false;
  if(!await saveFolder()){renderBoard();renderSaveStatus();return false}
@@ -41,25 +46,29 @@ async function boardRefresh(){
 }
 async function saveAll(){
  if(saveJob.busy)return;
+ if(saveWait()){saveShowDetails();return}
  saveJobs.clear();
  if(!await saveFolder()){saveStatus('folder','error',lb.note||'The shared folder is not available.');saveShowDetails();return}
- saveJob.busy=true;renderSaveStatus();renderBoard();
+ saveJob.busy=true;saveJob.tried=Date.now();store.set('undertow.save-tried-at',saveJob.tried);renderSaveStatus();renderBoard();
  const started=Date.now();let ok=true;
  try{
-  analyticsTick();
   // Profile first: it can turn up runs from another PC that never reached the board.
   if(prof.key&&prof.key!=='anonymous')ok=await profSync()&&ok;
-  const queued=pending().length;saveStatus('scores','busy','Saving scores…');
-  try{
-   const r=await lbRead();journalReconcile(r);lbTake(r);
-   if(pending().length||!playerCurrent(lb.players)){const job=lbChain.then(()=>lbFlush());lbChain=job.catch(()=>{});await job;lbTake({entries:lb.shared,players:lb.players,admin:lb.admin})}
-   lb.note='';saveStatus('scores','done',queued?queued+' score'+(queued>1?'s':'')+' posted to the shared leaderboard':'Leaderboard up to date');
-  }catch(e){ok=false;lb.note='Could not update '+BOARD_FILE+': '+(e&&e.message||e)+'. Your scores are kept on this computer.';saveStatus('scores','error','Scores not saved: '+(e&&e.message||e))}
-  await analyticsSync();if(analytics.dirty.size)ok=false;
+  // The board is only opened when there is something to post: a new score, or medals/XP newer than
+  // the copy last seen. Otherwise Save leaves bin.dat alone (Refresh is the way to read it).
+  const queued=pending().length;
+  if(queued||!playerCurrent(lb.players)){
+   saveStatus('scores','busy','Saving scores…');
+   try{const job=lbChain.then(()=>lbFlush());lbChain=job.catch(()=>{});await job;lbTake({entries:lb.shared,players:lb.players,admin:lb.admin});lb.note='';
+    saveStatus('scores','done',queued?queued+' score'+(queued>1?'s':'')+' posted to the shared leaderboard':'Medals and level posted to the shared leaderboard')}
+   catch(e){ok=false;lb.note='Could not update '+BOARD_FILE+': '+(e&&e.message||e)+'. Your scores are kept on this computer.';saveStatus('scores','error','Scores not saved: '+(e&&e.message||e))}
+  }else saveStatus('scores','done','No new scores to post');
   if(ok){saveJob.at=started;store.set('undertow.saved-at',started)}
- }finally{saveJob.busy=false;renderBoard();renderSaveStatus();renderRank();if(panel==='ach')renderAch();if(panel==='statistics')analyticsRender()}
+ }finally{saveJob.busy=false;renderBoard();renderSaveStatus();renderRank();if(panel==='ach')renderAch()}
  saveShowDetails();
 }
+// Count the cooldown down on the button; only the label changes, nothing is read or written.
+setInterval(()=>{if(saveWait()||saveJob.tick){saveJob.tick=saveWait();renderSaveStatus()}},1000);
 // Show what the Save did for a few seconds, then fold it back under the button.
 function saveShowDetails(){const box=$('saveStatus');if(!box)return;box.classList.add('open');clearTimeout(saveJob.openTimer);saveJob.openTimer=setTimeout(()=>box.classList.remove('open'),4500)}
 addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.code==='KeyS'&&!e.repeat){e.preventDefault();e.stopPropagation();void saveAll()}},true);

@@ -21,9 +21,11 @@ function renderSaveStatus(){
  const stage=saveJob.busy?'busy':failed?'error':scores||changed?'dirty':'done';
  box.dataset.stage=stage;
  box.querySelector('.save-symbol').innerHTML=SAVE_ICONS[stage];
- box.querySelector('.save-label').textContent={busy:'SAVING…',error:'RETRY SAVE',dirty:'SAVE',done:'SAVED'}[stage];
+ // Save may run once a minute; the label counts down the rest of that minute.
+ const wait=saveJob.busy?0:saveWait(),clock=wait?' '+Math.floor(wait/60)+':'+String(wait%60).padStart(2,'0'):'';
+ box.querySelector('.save-label').textContent=({busy:'SAVING…',error:'RETRY SAVE',dirty:'SAVE',done:'SAVED'}[stage])+clock;
  const count=box.querySelector('.save-count');count.hidden=!scores||saveJob.busy;count.textContent=scores;
- $('saveStatusButton').disabled=saveJob.busy;
+ $('saveStatusButton').disabled=saveJob.busy||!!wait;box.classList.toggle('cooling',!!wait);
  const headline={busy:'Saving to the shared folder…',error:'The last save did not finish',dirty:'You have unsaved progress',done:'Everything is saved'}[stage];
  const lines=[];
  if(!lb.supported)lines.push('This browser cannot use shared folders. Use Microsoft Edge or Google Chrome.');
@@ -32,7 +34,8 @@ function renderSaveStatus(){
  // What the last Save did, until something new needs saving.
  if(stage==='done'||stage==='error')for(const text of new Set(jobs.map(j=>j.message)))lines.push(text);
  lines.push(saveJob.at?'Last saved '+whenText({at:saveJob.at})+'.':'Not saved from this computer yet.');
- lines.push('The shared folder is only used when you press Save or Refresh.');
+ if(wait)lines.push('Save is available again in '+wait+' second'+(wait>1?'s':'')+'.');
+ lines.push('The shared folder is only used when you press Save or Refresh. Save can be used once a minute.');
  const details=$('saveStatusDetails');details.textContent='';const title=document.createElement('strong');title.textContent=headline;details.append(title);
  for(const text of lines){const line=document.createElement('span');line.textContent=text;details.append(line)}
  $('saveStatusButton').setAttribute('aria-label',['Save',headline,...lines].join('. '));

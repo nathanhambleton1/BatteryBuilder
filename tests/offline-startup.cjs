@@ -10,15 +10,18 @@ vm.runInContext(`const MISSIONS=[{id:'first'},{id:'second'}],camp={data:{done:{}
 for(const source of [campaign,combat])assert(!source.includes('secretAdmin.active'));
 console.log('PASS: entry-point assets and menu unlock logic');
 
-// Manual-save edition: admin console and Save button back, the OFFLINE tag gone, Windows sign-in launcher present.
+// Manual-save edition: admin console, typed callsign and Save button back; no OFFLINE tag, statistics or launcher.
 assert(html.includes('files/secret-admin.js')&&html.includes('files/manual-save.js')&&!html.includes('files/offline.js'));
 assert(html.includes('id="callsign"'));
+assert(!html.includes('id="statistics"')&&!html.includes('id="statsOpen"'));
+assert(!read('files/analytics.js').includes('writeText'));
+assert(!fs.existsSync(path.join(root,'Play Undertow.cmd')));
 assert(!read('files/save-status.js').includes('OFFLINE VERSION'));
-assert(read('Play Undertow.cmd').includes('%USERNAME%'));
+assert(/SAVE_COOLDOWN=60000/.test(read('files/manual-save.js')));
 // Nothing may reach the shared drive on a timer or page event: no intervals or listeners call the I/O paths.
 for(const f of fs.readdirSync(path.join(root,'files')).filter(f=>f.endsWith('.js'))){
  const src=read('files/'+f);
- for(const m of src.matchAll(/(setInterval|setTimeout|addEventListener)\([^;]*?(saveAll|analyticsSync|profSync|lbFlush|boardRefresh|analyticsRead)\(/g))
+ for(const m of src.matchAll(/(setInterval|setTimeout|addEventListener)\([^;]*?(saveAll|profSync|lbFlush|boardRefresh)\(/g))
   assert(f==='manual-save.js'&&m[0].includes("'keydown'"),f+': automatic shared-drive call '+m[0].slice(0,80));
 }
 console.log('PASS: manual-save entry point, launcher and no automatic shared-drive I/O');
