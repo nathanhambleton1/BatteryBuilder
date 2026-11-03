@@ -97,6 +97,7 @@ section.page > h1::after { content: " \2550\2550"; color: var(--border); }
 /* ---------- badges ---------- */
 .badge { display: inline-block; font-weight: bold; color: #000; padding: 0 6px; line-height: 1.35; white-space: nowrap; }
 .b-hunt { background: var(--accent); } .b-have { background: var(--green); }
+.b-survey { background: var(--blue); }
 .b-grey { background: var(--grey-badge); } .b-red { background: var(--red); } .b-yellow { background: var(--yellow); }
 
 /* ---------- KPI tiles ---------- */
@@ -228,6 +229,13 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
       <p class="c-muted">Stats only count the work day, 6 AM to 6 PM, Monday to Friday for the week view.</p>
     </div>
     <div class="panel">
+      <h2>HOW THE % IS COUNTED</h2>
+      <p>Counting every launch would make MATLAB look much harder to get than it is. Say you get MATLAB first try at 8:00, then later spend 30 minutes retrying every minute while it's busy: that's 1 success out of 34 launches, but MATLAB was free for part of that time that nobody checked.</p>
+      <p>So the % is counted in <b>10-minute slots</b> instead. Each slot that anyone launched in counts <b>once</b>, and it counts as <b>free</b> if any launch in it got MATLAB. In the example that's 1 free slot out of 4, not 1 of 34.</p>
+      <p><b>First try</b> is the other fair number: of all the hunts, how many got MATLAB on their very first launch, i.e. your chance when you sit down and need it.</p>
+      <p class="c-muted">Nobody checks while they're using MATLAB, so some time is never sampled. <a href="#survey">Survey mode</a> fills those gaps.</p>
+    </div>
+    <div class="panel">
       <h2>THE FILES</h2>
       <div class="scroll">
       <table class="t files">
@@ -244,9 +252,9 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
       <div class="scroll">
       <table class="t files">
         <tr><td>Header</td><td>The banner, today's date and a live clock, plus your user@PC and the MATLAB version it found.</td></tr>
-        <tr><td>STATUS</td><td>What you are doing right now: <span class="badge b-hunt">HUNTING</span> (with the attempt number and how long you've been hunting), <span class="badge b-have">YOU HAVE MATLAB</span> (with your session time), <span class="badge b-grey">PAUSED</span> or <span class="badge b-grey">IDLE</span>.</td></tr>
-        <tr><td>TEAM STATS</td><td>Users, launches, how many got MATLAB, average hunt wait, best and worst hour, and who else has the hunter open.</td></tr>
-        <tr><td>AVAILABILITY BY HOUR</td><td>For each hour of the work day: what % of launches got MATLAB. Red is hard, green is easy.</td></tr>
+        <tr><td>STATUS</td><td>What you are doing right now: <span class="badge b-hunt">HUNTING</span> (with the attempt number and how long you've been hunting), <span class="badge b-have">YOU HAVE MATLAB</span> (with your session time), <span class="badge b-survey">SURVEYING</span>, <span class="badge b-grey">PAUSED</span> or <span class="badge b-grey">IDLE</span>.</td></tr>
+        <tr><td>TEAM STATS</td><td>Users, launches, how many got MATLAB, % of 10-minute slots it was free, first-try rate, average hunt wait, best and worst hour, and who else has the hunter open.</td></tr>
+        <tr><td>AVAILABILITY BY HOUR</td><td>For each hour of the work day: in what % of 10-minute slots MATLAB was free (see <b>How the % is counted</b>). Red is hard, green is easy.</td></tr>
         <tr><td>WEEK BY HOUR</td><td>The same %, split by weekday (Mon&ndash;Fri), so you can see e.g. that Tuesday mornings are busy.</td></tr>
         <tr><td>RECENT TEAM LAUNCHES / TOOLBOXES</td><td>The last launches as symbols (<span class="c-green">&#9679;</span> got it, <span class="c-red">&times;</span> denied, <span class="c-yellow">!</span> timeout/error) and a quick toolbox summary.</td></tr>
         <tr><td>ACTIVITY</td><td>The last few things the hunter did on your PC.</td></tr>
@@ -300,6 +308,16 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
       </ul>
       <div class="callout warn">Save your work first. <kbd>K</kbd> (force-kill) does not ask MATLAB nicely, and anything unsaved is lost.</div>
     </div>
+    <div class="panel wide" id="survey">
+      <h2>SURVEY MODE</h2>
+      <p>Survey mode is <b>only for collecting data</b>. You never get to keep MATLAB. Press <kbd>S</kbd> in the hunter window (or start it with <code>-Survey</code>) and it repeats this every minute:</p>
+      <ol>
+        <li>Launch MATLAB and log whether it got a seat.</li>
+        <li>If it did, License Acquisition checks <b>every</b> toolbox once (Battery too) and logs which were free.</li>
+        <li>Kill MATLAB straight away so the seats go back, then wait for the next probe.</li>
+      </ol>
+      <p>Leave it running on a spare PC to fill in the hours nobody else checks. Press <kbd>S</kbd> again to stop. The gap between probes is set with <code>-SurveyIntervalSeconds</code> (default 60).</p>
+    </div>
   </div>
 </section>
 
@@ -314,7 +332,8 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
       <table class="t keys">
         <tr><th>Key</th><th>What it does</th></tr>
         <tr><td><kbd>H</kbd></td><td><b>Hunt.</b> Start trying to get MATLAB (when idle).</td></tr>
-        <tr><td><kbd>P</kbd></td><td><b>Pause / resume</b> the hunt. Handy if you need to step away without losing your place.</td></tr>
+        <tr><td><kbd>S</kbd></td><td><b>Survey.</b> Start (when idle) or stop survey mode: logs availability, never keeps MATLAB. See <a href="#survey">Survey mode</a>.</td></tr>
+        <tr><td><kbd>P</kbd></td><td><b>Pause / resume</b> the hunt or survey. Handy if you need to step away without losing your place.</td></tr>
         <tr><td><kbd>R</kbd></td><td><b>Release MATLAB.</b> A popup asks you to confirm, then MATLAB is asked to close and <b>all</b> licenses go back to the pool.</td></tr>
         <tr><td><kbd>K</kbd></td><td><b>Force-kill MATLAB.</b> Only if MATLAB is frozen. <span class="c-red">Unsaved work is lost.</span></td></tr>
         <tr><td><kbd>D</kbd></td><td><b>Details.</b> Opens this page.</td></tr>
@@ -355,7 +374,7 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
         <li>Rename the folder for your version, e.g. <code>R2024b</code> &rarr; <code>R2024b_old</code>.</li>
         <li>Start MATLAB again. It rebuilds fresh preferences. (You can copy anything you miss, like favorites, back from the <code>_old</code> folder later.)</li>
       </ol>
-      <p>The hunter now closes MATLAB gently where it can, and after any forced close it restores a snapshot of your preferences, so this should not keep happening.</p>
+      <p>The hunter kills a MATLAB that didn't get a seat (so retries are quick), and after every such kill it restores a snapshot of your preferences taken when the hunt started, so this should not keep happening.</p>
       <div class="callout">Still crashing? It may be the graphics driver. Try starting MATLAB with <code>-softwareopengl</code> (add it to the end of the MATLAB shortcut's Target), or update your graphics driver.</div>
     </div>
   </div>
@@ -375,6 +394,7 @@ const CFG = {
   staleMs: 2 * 60 * 1000,
   dayHours: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
   instantSec: 5,
+  slotMin: 10,   // availability counts slots this long (once each), not launches
   recentCount: 40,
   workDays: 14
 };
@@ -410,6 +430,7 @@ function parseHuntId(s) {
   return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
 }
 function dayStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function slotStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), Math.floor(d.getMinutes() / CFG.slotMin) * CFG.slotMin); }
 function sameDay(a, b) { return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
 function hour12(h) { return (h % 12 || 12) + ' ' + (h < 12 ? 'AM' : 'PM'); }
 function fmtTime(d, secs) {
@@ -473,6 +494,7 @@ function modeBadge(mode) {
   switch (String(mode).toUpperCase()) {
     case 'HUNT': return '<span class="badge b-hunt">HUNTING</span>';
     case 'HAVE': return '<span class="badge b-have">IN MATLAB</span>';
+    case 'SURVEY': return '<span class="badge b-survey">SURVEYING</span>';
     case 'PAUSED': return '<span class="badge b-grey">PAUSED</span>';
     default: return '<span class="badge b-grey">IDLE</span>';
   }
@@ -605,26 +627,26 @@ function buildModel(data) {
     heatOk: new Array(35 * 24).fill(0), heatAll: new Array(35 * 24).fill(0),   // [weekday 0..4 (Mon..Fri)][hour]
     sessions: [], launchesToday: 0, successToday: 0,
     hunts: [], waits: [], best: null, worst: null,
+    slots: [], slotN: 0, slotOk: 0, firstN: 0, firstOk: 0,
     perUser: {}, days: [], recent: [], tool: null
   };
   if (!data) return m;
   const attempts = data.attempts.slice().sort((a, b) => a.t - b.t);
   const hunts = {};
+  const slots = {};   // slot start (ms) -> { t, ok }: did any launch in that slot get MATLAB
   const today = dayStart(now);
-  const userRow = u => m.perUser[u] || (m.perUser[u] = { user: u, launches: 0, got: 0, waits: [], sessions: 0, sessionSec: 0, lastGot: null, pcs: new Set() });
+  const userRow = u => m.perUser[u] || (m.perUser[u] = { user: u, launches: 0, got: 0, waits: [], firstN: 0, firstOk: 0, sessions: 0, sessionSec: 0, lastGot: null, pcs: new Set() });
 
   for (const r of attempts) {
     if (!isDayHour(r.t)) continue;
     if (!m.first) m.first = r.t;
     m.users.add(r.user);
-    const h = r.t.getHours(), dow = r.t.getDay();
-    const wd = dow >= 1 && dow <= 5 ? dow - 1 : -1;
     const u = userRow(r.user);
     u.pcs.add(r.pc);
     if (HOUR_RESULTS.indexOf(r.result) >= 0) {
-      m.hourAll[h]++;
-      if (wd >= 0) m.heatAll[wd * 24 + h]++;
-      if (r.result === 'SUCCESS') { m.hourOk[h]++; if (wd >= 0) m.heatOk[wd * 24 + h]++; }
+      const s = slotStart(r.t);
+      const sl = slots[s.getTime()] || (slots[s.getTime()] = { t: s, ok: false });
+      if (r.result === 'SUCCESS') sl.ok = true;
     }
     if (r.result === 'SUCCESS') m.success++;
     else if (r.result === 'DENIED') m.denied++;
@@ -638,19 +660,35 @@ function buildModel(data) {
     }
     if (r.hunt && r.result !== 'SESSION_END') {
       const k = r.user + '|' + r.pc + '|' + r.hunt;
-      if (!hunts[k]) hunts[k] = { user: r.user, start: parseHuntId(r.hunt) || r.t, got: null };
+      // Survey probe ids start with S; they count for first-try but not for hunt waits
+      if (!hunts[k]) hunts[k] = { user: r.user, start: parseHuntId(r.hunt) || r.t, got: null, first: null, survey: r.hunt.charAt(0) === 'S' };
+      if (!hunts[k].first && LAUNCH_RESULTS.indexOf(r.result) >= 0) hunts[k].first = r.result;
       if (r.result === 'SUCCESS' && !hunts[k].got) hunts[k].got = r.t;
     }
   }
+  m.slots = Object.values(slots);
+  for (const s of m.slots) {
+    const h = s.t.getHours(), dow = s.t.getDay();
+    const wd = dow >= 1 && dow <= 5 ? dow - 1 : -1;
+    m.slotN++; m.hourAll[h]++;
+    if (wd >= 0) m.heatAll[wd * 24 + h]++;
+    if (s.ok) { m.slotOk++; m.hourOk[h]++; if (wd >= 0) m.heatOk[wd * 24 + h]++; }
+  }
   m.hunts = Object.values(hunts);
   for (const h of m.hunts) {
-    if (!h.got) continue;
+    // First launch of each hunt/probe: an unbiased sample of "can I get it right now?"
+    if (h.first === 'SUCCESS' || h.first === 'DENIED') {
+      const ok = h.first === 'SUCCESS' ? 1 : 0;
+      m.firstN++; m.firstOk += ok;
+      userRow(h.user).firstN++; userRow(h.user).firstOk += ok;
+    }
+    if (!h.got || h.survey) continue;
     const w = Math.max(0, (h.got - h.start) / 1000);
     m.waits.push(w);
     userRow(h.user).waits.push(w);
   }
 
-  // Best / worst hour: any hour with >= 1 attempt; ties go to the hour with more attempts
+  // Best / worst hour: any hour with >= 1 sampled slot; ties go to the hour with more slots
   for (const h of CFG.dayHours) {
     const n = m.hourAll[h];
     if (n < 1) continue;
@@ -664,18 +702,17 @@ function buildModel(data) {
   const d = new Date(today);
   const days = [];
   while (days.length < CFG.workDays) {
-    if (d.getDay() >= 1 && d.getDay() <= 5) days.push({ date: new Date(d), launches: 0, got: 0 });
+    if (d.getDay() >= 1 && d.getDay() <= 5) days.push({ date: new Date(d), slots: 0, ok: 0 });
     d.setDate(d.getDate() - 1);
   }
   days.reverse();
   const dayIdx = {};
   days.forEach((x, i) => { dayIdx[x.date.toDateString()] = i; });
-  for (const r of attempts) {
-    if (!isDayHour(r.t) || LAUNCH_RESULTS.indexOf(r.result) < 0) continue;
-    const i = dayIdx[dayStart(r.t).toDateString()];
+  for (const s of m.slots) {
+    const i = dayIdx[dayStart(s.t).toDateString()];
     if (i == null) continue;
-    days[i].launches++;
-    if (r.result === 'SUCCESS') days[i].got++;
+    days[i].slots++;
+    if (s.ok) days[i].ok++;
   }
   m.days = days;
 
@@ -729,9 +766,9 @@ function buildToolStats(rows) {
 const PANELS = [
   { id: 'kpis', title: 'TEAM STATS', hint: '6 AM - 6 PM', wide: true, render: renderKpis },
   { id: 'online', title: "WHO'S ON NOW", hint: 'hunter open', render: renderOnline },
-  { id: 'hours', title: 'AVAILABILITY BY HOUR', hint: '% of attempts that got MATLAB', render: renderHours },
+  { id: 'hours', title: 'AVAILABILITY BY HOUR', hint: '% of 10-min slots MATLAB was free', render: renderHours },
   { id: 'heat', title: 'WEEK BY HOUR', hint: 'same %, by weekday', render: renderHeat },
-  { id: 'days', title: 'LAST 14 WORK DAYS', hint: 'launches and success rate', render: renderDays },
+  { id: 'days', title: 'LAST 14 WORK DAYS', hint: '% of 10-min slots MATLAB was free', render: renderDays },
   { id: 'users', title: 'PER USER', wide: true, render: renderUsers },
   { id: 'tools', title: 'TOOLBOXES', hint: 'one request = one toolbox in one MATLAB session', wide: true, render: renderTools },
   { id: 'recent', title: 'RECENT ATTEMPTS', hint: 'newest first', wide: true, render: renderRecent }
@@ -744,18 +781,21 @@ function kpi(label, value, sub, color) {
 
 function renderKpis(m) {
   if (!m.launches && !m.sessions.length) return '<div class="empty">No attempts logged during work hours yet.</div>';
-  const rate = m.launches ? m.success / m.launches : null;
+  const open = m.slotN ? m.slotOk / m.slotN : null;
+  const first = m.firstN ? m.firstOk / m.firstN : null;
   const longest = m.waits.length ? Math.max.apply(null, m.waits) : null;
   const t = [];
   t.push(kpi('Users', m.users.size, 'have used the hunter'));
   t.push(kpi('Tracking since', m.first ? fmtDate(m.first) : '-', m.first ? fmtTime(m.first) : ''));
   t.push(kpi('Launches', m.launches.toLocaleString(), esc(m.denied + ' denied \u00B7 ' + m.fail + ' timeout/error')));
-  t.push(kpi('Got MATLAB', m.success.toLocaleString(), 'success rate <b style="color:' + (rate == null ? '#808080' : rateColor(rate)) + '">' + pct(rate) + '</b>'));
+  t.push(kpi('Got MATLAB', m.success.toLocaleString(), 'launches that got a seat'));
+  t.push(kpi('Free', pct(open), m.slotOk + ' of ' + m.slotN + ' ' + CFG.slotMin + '-min slots', open == null ? null : rateColor(open)));
+  t.push(kpi('First try', pct(first), m.firstOk + ' of ' + m.firstN + ' hunts in on launch 1', first == null ? null : rateColor(first)));
   t.push(kpi('Avg hunt wait', fmtDur(mean(m.waits)), m.waits.length + ' hunt' + (m.waits.length === 1 ? '' : 's') + ' that got in'));
   t.push(kpi('Median / longest', fmtDur(median(m.waits)) + ' / ' + fmtDur(longest), 'hunt wait'));
   t.push(kpi('Avg session', fmtDur(mean(m.sessions)), m.sessions.length + ' session' + (m.sessions.length === 1 ? '' : 's') + ' ended'));
-  t.push(kpi('Best hour', m.best ? hour12(m.best.h) : '-', m.best ? pct(m.best.p) + ' of ' + m.best.n : '', m.best ? rateColor(m.best.p) : null));
-  if (m.worst) t.push(kpi('Worst hour', hour12(m.worst.h), pct(m.worst.p) + ' of ' + m.worst.n, rateColor(m.worst.p)));
+  t.push(kpi('Best hour', m.best ? hour12(m.best.h) : '-', m.best ? pct(m.best.p) + ' of ' + m.best.n + ' slots' : '', m.best ? rateColor(m.best.p) : null));
+  if (m.worst) t.push(kpi('Worst hour', hour12(m.worst.h), pct(m.worst.p) + ' of ' + m.worst.n + ' slots', rateColor(m.worst.p)));
   t.push(kpi('Launches today', m.launchesToday, m.successToday + ' got MATLAB'));
   return '<div class="kpis">' + t.join('') + '</div>';
 }
@@ -763,7 +803,7 @@ function renderKpis(m) {
 function renderOnline(m) {
   const list = (m.data && m.data.online) || [];
   if (!list.length) return '<div class="empty">Nobody has the hunter open right now.</div>';
-  const order = { HUNT: 0, HAVE: 1, PAUSED: 2, IDLE: 3 };
+  const order = { HUNT: 0, HAVE: 1, SURVEY: 2, PAUSED: 3, IDLE: 4 };
   const sorted = list.slice().sort((a, b) => (order[a.mode] ?? 9) - (order[b.mode] ?? 9) || a.user.localeCompare(b.user));
   const count = mode => list.filter(o => o.mode === mode).length;
   return '<div class="c-muted" style="margin-bottom:8px">Users: <b>' + list.length + '</b> &middot; ' +
@@ -778,7 +818,7 @@ function renderHours(m) {
   const bars = CFG.dayHours.map(h => {
     const n = m.hourAll[h], ok = m.hourOk[h];
     const p = n ? ok / n : null;
-    const tip = hour12(h) + ': ' + (n ? ok + ' of ' + n + ' got it (' + pct(p) + ')' : 'no attempts yet');
+    const tip = hour12(h) + ': ' + (n ? 'free in ' + ok + ' of ' + n + ' sampled ' + CFG.slotMin + '-min slots (' + pct(p) + ')' : 'no attempts yet');
     const height = p == null ? 2 : Math.max(3, Math.round(p * max));
     return '<div class="bar' + (n ? '' : ' none') + (h === nowH ? ' now' : '') + '" title="' + esc(tip) + '">' +
       '<span class="pct">' + (n ? pct(p) : '') + '</span>' +
@@ -786,7 +826,7 @@ function renderHours(m) {
   }).join('');
   const axis = CFG.dayHours.map(h => '<div>' + hourHead(h, nowH) + '<br><span class="cnt">' + (m.hourAll[h] || '\u00B7') + '</span></div>').join('');
   return '<div class="scroll"><div class="bars">' + bars + '</div><div class="axis">' + axis + '</div></div>' +
-    '<div class="legend">' + gradLegend() + '<span>bottom number = attempts in that hour</span><span><span class="sw" style="background:#262626"></span>no attempts yet</span></div>';
+    '<div class="legend">' + gradLegend() + '<span>bottom number = ' + CFG.slotMin + '-min slots sampled in that hour</span><span><span class="sw" style="background:#262626"></span>no attempts yet</span></div>';
 }
 
 function renderHeat(m) {
@@ -804,7 +844,7 @@ function renderHeat(m) {
       } else {
         const p = ok / n;
         html += '<td class="' + cur.trim() + '" style="background:' + rateColor(p) + '" title="' +
-          esc(name + ' ' + hour12(h) + ': ' + ok + ' of ' + n + ' got it (' + pct(p) + ')') + '">' + Math.round(p * 100) + '</td>';
+          esc(name + ' ' + hour12(h) + ': free in ' + ok + ' of ' + n + ' slots (' + pct(p) + ')') + '">' + Math.round(p * 100) + '</td>';
       }
     }
     html += '</tr>';
@@ -816,30 +856,30 @@ function renderHeat(m) {
 }
 
 function renderDays(m) {
-  if (!m.days.some(d => d.launches)) return '<div class="empty">No launches in the last ' + CFG.workDays + ' work days.</div>';
-  const max = Math.max.apply(null, m.days.map(d => d.launches)) || 1;
+  if (!m.days.some(d => d.slots)) return '<div class="empty">No launches in the last ' + CFG.workDays + ' work days.</div>';
+  const max = Math.max.apply(null, m.days.map(d => d.slots)) || 1;
   const today = m.now;
   let html = '<div class="days">';
   for (const d of m.days.slice().reverse()) {
-    const p = d.launches ? d.got / d.launches : null;
+    const p = d.slots ? d.ok / d.slots : null;
     const color = p == null ? '#444444' : rateColor(p);
     html += '<span class="d' + (sameDay(d.date, today) ? ' today' : '') + '">' + fmtDate(d.date) + '</span>' +
-      '<span class="track" title="' + esc(fmtDate(d.date) + ': ' + d.got + ' of ' + d.launches + ' launches got MATLAB') + '">' +
-      '<span style="width:' + (d.launches / max * 100) + '%;background:' + color + '"></span></span>' +
-      '<span class="c">' + (d.launches ? d.got + '/' + d.launches : '-') + '</span>' +
+      '<span class="track" title="' + esc(fmtDate(d.date) + ': MATLAB free in ' + d.ok + ' of ' + d.slots + ' sampled ' + CFG.slotMin + '-min slots') + '">' +
+      '<span style="width:' + (d.slots / max * 100) + '%;background:' + color + '"></span></span>' +
+      '<span class="c">' + (d.slots ? d.ok + '/' + d.slots : '-') + '</span>' +
       '<span class="r" style="color:' + color + '">' + pct(p) + '</span>';
   }
-  return html + '</div><div class="legend"><span>bar length = launches that day, color = success rate</span></div>';
+  return html + '</div><div class="legend"><span>bar length = ' + CFG.slotMin + '-min slots sampled that day, color = % of them MATLAB was free</span></div>';
 }
 
 function renderUsers(m) {
   const rows = Object.values(m.perUser).sort((a, b) => b.launches - a.launches || a.user.localeCompare(b.user));
   if (!rows.length) return '<div class="empty">No users yet.</div>';
   const onlineUsers = new Set(((m.data && m.data.online) || []).map(o => o.user));
-  return '<div class="scroll"><table class="t"><tr><th>User</th><th class="n">Launches</th><th class="n">Got it</th><th class="n">Rate</th>' +
+  return '<div class="scroll"><table class="t"><tr><th>User</th><th class="n">Launches</th><th class="n">Got it</th><th class="n" title="hunts that got in on the first launch">1st try</th>' +
     '<th class="n">Avg hunt</th><th class="n">Sessions</th><th class="n">MATLAB time</th><th>Last got it</th></tr>' +
     rows.map(u => {
-      const p = u.launches ? u.got / u.launches : null;
+      const p = u.firstN ? u.firstOk / u.firstN : null;
       return '<tr><td><b>' + esc(u.user) + '</b>' + (onlineUsers.has(u.user) ? ' <span class="c-green" title="hunter open now">\u25CF</span>' : '') +
         ' <span class="c-muted">' + esc(Array.from(u.pcs).join(', ')) + '</span></td>' +
         '<td class="n">' + u.launches + '</td><td class="n">' + u.got + '</td>' +

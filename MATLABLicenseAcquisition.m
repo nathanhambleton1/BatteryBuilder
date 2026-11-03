@@ -3,6 +3,9 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
     %
     %   MATLABLicenseAcquisition                      % open the window
     %   MATLABLicenseAcquisition('AutoStart', true)   % open and start checking right away
+    %   MATLABLicenseAcquisition('AutoStart', true, 'Survey', true)
+    %       % survey mode: check every toolbox once, log it, and write
+    %       % LicenseData\active\<user>@<pc>.surveyed - GrabMatlabLicense.ps1 then kills MATLAB
     %
     % GrabMatlabLicense.ps1 launches MATLAB with AutoStart so this runs on its own. Every toolbox
     % checkout is logged to LicenseData\toolboxes\<user>@<pc>.csv on the shared drive, and a
@@ -63,6 +66,7 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
         SessionId char
         LogFile char
         LoggedState   % last event written per feature, so the log only grows on changes
+        SurveyMode = false
     end
     methods (Access = private)
         function updateLicenseStatus(app)
@@ -101,8 +105,24 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
                 app.AcquisitionTime = currentTime;
             end
             app.updateMetrics(currentTime);
+            if app.SurveyMode
+                % One pass is the whole survey; the hunter kills MATLAB once it sees the result
+                app.stopProcess();
+                app.writeSurveyResult();
+                return;
+            end
             if ~isempty(app.AcquisitionTime)
                 app.stopProcess();
+            end
+        end
+
+        function writeSurveyResult(app)
+            % "feature=STATE;..." for GrabMatlabLicense.ps1
+            parts = strcat(app.FeatureOrder, '=', {app.StatusLabels.Text});
+            fid = fopen(fullfile(app.DataRoot, 'active', [app.ClientId '.surveyed']), 'w');
+            if fid >= 0
+                fprintf(fid, '%s', strjoin(parts, ';'));
+                fclose(fid);
             end
         end
 
@@ -607,7 +627,9 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
             p = inputParser;
             p.addParameter('AutoStart', false, @(x) islogical(x) || isnumeric(x));
             p.addParameter('DataRoot', '', @(x) ischar(x) || isstring(x));
+            p.addParameter('Survey', false, @(x) islogical(x) || isnumeric(x));
             p.parse(varargin{:});
+            app.SurveyMode = logical(p.Results.Survey);
 
             app.AppStartTime = datetime('now');
             app.DataRoot = char(p.Results.DataRoot);
@@ -635,7 +657,13 @@ classdef MATLABLicenseAcquisition < matlab.apps.AppBase
                 'TimerFcn', @(~,~) app.watchForRelease());
             start(app.WatchTimer);
 
-            if p.Results.AutoStart
+            if app.SurveyMode
+                % A survey logs every toolbox (Battery too); seats go back seconds later when MATLAB is killed
+                for i = 1:numel(app.CheckBoxes)
+                    app.CheckBoxes(i).Value = true;
+                end
+            end
+            if p.Results.AutoStart || app.SurveyMode
                 app.startProcess();
             end
         end

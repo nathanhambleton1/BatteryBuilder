@@ -16,8 +16,12 @@
       * Every attempt by every user is logged to the shared LicenseData folder next to this script,
         so the dashboard shows when during the work day (6am-6pm) MATLAB is actually obtainable.
 
-    Keys:  [H] hunt  [P] pause/resume  [R] release MATLAB (asks MATLAB to quit)  [K] kill MATLAB
-           [D] details page  [Q] quit
+    Survey mode ([S], or -Survey): only collects data. It launches MATLAB, logs whether it got a
+    seat, lets MATLAB check once which toolboxes are free, kills MATLAB and starts over every
+    -SurveyIntervalSeconds. You never get to keep MATLAB in this mode.
+
+    Keys:  [H] hunt  [S] survey start/stop  [P] pause/resume  [R] release MATLAB (asks MATLAB to quit)
+           [K] kill MATLAB  [D] details page  [Q] quit
 
     Details page: [D] opens MATLABLicenseHunter.html (keep it next to this script) in your browser.
     It reads LicenseData\dashboard-data.js, which this dashboard rewrites whenever the data changes.
@@ -25,9 +29,13 @@
     Releasing licenses: MATLAB can't hand back a single toolbox license; everything is returned
     only when MATLAB exits ([R] here, or "Release All & Exit" in the MATLAB window).
 
-    A MATLAB that fails to start is closed gently first. If it has to be force-killed mid-startup,
-    MATLAB's preferences folder is restored from a snapshot taken when the hunt started, so a
+    A MATLAB that doesn't get a seat is force-killed right away so the next try isn't held up.
+    MATLAB's preferences folder is then restored from a snapshot taken when the hunt started, so a
     half-written prefs file can't make MATLAB crash on its next start.
+
+    Availability stats count 10-minute slots, not launches: a slot counts once, as "free" if any
+    launch in it got MATLAB. Retrying every few seconds while MATLAB is busy would otherwise pile up
+    denied launches and make MATLAB look much harder to get than it is.
 
 .EXAMPLE
     .\GrabMatlabLicense.ps1 -DashboardOnly
@@ -48,6 +56,10 @@ param(
     [switch]$NoAutoRun,
     # Open the dashboard without starting a hunt (press H to start one).
     [switch]$DashboardOnly,
+    # Start in survey mode: launch, log what's available, kill MATLAB, repeat (data only).
+    [switch]$Survey,
+    # (Survey) seconds from one probe's launch to the next.
+    [int]$SurveyIntervalSeconds = 60,
     # Print a single frame and exit (for testing).
     [switch]$RenderOnce,
     # Folder this script lives in. Only needed when it's run as pasted code (PasteIntoPowerShell.txt),
@@ -77,9 +89,11 @@ $MyAttemptFile = Join-Path $Dirs.Attempts "$ClientId.csv"
 $HeartbeatFile = Join-Path $Dirs.Active "$ClientId.txt"
 $ReadyFile     = Join-Path $Dirs.Active "$ClientId.ready"
 $ReleaseFile   = Join-Path $Dirs.Active "$ClientId.release"
+$SurveyFile    = Join-Path $Dirs.Active "$ClientId.surveyed"   # (survey) toolbox results from MATLAB
 $AttemptHeader = 'Timestamp,User,Computer,Hunt,Result,Seconds,SeatsUsed,SeatsTotal,Detail'
 $Inv = [Globalization.CultureInfo]::InvariantCulture
 $DayHours = 6..17   # analytics only cover the 6am-6pm work day
+$SlotMinutes = 10   # availability is counted per slot this long, not per launch
 
 $LicenseErrorPatterns = @(
     '*Licensing Error*', '*License Manager Error*', '*licensed number of users*',
@@ -111,8 +125,8 @@ $PrefSnap = if ($Release) { Join-Path $env:LOCALAPPDATA "MatlabLicenseHunter\pre
 # State
 # ---------------------------------------------------------------------------------------------
 $S = @{
-    Mode = 'IDLE'            # IDLE | HUNT | HAVE
-    Phase = 'WAIT'           # (HUNT) WAIT | LAUNCH | CLOSING
+    Mode = 'IDLE'            # IDLE | HUNT | SURVEY | HAVE
+    Phase = 'WAIT'           # (HUNT/SURVEY) WAIT | LAUNCH | PROBE (survey: MATLAB up, checking toolboxes)
     Paused = $false
     Quit = $false
     Attempt = 0
@@ -137,7 +151,7 @@ $S = @{
     NextBeat = Get-Date
     BeatMode = ''
     ShareSkew = [timespan]::Zero
-    CloseBy = $null          # (CLOSING) force-kill after this
+    ProbeBy = $null          # (PROBE) give up on the toolbox check after this
     PrefSnapOk = $false
     ReleaseAt = $null
     ReleaseWarned = $false
@@ -338,25 +352,30 @@ function Get-Stats($rows) {
         HourOk = New-Object int[] 24; HourAll = New-Object int[] 24
         HeatOk = New-Object int[] 168; HeatAll = New-Object int[] 168
         SessSum = 0.0; SessN = 0; MineToday = 0; AvgWait = $null
+        SlotN = 0; SlotOk = 0; FirstN = 0; FirstOk = 0
         Recent = New-Object System.Collections.Generic.List[string]
         Best = $null; Worst = $null
     }
     $hunts = @{}
+    $slots = @{}   # slot start -> did any launch in that slot get MATLAB
     $today = (Get-Date).Date
     foreach ($r in ($rows | Sort-Object T)) {
         if ($DayHours -notcontains $r.T.Hour) { continue }
         if (-not $st.First) { $st.First = $r.T }
         $st.Users[$r.User] = 1
-        $h = $r.T.Hour
-        $i = ((([int]$r.T.DayOfWeek) + 6) % 7) * 24 + $h
         switch ($r.Result) {
-            'SUCCESS' { $st.Success++; $st.HourOk[$h]++; $st.HourAll[$h]++; $st.HeatOk[$i]++; $st.HeatAll[$i]++ }
-            'DENIED'  { $st.Denied++; $st.HourAll[$h]++; $st.HeatAll[$i]++ }
-            'FULL'    { $st.Full++; $st.HourAll[$h]++; $st.HeatAll[$i]++ }
+            'SUCCESS' { $st.Success++ }
+            'DENIED'  { $st.Denied++ }
+            'FULL'    { $st.Full++ }
             'SESSION_END' { $st.SessSum += $r.Sec; $st.SessN++ }
             default   { $st.Fail++ }
         }
-        if ($r.Result -in 'SUCCESS', 'DENIED', 'TIMEOUT', 'ERROR') {
+        if ($r.Result -in 'SUCCESS', 'DENIED', 'FULL') {
+            $slot = $r.T.Date.AddMinutes([math]::Floor(($r.T.Hour * 60 + $r.T.Minute) / $SlotMinutes) * $SlotMinutes)
+            $slots[$slot] = [bool]$slots[$slot] -or $r.Result -eq 'SUCCESS'
+        }
+        $isLaunch = $r.Result -in 'SUCCESS', 'DENIED', 'TIMEOUT', 'ERROR'
+        if ($isLaunch) {
             $st.Launch++
             $st.Recent.Add($r.Result)
             if ($r.User -eq $Me -and $r.T -ge $today) { $st.MineToday++ }
@@ -364,14 +383,26 @@ function Get-Stats($rows) {
         if ($r.Hunt -and $r.Result -ne 'SESSION_END') {
             $k = "$($r.User)|$($r.Pc)|$($r.Hunt)"
             if (-not $hunts.ContainsKey($k)) {
-                $hunts[$k] = @{ Start = (ConvertTo-HuntTime $r.Hunt $r.T); Got = $null }
+                # Survey probe ids start with S; they don't count toward hunt waits
+                $hunts[$k] = @{ Start = (ConvertTo-HuntTime $r.Hunt $r.T); Got = $null; First = $null; Survey = $r.Hunt.StartsWith('S') }
             }
+            if ($isLaunch -and -not $hunts[$k].First) { $hunts[$k].First = $r.Result }
             if ($r.Result -eq 'SUCCESS' -and -not $hunts[$k].Got) { $hunts[$k].Got = $r.T }
         }
     }
-    $waits = @($hunts.Values | Where-Object { $_.Got } | ForEach-Object { ($_.Got - $_.Start).TotalSeconds })
+    foreach ($kv in $slots.GetEnumerator()) {
+        $h = $kv.Key.Hour
+        $i = ((([int]$kv.Key.DayOfWeek) + 6) % 7) * 24 + $h
+        $st.SlotN++; $st.HourAll[$h]++; $st.HeatAll[$i]++
+        if ($kv.Value) { $st.SlotOk++; $st.HourOk[$h]++; $st.HeatOk[$i]++ }
+    }
+    # First launch of each hunt/probe: an unbiased sample of "can I get it right now?"
+    foreach ($hu in $hunts.Values) {
+        if ($hu.First -in 'SUCCESS', 'DENIED') { $st.FirstN++; if ($hu.First -eq 'SUCCESS') { $st.FirstOk++ } }
+    }
+    $waits = @($hunts.Values | Where-Object { $_.Got -and -not $_.Survey } | ForEach-Object { ($_.Got - $_.Start).TotalSeconds })
     if ($waits.Count) { $st.AvgWait = ($waits | Measure-Object -Average).Average }
-    # Any hour with an attempt counts; on equal rates the hour with more attempts wins
+    # Any hour with a sampled slot counts; on equal rates the hour with more slots wins
     for ($h = 0; $h -lt 24; $h++) {
         $n = $st.HourAll[$h]
         if ($n -lt 1) { continue }
@@ -532,8 +563,9 @@ function Save-Prefs {
     if (-not $S.PrefSnapOk) { Add-Log 'WARN' 'Could not back up MATLAB prefs before hunting' }
 }
 
-# Puts the snapshot back after MATLAB had to be force-killed mid-startup (half-written prefs make
-# MATLAB crash on every later start). Never used after the user's own [K] kill of a running session.
+# Puts the snapshot back after the hunter force-killed a MATLAB it launched (a denied launch or a
+# survey probe) - half-written prefs make MATLAB crash on every later start. Never used after the
+# user's own [K] kill of a running session.
 function Restore-Prefs {
     if (-not $S.PrefSnapOk -or (Get-ExistingMatlab)) { return }
     try {
@@ -570,8 +602,13 @@ function Find-MatlabWindows {
     $res
 }
 
-function Start-Hunt {
+function Start-Hunt([switch]$Survey) {
     $existing = Get-ExistingMatlab
+    if ($existing -and $Survey) {
+        $S.Mode = 'IDLE'
+        Add-Log 'WARN' 'Close MATLAB first - survey mode starts and kills MATLAB itself'
+        return
+    }
     if ($existing) {
         $S.Proc = $existing; $S.TreeIds = @(); $S.OwnSession = $false
         $S.Mode = 'HAVE'
@@ -585,25 +622,37 @@ function Start-Hunt {
         Add-Log 'ERR' 'MATLAB.exe not found - use -MatlabPath'
         return
     }
-    $S.Mode = 'HUNT'; $S.Phase = 'WAIT'; $S.Paused = $false
+    $S.Mode = if ($Survey) { 'SURVEY' } else { 'HUNT' }
+    $S.Phase = 'WAIT'; $S.Paused = $false
     $S.NextAt = Get-Date
+    $S.LaunchTime = $null
     $S.Attempt = 0
     $S.HuntId = (Get-Date).ToString('yyyyMMddHHmmss', $Inv)
     $S.HuntStart = Get-Date
     $S.HuntStrip.Clear()
     Save-Prefs
-    Add-Log 'INFO' 'Hunt started'
+    Add-Log 'INFO' $(if ($Survey) { "Survey started - one probe every $(Fmt-Dur $SurveyIntervalSeconds)" } else { 'Hunt started' })
+}
+
+function Stop-Survey {
+    Stop-LaunchedMatlab
+    $S.Mode = 'IDLE'; $S.Phase = 'WAIT'; $S.Paused = $false
+    Add-Log 'INFO' "Survey stopped after $($S.Attempt) probes"
 }
 
 function Start-MatlabLaunch {
     $S.Attempt++
+    $surveying = $S.Mode -eq 'SURVEY'
+    # Every survey probe is its own one-launch "hunt", so first-try stats count each probe
+    if ($surveying) { $S.HuntId = 'S' + (Get-Date).ToString('yyyyMMddHHmmss', $Inv) }
     $argList = '-nosplash'
     if (-not $NoAutoRun) {
         $sd = $ScriptDir.TrimEnd('\')
         $dr = $DataRoot.TrimEnd('\') -replace "'", "''"
-        $argList = "-nosplash -sd `"$sd`" -r `"MATLABLicenseAcquisition('AutoStart',true,'DataRoot','$dr')`""
+        $sv = if ($surveying) { ",'Survey',true" } else { '' }
+        $argList = "-nosplash -sd `"$sd`" -r `"MATLABLicenseAcquisition('AutoStart',true$sv,'DataRoot','$dr')`""
     }
-    Remove-Item -Path $ReadyFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $ReadyFile, $SurveyFile -Force -ErrorAction SilentlyContinue
     $S.LaunchTime = Get-Date
     try {
         $S.Proc = Start-Process -FilePath $MatlabPath -ArgumentList $argList -PassThru
@@ -617,30 +666,64 @@ function Start-MatlabLaunch {
     $S.MainSeenAt = $null
     $S.NextScan = (Get-Date).AddSeconds(3)
     $S.Phase = 'LAUNCH'
-    Add-Log 'INFO' "#$($S.Attempt) launching MATLAB"
+    Add-Log 'INFO' "#$($S.Attempt) launching MATLAB$(if ($surveying) { ' (survey probe)' })"
 }
 
-# Records a failed attempt right away. A MATLAB that is still alive is asked to close and gets
-# up to 10s (phase CLOSING) before it is force-killed - killing it mid-startup can corrupt its prefs.
+# When the next launch may start: after the retry delay, and in survey mode no sooner than one
+# interval after the last probe was launched (so probes are evenly spaced whatever the result).
+function Get-NextLaunchTime {
+    $next = (Get-Date).AddSeconds($RetryDelaySeconds)
+    if ($S.Mode -eq 'SURVEY' -and $S.LaunchTime) {
+        $slot = $S.LaunchTime.AddSeconds($SurveyIntervalSeconds)
+        if ($slot -gt $next) { $next = $slot }
+    }
+    $next
+}
+
+# Force-kills a MATLAB the hunter launched (and its children) instead of asking it to close,
+# which made every retry wait on MATLAB's slow shutdown. A kill mid-startup can leave prefs
+# half-written, so they are restored from the snapshot once MATLAB is gone.
+function Stop-LaunchedMatlab {
+    if (-not $S.Proc) { return }
+    $alive = $false
+    try { $alive = -not $S.Proc.HasExited } catch {}
+    if ($alive) { Update-TreeIds }
+    Stop-MatlabTree
+    if ($alive) {
+        try { [void]$S.Proc.WaitForExit(5000) } catch {}
+        Restore-Prefs
+    }
+    $S.Proc = $null
+}
+
+# Records a failed attempt and kills whatever is left of that MATLAB right away.
 function Fail-Launch([string]$result, [string]$detail) {
     $secs = if ($S.LaunchTime) { ((Get-Date) - $S.LaunchTime).TotalSeconds } else { 0 }
     Write-Attempt $result $secs $detail
     $S.LastResult = $result; $S.LastDetail = $detail
     $S.HuntStrip.Add($result)
     Add-Log $(if ($result -eq 'DENIED') { 'DENY' } else { 'WARN' }) "#$($S.Attempt) $result - $(Trunc $detail 70)"
-    $alive = $false
-    if ($S.Proc) { try { $alive = -not $S.Proc.HasExited } catch {} }
-    if ($alive) {
-        Update-TreeIds
-        Close-MatlabGently
-        $S.CloseBy = (Get-Date).AddSeconds(10)
-        $S.Phase = 'CLOSING'
-        return
-    }
-    if ($S.Proc) { Stop-MatlabTree }   # leftover child processes
-    $S.Proc = $null
+    Stop-LaunchedMatlab
     $S.Phase = 'WAIT'
-    $S.NextAt = (Get-Date).AddSeconds($RetryDelaySeconds)
+    $S.NextAt = Get-NextLaunchTime
+}
+
+# (Survey) ends a probe: MATLAB is killed and the next probe is scheduled.
+function Finish-Probe([string]$msg) {
+    Stop-LaunchedMatlab
+    Add-Log 'INFO' $msg
+    $S.Phase = 'WAIT'
+    $S.NextAt = Get-NextLaunchTime
+}
+
+# "simulink=ACQUIRED;simscape=WAITING" (written by MATLABLicenseAcquisition.m) -> "Simulink free, Simscape busy"
+function Format-Survey([string]$text) {
+    $parts = foreach ($pair in ($text.Trim() -split ';' | Where-Object { $_ })) {
+        $id, $ev = $pair -split '=', 2
+        $f = $Features | Where-Object { $_.Id -eq $id } | Select-Object -First 1
+        "$(if ($f) { $f.Short } else { $id }) $(if ($ev -eq 'ACQUIRED') { 'free' } else { 'busy' })"
+    }
+    if ($parts) { $parts -join ', ' } else { 'no result' }
 }
 
 function Open-Popup([string]$op, [string]$stage, [double]$secs = 0) {
@@ -652,6 +735,13 @@ function Complete-Success([string]$detail) {
     Write-Attempt 'SUCCESS' ((Get-Date) - $S.LaunchTime).TotalSeconds $detail
     $S.LastResult = 'SUCCESS'; $S.LastDetail = $detail
     $S.HuntStrip.Add('SUCCESS')
+    if ($S.Mode -eq 'SURVEY') {
+        if ($NoAutoRun) { Finish-Probe "Probe #$($S.Attempt) got MATLAB (no toolbox check: auto-run is off)"; return }
+        $S.Phase = 'PROBE'
+        $S.ProbeBy = (Get-Date).AddSeconds(90)
+        Add-Log 'GOT' "Probe #$($S.Attempt) got MATLAB - checking toolboxes"
+        return
+    }
     $S.Mode = 'HAVE'
     $S.SessionStart = Get-Date
     $hunt = ((Get-Date) - $S.HuntStart).TotalSeconds
@@ -665,7 +755,13 @@ function Update-Hunt {
         'WAIT' {
             if ($S.Paused) { $S.NextAt = $now.AddSeconds(1); return }
             if ($now -lt $S.NextAt) { return }
-            if (Get-ExistingMatlab) { Start-Hunt; return }
+            if (Get-ExistingMatlab) {
+                if ($S.Mode -eq 'SURVEY') {
+                    $S.Mode = 'IDLE'
+                    Add-Log 'WARN' 'MATLAB was opened outside the survey - survey stopped'
+                } else { Start-Hunt }
+                return
+            }
             Start-MatlabLaunch
         }
         'LAUNCH' {
@@ -692,18 +788,15 @@ function Update-Hunt {
                 else { Fail-Launch 'TIMEOUT' "No MATLAB window after $LaunchTimeoutSeconds s" }
             }
         }
-        'CLOSING' {
-            $gone = $true
-            try { $gone = $S.Proc.HasExited } catch {}
-            if (-not $gone -and $now -lt $S.CloseBy) { return }
-            Stop-MatlabTree   # leftover children, or MATLAB itself if it ignored the close request
-            if (-not $gone) {
-                try { [void]$S.Proc.WaitForExit(5000) } catch {}
-                Restore-Prefs
+        'PROBE' {
+            # MATLAB writes its one-pass toolbox result, then we kill it
+            if ((Test-Path $SurveyFile) -and (Get-Item $SurveyFile).LastWriteTime -ge $S.LaunchTime.AddSeconds(-2)) {
+                $text = ''
+                try { $text = Read-SharedFile $SurveyFile } catch {}
+                Finish-Probe "Probe #$($S.Attempt): $(Format-Survey $text)"
             }
-            $S.Proc = $null
-            $S.Phase = 'WAIT'
-            $S.NextAt = (Get-Date).AddSeconds($RetryDelaySeconds)
+            elseif ($S.Proc.HasExited) { Finish-Probe "Probe #$($S.Attempt): MATLAB closed before the toolbox check finished" }
+            elseif ($now -ge $S.ProbeBy) { Finish-Probe "Probe #$($S.Attempt): toolbox check timed out" }
         }
     }
 }
@@ -787,11 +880,16 @@ function Read-Keys {
         switch ($ch) {
             'Q' { Open-Popup 'Q' 'CONFIRM' }
             'H' { if ($S.Mode -eq 'IDLE') { Start-Hunt } }
+            'S' {
+                if ($S.Mode -eq 'IDLE') { Start-Hunt -Survey }
+                elseif ($S.Mode -eq 'SURVEY') { Stop-Survey }
+            }
             'D' { Open-Details }
             'P' {
-                if ($S.Mode -eq 'HUNT') {
+                if ($S.Mode -in 'HUNT', 'SURVEY') {
                     $S.Paused = -not $S.Paused
-                    Add-Log 'INFO' $(if ($S.Paused) { 'Hunt paused' } else { 'Hunt resumed' })
+                    $what = if ($S.Mode -eq 'SURVEY') { 'Survey' } else { 'Hunt' }
+                    Add-Log 'INFO' "$what $(if ($S.Paused) { 'paused' } else { 'resumed' })"
                 }
             }
             'R' {
@@ -835,6 +933,7 @@ function Get-StatusLines {
     $spin = @('-', '\', '|', '/')[$S.Spin % 4]
     $badge = switch ($S.Mode) {
         'HUNT' { if ($S.Paused) { Badge 'PAUSED' 244 } else { Badge "HUNTING $spin" 208 } }
+        'SURVEY' { if ($S.Paused) { Badge 'SURVEY PAUSED' 244 } else { Badge "SURVEYING $spin" 75 } }
         'HAVE' { Badge 'YOU HAVE MATLAB' 46 }
         default { Badge 'IDLE' 240 }
     }
@@ -843,19 +942,22 @@ function Get-StatusLines {
     $VW = $LW - 11
     $row = { param($label, $value) ' ' + (C $label.PadRight(10) 244) + $value }
     switch ($S.Mode) {
-        'HUNT' {
-            $l += & $row 'Attempt' "$(Bold "#$($S.Attempt)" 255)   $(C 'hunting for' 250) $(Bold (Fmt-Clock ($now - $S.HuntStart).TotalSeconds) 255)"
+        { $_ -in 'HUNT', 'SURVEY' } {
+            $surveying = $S.Mode -eq 'SURVEY'
+            $label = if ($surveying) { 'Probe' } else { 'Attempt' }
+            $verb = if ($surveying) { 'surveying for' } else { 'hunting for' }
+            $l += & $row $label "$(Bold "#$($S.Attempt)" 255)   $(C $verb 250) $(Bold (Fmt-Clock ($now - $S.HuntStart).TotalSeconds) 255)"
             $l += & $row 'Now' $(switch ($S.Phase) {
                 'WAIT'   {
                     if ($S.Paused) { C 'Paused - press P to resume' 244 }
-                    else { C "Next launch in $([math]::Max(0, [int]($S.NextAt - $now).TotalSeconds))s" 250 }
+                    else { C "Next $(if ($surveying) { 'probe' } else { 'launch' }) in $([math]::Max(0, [int]($S.NextAt - $now).TotalSeconds))s" 250 }
                 }
                 'LAUNCH' {
                     $el = [int]($now - $S.LaunchTime).TotalSeconds
                     if ($S.MainSeenAt) { C "MATLAB is up, waiting for it to finish ($($el)s)" 154 }
                     else { C "Launching - watching for errors ($el/$($LaunchTimeoutSeconds)s)" 75 }
                 }
-                'CLOSING' { C 'Closing MATLAB cleanly before the next try' 220 }
+                'PROBE' { C 'Got MATLAB - logging toolboxes, then killing it' 154 }
             })
         }
         'HAVE' {
@@ -865,7 +967,7 @@ function Get-StatusLines {
         }
         default {
             $l += & $row 'Now' (C 'Press H to start hunting for MATLAB' 250)
-            $l += & $row '' (C 'Every attempt is logged for the team charts' 244)
+            $l += & $row '' (C 'or S to survey (log availability, never keep it)' 244)
         }
     }
     $last = if ($S.LastResult) {
@@ -886,11 +988,13 @@ function Get-StatusLines {
 function Get-TeamLines {
     $st = $S.Stats
     $since = if ($st.First) { $st.First.ToString('MMM d') } else { '-' }
-    $rate = if ($st.Launch) { '{0:P0}' -f ($st.Success / $st.Launch) } else { '-' }
+    $open = if ($st.SlotN) { '{0:P0}' -f ($st.SlotOk / $st.SlotN) } else { '-' }
+    $first = if ($st.FirstN) { '{0:P0}' -f ($st.FirstOk / $st.FirstN) } else { '-' }
     $wait = if ($st.AvgWait) { Fmt-Dur $st.AvgWait } else { '-' }
     $sess = if ($st.SessN) { Fmt-Dur ($st.SessSum / $st.SessN) } else { '-' }
     $l = @(" $(Bold 'TEAM STATS' 255)  $(C "$($st.Users.Count) users $($G.Mid) since $since $($G.Mid) 6am-6pm" 244)")
-    $l += " $(Bold (Fmt-N $st.Launch) 255) launches    $(Bold (Fmt-N $st.Success) 46) got MATLAB ($rate)"
+    $l += " $(Bold (Fmt-N $st.Launch) 255) launches    $(Bold (Fmt-N $st.Success) 46) got MATLAB"
+    $l += " Free in $(Bold $open 46) of $SlotMinutes-min slots    1st try $(Bold $first 255)"
     $l += " Avg hunt $(Bold $wait 255)    Avg session $(Bold $sess 255)"
     if ($st.Best) {
         $best = " Best hour $(Bold (Format-Hour $st.Best.H) 46) $(C ('{0:P0}' -f $st.Best.P) 244)"
@@ -905,7 +1009,7 @@ function Get-TeamLines {
 
 function Get-ChartLines {
     $st = $S.Stats
-    $l = @(" $(Bold 'AVAILABILITY BY HOUR' 255)  $(C '% of attempts that got MATLAB' 244)")
+    $l = @(" $(Bold 'AVAILABILITY BY HOUR' 255)  $(C "% of $SlotMinutes-min slots it was free" 244)")
     for ($row = 0; $row -lt 8; $row++) {
         $b = 7 - $row
         $label = if ($row % 2 -eq 0) { ('{0}%' -f ((8 - $row) * 25 / 2)).PadLeft(4) } else { '    ' }
@@ -1010,8 +1114,9 @@ function KeyHint([string]$key, [string]$label) { "$(Bold "[$key]" $Accent)$(C $l
 
 function Get-FooterKeys {
     $parts = @()
-    if ($S.Mode -eq 'IDLE') { $parts += KeyHint 'H' ' Hunt' }
-    if ($S.Mode -eq 'HUNT') { $parts += KeyHint 'P' $(if ($S.Paused) { ' Resume' } else { ' Pause' }) }
+    if ($S.Mode -eq 'IDLE') { $parts += KeyHint 'H' ' Hunt'; $parts += KeyHint 'S' ' Survey' }
+    if ($S.Mode -in 'HUNT', 'SURVEY') { $parts += KeyHint 'P' $(if ($S.Paused) { ' Resume' } else { ' Pause' }) }
+    if ($S.Mode -eq 'SURVEY') { $parts += KeyHint 'S' ' Stop survey' }
     if ($S.Mode -eq 'HAVE') { $parts += KeyHint 'R' ' Release MATLAB'; $parts += KeyHint 'K' ' Kill' }
     $parts += KeyHint 'D' ' Details'
     $parts += KeyHint 'Q' ' Quit'
@@ -1071,6 +1176,7 @@ function Get-PopupLines {
             $title = 'QUIT LICENSE HUNTER?'
             $body = switch ($S.Mode) {
                 'HUNT' { @((C 'Hunting stops. A MATLAB that is still starting up' 250), (C 'gets closed.' 250)) }
+                'SURVEY' { @((C 'The survey stops. A MATLAB it started gets killed.' 250)) }
                 'HAVE' { @((C 'Only this dashboard closes. MATLAB keeps running' 250), (C 'and keeps its licenses - [R] gives them back.' 250)) }
                 default { @((C 'This closes the dashboard.' 250)) }
             }
@@ -1229,13 +1335,15 @@ try {
 # ---------------------------------------------------------------------------------------------
 if ($MatlabPath) { Add-Log 'INFO' "MATLAB: $MatlabPath" } else { Add-Log 'ERR' 'MATLAB.exe not found - use -MatlabPath' }
 Add-Log 'INFO' "Shared data: $DataRoot"
-if ($DashboardOnly) { Add-Log 'INFO' 'Dashboard mode - press H to start hunting' } else { Start-Hunt }
+if ($Survey) { Start-Hunt -Survey }
+elseif ($DashboardOnly) { Add-Log 'INFO' 'Dashboard mode - press H to start hunting' }
+else { Start-Hunt }
 try {
     while (-not $S.Quit) {
         try {
             Read-Keys
             if ($S.Quit) { break }
-            switch ($S.Mode) { 'HUNT' { Update-Hunt } 'HAVE' { Update-Have } }
+            switch ($S.Mode) { 'HUNT' { Update-Hunt } 'SURVEY' { Update-Hunt } 'HAVE' { Update-Have } }
             Update-Popup
             Update-Data
             Update-Heartbeat
@@ -1252,21 +1360,9 @@ try {
         Start-Sleep -Milliseconds 100
     }
 } finally {
-    # A MATLAB still starting up gets a chance to close cleanly; prefs are restored if it had to be killed
-    if ($S.Mode -eq 'HUNT' -and $S.Phase -in 'LAUNCH', 'CLOSING' -and $S.Proc) {
-        $forced = $false
-        try {
-            if (-not $S.Proc.HasExited) {
-                Update-TreeIds
-                Close-MatlabGently
-                $forced = -not $S.Proc.WaitForExit(5000)
-            }
-        } catch {}
-        Stop-MatlabTree
-        if ($forced) {
-            try { [void]$S.Proc.WaitForExit(5000) } catch {}
-            Restore-Prefs
-        }
+    # A MATLAB the hunter is still starting (or probing) is killed; prefs are restored afterwards
+    if ($S.Mode -in 'HUNT', 'SURVEY' -and $S.Phase -in 'LAUNCH', 'PROBE' -and $S.Proc) {
+        try { Stop-LaunchedMatlab } catch {}
     }
     Remove-Item -Path $HeartbeatFile -Force -ErrorAction SilentlyContinue
     [Console]::Write("$E[?25h$E[?1049l")
