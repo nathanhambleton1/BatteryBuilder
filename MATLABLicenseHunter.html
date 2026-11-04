@@ -123,6 +123,11 @@ table.t.wrapcells td { white-space: normal; }
 .bar .fill { width: 100%; min-height: 2px; }
 .bar.none .fill { background: var(--dimmer); }
 .bar.now .fill { outline: 1px solid var(--bright); }
+.srv .srow { display: grid; grid-template-columns: 10em minmax(40px, 1fr) auto auto; gap: 10px; align-items: center; margin: 4px 0; }
+.srv .n, .srv .f { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srv .track { height: 10px; background: #262626; display: block; }
+.srv .track span { display: block; height: 100%; }
+.srv .c { text-align: right; }
 .bar.thin .fill, table.heat td.thin { opacity: .4; }
 .bars .bar .pct { font-size: 9px; }
 .axis .half { color: var(--dim); }
@@ -297,7 +302,7 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
       <div class="scroll">
       <table class="t files">
         <tr><th>Number</th><th>Calculation</th></tr>
-        <tr><td>Free %</td><td><b>free slots &divide; slots tried</b>, over all time. A slot is 5 minutes of one day. It's <i>tried</i> if anyone launched MATLAB in it (got / denied / full), and <i>free</i> if any of those launches got MATLAB.</td></tr>
+        <tr><td>Free %</td><td><b>free slots &divide; slots tried</b>, over all time. A slot is 5 minutes of one day. It's <i>tried</i> if anyone launched MATLAB in it (got / denied / full) <b>or</b> the license server was checked in it, and <i>free</i> if any of those launches got MATLAB or any server check showed a seat open (<a href="#srvsetup">license server</a>).</td></tr>
         <tr><td>Availability by half hour</td><td>Same formula, but only the slots in that 30-minute block, pooled across every day (see the example above). The small number under each bar is how many slots were tried. Faded bars have under 3 slots (15 minutes) of data.</td></tr>
         <tr><td>Week by half hour</td><td>Same as the bar chart, split by weekday: only slots on that weekday in that block. Faded = under 15 minutes of data.</td></tr>
         <tr><td>Last 14 work days</td><td>Same formula, only that day's slots. Bar length = slots tried that day, so a long bar means lots of data.</td></tr>
@@ -324,9 +329,8 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
         <tr><td>GrabMatlabLicense.ps1</td><td>The License Hunter itself. Runs in a PowerShell window, launches MATLAB until it gets a seat, and shows live team stats.</td></tr>
         <tr><td>MATLABLicenseAcquisition.m</td><td>The License Acquisition window that opens inside MATLAB. Grabs the toolbox licenses and logs how long each one took.</td></tr>
         <tr><td>PasteIntoPowerShell.txt</td><td>Backup way to start the hunter on PCs that block scripts. Also makes the desktop shortcut.</td></tr>
-        <tr><td>MATLABLicenseHunter.cmd</td><td>For PCs without PowerShell. Double-click it: it opens the normal dashboard if PowerShell works, otherwise a plain cmd version of the hunter that logs to the same shared files.</td></tr>
         <tr><td>MATLABLicenseHunter.html</td><td>This page: the guide plus the detailed stats.</td></tr>
-        <tr><td>LicenseData\</td><td>The shared log folder. <code>attempts\</code> (MATLAB launches), <code>toolboxes\</code> (toolbox requests), <code>active\</code> (who has the hunter open right now) and <code>dashboard-data.js</code> (the snapshot this page reads). Please don't edit these by hand.</td></tr>
+        <tr><td>LicenseData\</td><td>The shared log folder. <code>attempts\</code> (MATLAB launches), <code>toolboxes\</code> (toolbox requests), <code>active\</code> (who has the hunter open right now), <code>server\</code> (license-server checks: one CSV per day plus <code>latest.txt</code>) and <code>dashboard-data.js</code> (the snapshot this page reads). Please don't edit these by hand.</td></tr>
       </table>
       </div>
     </div>
@@ -370,13 +374,6 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
       </ol>
       <h3>After the first time</h3>
       <p>Either way puts a <b>MATLAB License Hunter</b> shortcut on your desktop. Just double-click that from now on.</p>
-      <h3>If you can't use PowerShell at all</h3>
-      <p>Double-click <code>MATLABLicenseHunter.cmd</code> in the shared folder. If PowerShell works on your PC it just opens the normal dashboard. If PowerShell is blocked, it runs a <b>plain cmd version</b> instead:</p>
-      <ul>
-        <li>Same hunting, <a href="#survey">survey mode</a> and the same keys (<kbd>H</kbd> <kbd>S</kbd> <kbd>P</kbd> <kbd>R</kbd> <kbd>K</kbd> <kbd>D</kbd> <kbd>Q</kbd>). Your attempts are logged to the same shared files, so they count in the team stats.</li>
-        <li>No live charts. Each event is printed as a line, and the <b>window title</b> shows what it's doing right now. Press <kbd>D</kbd> for this page, then click <b>Load LicenseData folder</b> at the top for the newest numbers.</li>
-        <li>It can only read window titles, not the text inside MATLAB's error popups. So it spots some denied launches only when they time out (120 s). Those are logged as timeouts and left out of the % numbers.</li>
-      </ul>
     </div>
     <div class="panel">
       <h2>THE LICENSE ACQUISITION WINDOW</h2>
@@ -407,6 +404,23 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
         <li>Kill MATLAB straight away so the seats go back, then wait for the next probe.</li>
       </ol>
       <p>Leave it running on a spare PC to fill in the hours nobody else checks. Press <kbd>S</kbd> again to stop. The gap between probes is set with <code>-SurveyIntervalSeconds</code> (default 60).</p>
+    </div>
+    <div class="panel wide" id="srvsetup">
+      <h2>LICENSE SERVER SETUP</h2>
+      <p>The hunter can read the <b>real seat counts</b> straight from the MATLAB license server, the same numbers the license-watcher website (phpLicenseWatcher) shows. Reading them needs no special access. Once it's set up:</p>
+      <ul>
+        <li>The <b>License server</b> panel on the Live page and the <b>Server</b> line in the hunter show how many MATLAB seats are in use right now, and who has them.</li>
+        <li>Whichever hunter is open checks the server about <b>once a minute</b> and shares the result with everyone (<code>LicenseData\server\</code>), so the server isn't asked by every PC.</li>
+        <li>Every check also counts toward the <b>% charts</b>: a 5-minute slot counts as free if a seat was open in it. That fills in the times nobody was trying, so the charts get far more data.</li>
+      </ul>
+      <h3>Way 1: the license-watcher website (easiest)</h3>
+      <ol>
+        <li>Open the license-watcher site in your browser and copy the address from the address bar. The home page is fine; you don't need a port.</li>
+        <li>Open <code>GrabMatlabLicense.ps1</code> in Notepad, find the <b>LICENSE SERVER - fill these in</b> block near the top, and paste the address between the quotes after <code>$LicenseWebUrl =</code>, for example <code>[string]$LicenseWebUrl = 'http://licensewatcher/',</code>.</li>
+        <li>Save it and restart the hunter. Within a minute the Server line shows <i>MATLAB 8/10 in use</i>, or a yellow error saying what went wrong.</li>
+      </ol>
+      <h3>Way 2: lmutil (if the website ever goes away)</h3>
+      <p>Put <code>lmutil.exe</code> (FlexLM's own tool, part of MathWorks' <i>Network License Manager</i> download) next to the script. The hunter finds the server by itself from MATLAB's license file. If it can't, the license-watcher home page lists the server as <code>port@host</code> (for example <code>27000@matlabls</code>): put that in <code>$LicenseServer</code>.</p>
     </div>
   </div>
 </section>
@@ -441,7 +455,6 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
     <div class="panel">
       <h2>SCRIPTS ARE BLOCKED</h2>
       <p>Your PC doesn't allow running <code>.ps1</code> files. Use <code>PasteIntoPowerShell.txt</code> instead (see <a href="#use">How to use</a>). It runs the same hunter and makes a desktop shortcut that works on locked-down PCs.</p>
-      <p>If PowerShell itself won't open, double-click <code>MATLABLicenseHunter.cmd</code> instead (see <a href="#use">How to use</a>).</p>
     </div>
     <div class="panel">
       <h2>WINDOW TOO NARROW</h2>
@@ -626,7 +639,7 @@ function renderBanner() {
    Data sources
    - live:   LicenseData/dashboard-data.js (written by the hunter), reloaded every 30 s
    - folder: raw CSVs picked by hand with "Load LicenseData folder"
-   Both are normalized to { generated, by, online[], attempts[], toolboxes[], source }.
+   Both are normalized to { generated, by, online[], attempts[], toolboxes[], server, serverSetup, srvSlots[], source }.
    ===================================================================================== */
 const state = { live: null, liveMissing: false, folder: null, loading: false };
 
@@ -640,7 +653,31 @@ function normalizeLive(raw) {
     feature: String(r[4] || ''), event: String(r[5] || '').toUpperCase(), wait: +r[6] || 0
   })).filter(r => r.t);
   const online = (raw.online || []).map(o => ({ user: String(o[0] || ''), pc: String(o[1] || ''), mode: String(o[2] || 'IDLE').toUpperCase() }));
-  return { generated: parseTime(raw.generated), by: String(raw.by || ''), online, attempts, toolboxes, source: 'live' };
+  const sv = raw.server;
+  const server = sv && parseTime(sv.at) ? {
+    at: parseTime(sv.at), by: String(sv.by || ''),
+    rows: (sv.rows || []).map(r => ({ name: String(r[0] || ''), used: +r[1] || 0, total: +r[2] || 0, queued: +r[3] || 0, users: (r[4] || []).map(String) }))
+  } : null;
+  return {
+    generated: parseTime(raw.generated), by: String(raw.by || ''), online, attempts, toolboxes,
+    server, serverSetup: raw.serverSetup || null, srvSlots: srvSlotsFromDays(raw.serverDays || {}), source: 'live'
+  };
+}
+
+// {"yyyy-MM-dd": one char per 5-min slot from the first work hour} -> [{ t, ok }]
+function srvSlotsFromDays(days) {
+  const out = [];
+  for (const day in days) {
+    const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+    if (!d) continue;
+    const str = String(days[day]);
+    for (let i = 0; i < str.length; i++) {
+      if (str[i] !== '0' && str[i] !== '1') continue;
+      const mins = CFG.dayHours[0] * 60 + i * CFG.slotMin;
+      out.push({ t: new Date(+d[1], +d[2] - 1, +d[3], Math.floor(mins / 60), mins % 60), ok: str[i] === '1' });
+    }
+  }
+  return out;
 }
 
 function loadLive() {
@@ -679,7 +716,9 @@ async function loadFolder(fileList) {
   const attemptFiles = pick(/(^|\/)attempts\/[^\/]+\.csv$/i);
   const toolFiles = pick(/(^|\/)toolboxes\/[^\/]+\.csv$/i);
   const activeFiles = pick(/(^|\/)active\/[^\/]+\.txt$/i);
-  if (!attemptFiles.length && !toolFiles.length) {
+  const serverFiles = pick(/(^|\/)server\/[^\/]+\.csv$/i);
+  const latestFile = pick(/(^|\/)server\/latest\.txt$/i)[0];
+  if (!attemptFiles.length && !toolFiles.length && !serverFiles.length) {
     alert('No attempts\\*.csv or toolboxes\\*.csv found in that folder.\nPick the LicenseData folder next to GrabMatlabLicense.ps1.');
     return;
   }
@@ -708,7 +747,30 @@ async function loadFolder(fileList) {
     try { mode = ((await f.text()).split('\t')[0] || 'IDLE').trim().toUpperCase(); } catch (e) { /* ignore */ }
     online.push({ user: id.split('@')[0], pc: id.split('@')[1] || '', mode });
   }
-  state.folder = { generated: new Date(), by: 'LicenseData folder (loaded by hand)', online, attempts, toolboxes, source: 'folder' };
+  // License-server samples (MATLAB rows only): a 5-min slot is free if any sample in it had a seat open
+  const srv = {};
+  for (const f of serverFiles) {
+    for (const p of splitCsv(await f.text())) {
+      if (p.length < 4 || String(p[1]).toUpperCase() !== 'MATLAB') continue;
+      const t = parseTime(p[0]), used = +p[2], total = +p[3];
+      if (!t || !isDayHour(t) || !(total > 0)) continue;
+      const k = slotStart(t).getTime();
+      srv[k] = srv[k] || used < total;
+    }
+  }
+  const srvSlots = Object.keys(srv).map(k => ({ t: new Date(+k), ok: srv[k] }));
+  let server = null;
+  if (latestFile) {
+    const lines = (await latestFile.text()).split(/\r?\n/);
+    const head = (lines[0] || '').split('\t');
+    if (parseTime(head[0])) {
+      server = { at: parseTime(head[0]), by: head[1] || '', rows: lines.slice(2).filter(l => l.trim()).map(l => {
+        const p = l.split(',');
+        return { name: p[0], used: +p[1] || 0, total: +p[2] || 0, queued: +p[3] || 0, users: p[4] ? p[4].split(';') : [] };
+      }) };
+    }
+  }
+  state.folder = { generated: new Date(), by: 'LicenseData folder (loaded by hand)', online, attempts, toolboxes, server, serverSetup: null, srvSlots, source: 'folder' };
   renderAll();
 }
 
@@ -727,7 +789,7 @@ function buildModel(data) {
     heatOk: new Array(5 * 24 * BPH).fill(0), heatAll: new Array(5 * 24 * BPH).fill(0),   // [weekday 0..4 (Mon..Fri)][block]
     sessions: [], launchesToday: 0, successToday: 0,
     hunts: [], waits: [], best: null, worst: null,
-    slots: [], slotN: 0, slotOk: 0, firstN: 0, firstOk: 0,
+    slots: [], slotN: 0, slotOk: 0, srvN: 0, firstN: 0, firstOk: 0,
     perUser: {}, days: [], recent: [], tool: null
   };
   if (!data) return m;
@@ -765,6 +827,14 @@ function buildModel(data) {
       if (!hunts[k].first && LAUNCH_RESULTS.indexOf(r.result) >= 0) hunts[k].first = r.result;
       if (r.result === 'SUCCESS' && !hunts[k].got) hunts[k].got = r.t;
     }
+  }
+  // License-server samples fill in the same slots: free if any sample in the slot had a seat open
+  for (const s of (data.srvSlots || [])) {
+    if (!isDayHour(s.t)) continue;
+    m.srvN++;
+    const sl = slots[s.t.getTime()] || (slots[s.t.getTime()] = { t: s.t, ok: false });
+    if (s.ok) sl.ok = true;
+    if (!m.first || s.t < m.first) m.first = s.t;
   }
   m.slots = Object.values(slots);
   // Every slot weighs the same, so a block's % is weighted by how long people actually tried in it
@@ -870,6 +940,7 @@ function buildToolStats(rows) {
 const PANELS = [
   { id: 'kpis', title: 'TEAM STATS', hint: '6 AM - 6 PM', wide: true, render: renderKpis },
   { id: 'online', title: "WHO'S ON NOW", hint: 'hunter open', render: renderOnline },
+  { id: 'server', title: 'LICENSE SERVER', hint: 'seats in use right now', render: renderServer },
   { id: 'hours', title: 'AVAILABILITY BY HALF HOUR', hint: '% of 5-min slots MATLAB was free', wide: true, render: renderHours },
   { id: 'heat', title: 'WEEK BY HALF HOUR', hint: 'same %, by weekday', wide: true, render: renderHeat },
   { id: 'days', title: 'LAST 14 WORK DAYS', hint: '% of 5-min slots MATLAB was free', render: renderDays },
@@ -884,7 +955,7 @@ function kpi(label, value, sub, color) {
 }
 
 function renderKpis(m) {
-  if (!m.launches && !m.sessions.length) return '<div class="empty">No attempts logged during work hours yet.</div>';
+  if (!m.launches && !m.sessions.length && !m.srvN) return '<div class="empty">No attempts logged during work hours yet.</div>';
   const open = m.slotN ? m.slotOk / m.slotN : null;
   const first = m.firstN ? m.firstOk / m.firstN : null;
   const longest = m.waits.length ? Math.max.apply(null, m.waits) : null;
@@ -893,7 +964,7 @@ function renderKpis(m) {
   t.push(kpi('Tracking since', m.first ? fmtDate(m.first) : '-', m.first ? fmtTime(m.first) : ''));
   t.push(kpi('Launches', m.launches.toLocaleString(), esc(m.denied + ' denied \u00B7 ' + m.fail + ' timeout/error')));
   t.push(kpi('Got MATLAB', m.success.toLocaleString(), 'launches that got a seat'));
-  t.push(kpi('Free', pct(open), m.slotOk + ' of ' + m.slotN + ' ' + CFG.slotMin + '-min slots', open == null ? null : rateColor(open)));
+  t.push(kpi('Free', pct(open), m.slotOk + ' of ' + m.slotN + ' ' + CFG.slotMin + '-min slots' + (m.srvN ? ' (' + m.srvN + ' from the server)' : ''), open == null ? null : rateColor(open)));
   t.push(kpi('First try', pct(first), m.firstOk + ' of ' + m.firstN + ' hunts in on launch 1', first == null ? null : rateColor(first)));
   t.push(kpi('Avg hunt wait', fmtDur(mean(m.waits)), m.waits.length + ' hunt' + (m.waits.length === 1 ? '' : 's') + ' that got in'));
   t.push(kpi('Median / longest', fmtDur(median(m.waits)) + ' / ' + fmtDur(longest), 'hunt wait'));
@@ -914,6 +985,40 @@ function renderOnline(m) {
     '<span class="c-accent">' + count('HUNT') + ' hunting</span> &middot; <span class="c-green">' + count('HAVE') + ' in MATLAB</span></div>' +
     '<div class="online">' + sorted.map(o => '<div class="row">' + modeBadge(o.mode) + ' <span class="who">' + esc(o.user) +
       '</span><span class="pc">' + esc(o.pc) + '</span></div>').join('') + '</div>';
+}
+
+function renderServer(m) {
+  const d = m.data || {};
+  const sv = d.server, setup = d.serverSetup;
+  if (!sv) {
+    let why = 'Not set up yet, so the numbers on this page come only from launches.';
+    if (setup && setup.err) why = 'The hunter could not read the server: ' + esc(setup.err);
+    else if (setup && setup.source) why = 'Set up (' + esc(setup.source === 'WEB' ? 'license-watcher website' : 'lmutil') + '), waiting for the first check.';
+    return '<div class="empty">' + why + '<br>See <a href="#srvsetup">License server setup</a>.</div>';
+  }
+  const age = m.now - sv.at;
+  const old = age > 5 * 60 * 1000;
+  const order = ['matlab'].concat(FEATURES.map(f => f[0]));
+  const nameOf = id => id === 'matlab' ? 'MATLAB' : (FEATURES.find(f => f[0] === id) || [id, id])[1];
+  const rows = sv.rows.slice().sort((a, b) => order.indexOf(a.name.toLowerCase()) - order.indexOf(b.name.toLowerCase()));
+  let html = '<div class="c-muted" style="margin-bottom:8px">Checked ' + esc(fmtAgo(age)) + ' by ' + esc(sv.by.split('@')[0]) +
+    (old ? ' <span class="c-red">(old - nobody has the hunter open?)</span>' : '') + '</div><div class="srv">';
+  for (const r of rows) {
+    const free = r.total - r.used;
+    const p = r.total ? r.used / r.total : 0;
+    const col = free > 0 ? '#00ff00' : '#ff0000';
+    html += '<div class="srow" title="' + esc(r.users.length ? r.users.join('\n') : 'nobody listed') + '">' +
+      '<span class="n">' + esc(nameOf(r.name.toLowerCase())) + '</span>' +
+      '<span class="track"><span style="width:' + (p * 100) + '%;background:' + (free > 0 ? '#ff8700' : '#ff0000') + '"></span></span>' +
+      '<span class="c">' + r.used + '/' + r.total + '</span>' +
+      '<span class="f" style="color:' + col + '">' + free + ' free' + (r.queued ? ' &middot; ' + r.queued + ' queued' : '') + '</span></div>';
+  }
+  html += '</div>';
+  const ml = sv.rows.find(r => r.name.toLowerCase() === 'matlab');
+  if (ml && ml.users.length) {
+    html += '<div class="c-muted" style="margin-top:10px">Using MATLAB: ' + ml.users.map(u => esc(u.replace(/ \(.*$/, ''))).join(', ') + '</div>';
+  }
+  return html;
 }
 
 function thinNote(n) { return n < CFG.minSlots ? ' - only ' + n * CFG.slotMin + ' min of data, take with a grain of salt' : ''; }

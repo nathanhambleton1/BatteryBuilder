@@ -43,6 +43,10 @@
     (A lucky 100% day and a 40% full-half-hour day give ~49%, not the 70% a per-day average would.)
     Blocks with less than 15 minutes of data in total are drawn dim, and best/worst skip them.
 
+    License server (optional, see the LICENSE SERVER block in the parameters below): the hunter can
+    read the real seat counts from the license-watcher website or with lmutil, shows them live, and
+    counts every check as a sampled slot in the % charts, so they fill in when nobody is trying.
+
 .EXAMPLE
     .\GrabMatlabLicense.ps1 -DashboardOnly
 #>
@@ -70,7 +74,27 @@ param(
     [switch]$RenderOnce,
     # Folder this script lives in. Only needed when it's run as pasted code (PasteIntoPowerShell.txt),
     # where PowerShell can't tell where the file came from.
-    [string]$ScriptRoot = ''
+    [string]$ScriptRoot = '',
+
+    # ===================== LICENSE SERVER - fill these in (see the details page) =====================
+    # The hunter can read the real seat counts straight from the license server, the same way the
+    # phpLicenseWatcher website does. Set ONE of these two ways up; leave the rest blank.
+    #
+    # Way 1 - read the license-watcher website (easiest, nothing to install, no port needed):
+    #   Open the license-watcher site in your browser and copy the address from the address bar.
+    #   Its home page is fine - the hunter follows the "Usage Details" links on it by itself.
+    [string]$LicenseWebUrl = '',     # e.g. 'http://licensewatcher.yourcompany.com/'
+    #
+    # Way 2 - ask the license server directly with lmutil.exe (FlexLM's own tool):
+    #   The server, as port@host - the license-watcher home page lists it in its server column.
+    #   Blank = read it from MATLAB's own license file (network.lic), so usually leave it blank.
+    [string]$LicenseServer = '',     # e.g. '27000@matlabls'
+    #   Path to lmutil.exe. Blank = look next to this script, then in MATLAB's folders.
+    [string]$LmutilPath = '',
+    #
+    # Seconds between server checks (one dashboard checks for the whole team and shares it).
+    [int]$ServerPollSeconds = 60
+    # =================================================================================================
 )
 
 Add-Type -AssemblyName UIAutomationClient
@@ -87,6 +111,7 @@ $Dirs = @{
     Attempts  = Join-Path $DataRoot 'attempts'    # one CSV per user@pc, written by this script
     Toolboxes = Join-Path $DataRoot 'toolboxes'   # one CSV per user@pc, written by MATLABLicenseAcquisition.m
     Active    = Join-Path $DataRoot 'active'      # heartbeats + ready/release signals
+    Server    = Join-Path $DataRoot 'server'      # license-server samples, one CSV per day + latest.txt
 }
 foreach ($d in $Dirs.Values) {
     if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
@@ -156,6 +181,8 @@ $S = @{
     LastDetail = ''
     Rows = @()
     Tool = @()
+    SrvSlots = @{}           # 5-min slot -> was a MATLAB seat free (from license-server samples)
+    SrvNow = $null           # latest server snapshot: @{ At; By; Rows = @{ feature -> @{ Name; Used; Total; Queued; Users } } }
     Stats = $null
     Online = @()
     NextData = Get-Date
@@ -356,7 +383,7 @@ $ParseToolbox = {
     [pscustomobject]@{ T = $t; User = $p[1]; Pc = $p[2]; Session = $p[3]; Feature = $p[4]; Event = $p[5]; Wait = [double]$p[6] }
 }
 
-function Get-Stats($rows) {
+function Get-Stats($rows, $srvSlots) {
     $st = @{
         Launch = 0; Success = 0; Denied = 0; Full = 0; Fail = 0
         Users = @{}; First = $null
@@ -364,7 +391,7 @@ function Get-Stats($rows) {
         BinOk = New-Object int[] (24 * $BinsPerHour); BinAll = New-Object int[] (24 * $BinsPerHour)
         HeatOk = New-Object int[] (7 * 24 * $BinsPerHour); HeatAll = New-Object int[] (7 * 24 * $BinsPerHour)
         SessSum = 0.0; SessN = 0; MineToday = 0; AvgWait = $null
-        SlotN = 0; SlotOk = 0; FirstN = 0; FirstOk = 0
+        SlotN = 0; SlotOk = 0; SrvN = 0; FirstN = 0; FirstOk = 0
         Recent = New-Object System.Collections.Generic.List[string]
         Best = $null; Worst = $null
     }
@@ -383,7 +410,7 @@ function Get-Stats($rows) {
             default   { $st.Fail++ }
         }
         if ($r.Result -in 'SUCCESS', 'DENIED', 'FULL') {
-            $slot = $r.T.Date.AddMinutes([math]::Floor(($r.T.Hour * 60 + $r.T.Minute) / $SlotMinutes) * $SlotMinutes)
+            $slot = Get-Slot $r.T
             $slots[$slot] = [bool]$slots[$slot] -or $r.Result -eq 'SUCCESS'
         }
         $isLaunch = $r.Result -in 'SUCCESS', 'DENIED', 'TIMEOUT', 'ERROR'
@@ -400,6 +427,14 @@ function Get-Stats($rows) {
             }
             if ($isLaunch -and -not $hunts[$k].First) { $hunts[$k].First = $r.Result }
             if ($r.Result -eq 'SUCCESS' -and -not $hunts[$k].Got) { $hunts[$k].Got = $r.T }
+        }
+    }
+    # License-server samples fill in the same slots: free if any sample in the slot had a seat open
+    if ($srvSlots) {
+        foreach ($kv in $srvSlots.GetEnumerator()) {
+            $st.SrvN++
+            $slots[$kv.Key] = [bool]$slots[$kv.Key] -or $kv.Value
+            if (-not $st.First -or $kv.Key -lt $st.First) { $st.First = $kv.Key }
         }
     }
     # Every slot weighs the same, so a block's % is weighted by how long people actually tried in it
@@ -429,6 +464,9 @@ function Get-Stats($rows) {
     $st
 }
 
+# Start of the 5-min slot a time falls in
+function Get-Slot([datetime]$t) { $t.Date.AddMinutes([math]::Floor(($t.Hour * 60 + $t.Minute) / $SlotMinutes) * $SlotMinutes) }
+
 # Index of the 30-min block a time falls in (0 = 12:00am, 1 = 12:30am, ...)
 function Get-Bin([datetime]$t) { $t.Hour * $BinsPerHour + [int][math]::Floor($t.Minute / $BinMinutes) }
 
@@ -455,7 +493,9 @@ function Update-Data {
     $S.NextData = (Get-Date).AddSeconds(10)
     $S.Rows = Get-CsvRows $Dirs.Attempts $ParseAttempt
     $S.Tool = Get-CsvRows $Dirs.Toolboxes $ParseToolbox
-    $S.Stats = Get-Stats $S.Rows
+    $S.SrvSlots = Get-ServerSlots
+    $S.SrvNow = Read-ServerLatest
+    $S.Stats = Get-Stats $S.Rows $S.SrvSlots
     $S.Online = @(Get-Online)
 }
 
@@ -472,6 +512,269 @@ function Update-Heartbeat {
 }
 
 # ---------------------------------------------------------------------------------------------
+# License server (FlexLM). The same query phpLicenseWatcher runs - "lmutil lmstat -a -c port@host" -
+# or that site's own "licenses in use" page. Reading seat counts needs no special rights.
+# One dashboard checks about every $ServerPollSeconds and shares the result in LicenseData\server:
+#   server\yyyy-MM-dd.csv  one row per tracked feature per check (history for the % charts)
+#   server\latest.txt      the newest check, with who has each license (for the live view)
+# ---------------------------------------------------------------------------------------------
+$ServerHeader = 'Timestamp,Feature,Used,Total,Queued,By'
+$ServerLatestFile = Join-Path $Dirs.Server 'latest.txt'
+
+function Find-LicenseServer {
+    if ($LicenseServer) { return $LicenseServer.Trim() }
+    foreach ($v in @($env:MLM_LICENSE_FILE, $env:LM_LICENSE_FILE)) {
+        foreach ($part in "$v" -split ';') { if ($part.Trim() -match '^\d*@[\w.\-]+$') { return $part.Trim() } }
+    }
+    $dirs = @()
+    if ($MatlabRoot) { $dirs += Join-Path $MatlabRoot 'licenses' }
+    $dirs += Join-Path $env:APPDATA 'MathWorks\licenses'
+    foreach ($d in $dirs) {
+        foreach ($f in Get-ChildItem -Path $d -Filter '*.lic' -File -ErrorAction SilentlyContinue) {
+            try {
+                foreach ($line in [IO.File]::ReadAllLines($f.FullName)) {
+                    # SERVER <host> <hostid> [port]  (no port = FlexLM's default ports, written "@host")
+                    if ($line -match '^\s*SERVER\s+(\S+)\s+\S+(?:\s+(\d+))?') { return "$($Matches[2])@$($Matches[1])" }
+                }
+            } catch {}
+        }
+    }
+    ''
+}
+
+function Find-Lmutil {
+    $c = @()
+    if ($LmutilPath) { $c += $LmutilPath }
+    $c += Join-Path $ScriptDir 'lmutil.exe'
+    if ($MatlabRoot) { $c += Join-Path $MatlabRoot 'etc\win64\lmutil.exe'; $c += Join-Path $MatlabRoot 'bin\win64\lmutil.exe' }
+    $c += @(Get-ChildItem -Path 'C:\Program Files\MATLAB\*\etc\win64\lmutil.exe' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+    foreach ($p in $c) { if ($p -and (Test-Path -LiteralPath $p)) { return $p } }
+    ''
+}
+
+$Srv = @{ Source = ''; Exe = ''; Server = ''; Job = $null; NextTry = Get-Date; Err = ''; Said = '' }
+$Srv.Server = Find-LicenseServer
+$Srv.Exe = Find-Lmutil
+$Srv.Source = if ($LicenseWebUrl) { 'WEB' } elseif ($Srv.Exe -and $Srv.Server) { 'LMUTIL' } else { '' }
+
+# Runs in a background runspace so a slow server never freezes the dashboard. Returns the raw reply.
+$ServerPollScript = {
+    param($source, $exe, $server, $url)
+    if ($source -eq 'WEB') {
+        $wc = New-Object Net.WebClient
+        $wc.UseDefaultCredentials = $true
+        $wc.Headers['User-Agent'] = 'MATLABLicenseHunter'
+        $page = $wc.DownloadString($url)
+        if ($page -match 'currently in use') { return $page }
+        # The site's home page (or any page linking to "Usage Details"): follow every
+        # details.php?listing=0&server=N link it has and read those pages instead
+        $base = New-Object Uri $url
+        $links = [regex]::Matches($page, '(?i)href=[''"]([^''"]*details\.php\?listing=0[^''"]*)[''"]') |
+            ForEach-Object { [Net.WebUtility]::HtmlDecode($_.Groups[1].Value) } | Select-Object -Unique
+        if (-not $links) { return $page }
+        return ($links | ForEach-Object { $wc.DownloadString((New-Object Uri($base, $_)).AbsoluteUri) }) -join "`n"
+    }
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = $exe
+    $psi.Arguments = "lmstat -a -c `"$server`""
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    $p = [Diagnostics.Process]::Start($psi)
+    $err = $p.StandardError.ReadToEndAsync()
+    $out = $p.StandardOutput.ReadToEnd()
+    if (-not $p.WaitForExit(60000)) { try { $p.Kill() } catch {} }
+    $out + "`n" + $err.Result
+}
+
+# Parses "lmstat -a" output or a phpLicenseWatcher "licenses in use" page (details.php?listing=0).
+# Returns feature (lower case) -> @{ Name; Used; Total; Queued; Users = list of "user (host)" }.
+function ConvertFrom-LicenseStatus([string]$text) {
+    $res = [ordered]@{}
+    $cur = $null
+    $add = {
+        param($name, $total, $used, $queued)
+        $k = $name.ToLowerInvariant()
+        if (-not $res.Contains($k)) { $res[$k] = @{ Name = $name; Used = 0; Total = 0; Queued = 0; Users = New-Object System.Collections.Generic.List[string] } }
+        # A feature served from more than one license file shows up more than once: add them up
+        $res[$k].Total += $total; $res[$k].Used += $used; $res[$k].Queued += $queued
+        $res[$k]
+    }
+    if ($text -match '(?i)<t[dr][\s>]') {
+        # Web page: one row per feature ("Total of N licenses, M currently in use, Q queued, ..." in the
+        # third cell), followed by one row per checkout with "User: x<br>Computer: y" in the third cell.
+        foreach ($tr in [regex]::Matches($text, '(?is)<tr[^>]*>(.*?)</tr>')) {
+            $cells = @([regex]::Matches($tr.Groups[1].Value, '(?is)<t[dh][^>]*>(.*?)</t[dh]>') | ForEach-Object {
+                $v = [regex]::Replace($_.Groups[1].Value, '(?i)<br\s*/?>', "`n")
+                [Net.WebUtility]::HtmlDecode([regex]::Replace($v, '<[^>]+>', '')).Trim()
+            })
+            if ($cells.Count -lt 3) { continue }
+            if ($cells[0] -and $cells[2] -match 'Total of (\d+) licenses?, (\d+) currently in use(?:, (\d+) queued)?') {
+                $cur = & $add $cells[0] ([int]$Matches[1]) ([int]$Matches[2]) ([int]$Matches[3])
+            } elseif (-not $cells[0] -and $cur -and $cells[2] -match 'User:\s*([^\r\n]+)') {
+                $u = $Matches[1].Trim()
+                if ($cells[2] -match 'Computer:\s*([^\r\n]+)') { $u += " ($($Matches[1].Trim()))" }
+                if ($cells[2] -match 'queued') { $u += ' [queued]' }
+                $cur.Users.Add($u)
+            }
+        }
+        return $res
+    }
+    foreach ($line in $text -split "`r?`n") {
+        if ($line -match '^Users of ([^:]+):\s+\(Total of (\d+) licenses? issued;\s+Total of (\d+) licenses? in use') {
+            $cur = & $add $Matches[1].Trim() ([int]$Matches[2]) ([int]$Matches[3]) 0
+        } elseif ($line -match '^Users of ') {
+            $cur = $null    # uncounted or an error for that feature
+        } elseif ($cur -and $line -match '^\s+(\S+) (\S+) .*\(v[^)]*\) \([^)]*\) queued for (\d+)') {
+            $cur.Queued += [int]$Matches[3]; $cur.Users.Add("$($Matches[1]) ($($Matches[2])) [queued]")
+        } elseif ($cur -and $line -match '^\s+(\S+) (\S+) .*\(v[^)]*\) \([^)]*\), start ') {
+            $cur.Users.Add("$($Matches[1]) ($($Matches[2]))")
+        }
+    }
+    $res
+}
+
+# The line of the reply that explains why nothing could be read (lmstat prints its errors to stdout)
+function Get-LicenseError([string]$text) {
+    foreach ($line in $text -split "`r?`n") {
+        $t = $line.Trim()
+        if ($t -match '(?i)error|cannot|can''t|not responding|down|refused|denied|timed out|unable|not found') { return $t }
+    }
+    'no license counts in the reply'
+}
+
+function Save-ServerSample($feat) {
+    $now = Get-Date
+    $ts = $now.ToString('yyyy-MM-dd HH:mm:ss', $Inv)
+    $tracked = @('matlab') + @($Features | ForEach-Object { $_.Id })
+    $day = Join-Path $Dirs.Server "$($now.ToString('yyyy-MM-dd', $Inv)).csv"
+    $hist = New-Object System.Collections.Generic.List[string]
+    $latest = New-Object System.Collections.Generic.List[string]
+    $latest.Add("$ts`t$ClientId")
+    $latest.Add('Feature,Used,Total,Queued,Users')
+    foreach ($k in $tracked) {
+        $f = $feat[$k]
+        if (-not $f) { continue }
+        $hist.Add("$ts,$($f.Name),$($f.Used),$($f.Total),$($f.Queued),$ClientId")
+        $users = (@($f.Users) | ForEach-Object { $_ -replace '[,;\r\n\t]', ' ' }) -join ';'
+        $latest.Add("$($f.Name),$($f.Used),$($f.Total),$($f.Queued),$users")
+    }
+    if (-not $hist.Count) { return $false }
+    for ($i = 0; $i -lt 5; $i++) {
+        try {
+            $text = ($hist -join "`r`n") + "`r`n"
+            if (-not (Test-Path $day)) { $text = $ServerHeader + "`r`n" + $text }
+            [IO.File]::AppendAllText($day, $text)
+            break
+        } catch { Start-Sleep -Milliseconds 300 }
+    }
+    try {
+        # Private temp file, then copy over the shared one so readers never see half a file
+        $tmp = Join-Path $Dirs.Server "latest.$ClientId.tmp"
+        [IO.File]::WriteAllText($tmp, ($latest -join "`r`n"))
+        [IO.File]::Copy($tmp, $ServerLatestFile, $true)
+        Remove-Item -Path $tmp -Force -ErrorAction SilentlyContinue
+    } catch {}
+    $true
+}
+
+# Starts a server check when nobody has shared one in the last $ServerPollSeconds; collects it when done.
+function Update-Server {
+    $now = Get-Date
+    if ($Srv.Job) {
+        $j = $Srv.Job
+        if ($j.Handle.IsCompleted) {
+            $Srv.Job = $null
+            $text = ''; $err = ''
+            try {
+                $text = ($j.PS.EndInvoke($j.Handle) | Out-String)
+                if ($j.PS.Streams.Error.Count) { $err = $j.PS.Streams.Error[0].ToString() }
+            } catch { $err = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { $_.Exception.Message } }
+            $j.PS.Dispose()
+            $feat = if ($text) { ConvertFrom-LicenseStatus $text } else { @{} }
+            if ($feat.Count -and (Save-ServerSample $feat)) {
+                $Srv.Err = ''
+                if ($Srv.Said -ne 'OK') {
+                    $m = $feat['matlab']
+                    Add-Log 'INFO' $(if ($m) { "License server: MATLAB $($m.Used)/$($m.Total) in use" } else { 'License server read OK, but it lists no MATLAB feature' })
+                    $Srv.Said = 'OK'
+                }
+                $S.NextData = Get-Date
+            } else {
+                if (-not $err) { $err = if ($text.Trim()) { Get-LicenseError $text } else { 'empty reply' } }
+                $Srv.Err = $err
+                if ($Srv.Said -ne $err) { Add-Log 'WARN' "License server: $err"; $Srv.Said = $err }
+            }
+        } elseif (($now - $j.At).TotalSeconds -gt 90) {
+            $Srv.Job = $null
+            try { [void]$j.PS.BeginStop($null, $null) } catch {}
+            $Srv.Err = 'no reply in 90s'
+        }
+        return
+    }
+    if (-not $Srv.Source -or $now -lt $Srv.NextTry) { return }
+    $Srv.NextTry = $now.AddSeconds(10)
+    # Someone (maybe us) checked recently: use theirs instead of asking the server again
+    $f = Get-Item -LiteralPath $ServerLatestFile -ErrorAction SilentlyContinue
+    if ($f -and ($now + $S.ShareSkew - $f.LastWriteTime).TotalSeconds -lt $ServerPollSeconds - 5) { return }
+    if ($Srv.Err) { $Srv.NextTry = $now.AddSeconds([math]::Max(60, $ServerPollSeconds)) }   # back off while it fails
+    $ps = [powershell]::Create()
+    [void]$ps.AddScript($ServerPollScript.ToString()).AddArgument($Srv.Source).AddArgument($Srv.Exe).AddArgument($Srv.Server).AddArgument($LicenseWebUrl)
+    $Srv.Job = @{ PS = $ps; Handle = $ps.BeginInvoke(); At = $now }
+}
+
+# Newest shared server check (written by whichever dashboard checked last)
+function Read-ServerLatest {
+    if (-not (Test-Path -LiteralPath $ServerLatestFile)) { return $null }
+    try { $lines = (Read-SharedFile $ServerLatestFile) -split "`r?`n" } catch { return $S.SrvNow }
+    $head = $lines[0] -split "`t"
+    $at = ConvertTo-Time $head[0]
+    if (-not $at) { return $S.SrvNow }
+    $rows = @{}
+    foreach ($line in ($lines | Select-Object -Skip 2)) {
+        $p = $line.Split(',')
+        if ($p.Count -lt 4) { continue }
+        $users = if ($p.Count -ge 5 -and $p[4]) { @($p[4].Split(';')) } else { @() }
+        $rows[$p[0].ToLowerInvariant()] = @{ Name = $p[0]; Used = [int]$p[1]; Total = [int]$p[2]; Queued = [int]$p[3]; Users = $users }
+    }
+    @{ At = $at; By = "$($head[1])"; Rows = $rows }
+}
+
+# 5-min slot -> was a MATLAB seat free, from the daily server CSVs (work-day hours only).
+# Each file is only re-read when it changes, so this stays cheap.
+$script:SrvCache = @{}
+function Get-ServerSlots {
+    $all = @{}
+    foreach ($f in Get-ChildItem -Path $Dirs.Server -Filter '*.csv' -File -ErrorAction SilentlyContinue) {
+        $key = $f.FullName
+        $stamp = "$($f.Length)|$($f.LastWriteTimeUtc.Ticks)"
+        $c = $script:SrvCache[$key]
+        if (-not $c -or $c.Stamp -ne $stamp) {
+            $text = $null
+            try { $text = Read-SharedFile $key } catch {}
+            if ($null -ne $text) {
+                $slots = @{}
+                foreach ($line in $text -split "`r?`n") {
+                    $p = $line.Split(',')
+                    if ($p.Count -lt 4 -or $p[1] -ne 'MATLAB') { continue }
+                    $t = ConvertTo-Time $p[0]
+                    if (-not $t -or $DayHours -notcontains $t.Hour) { continue }
+                    $used = 0; $total = 0
+                    if (-not [int]::TryParse($p[2], [ref]$used) -or -not [int]::TryParse($p[3], [ref]$total) -or $total -le 0) { continue }
+                    $slot = Get-Slot $t
+                    $slots[$slot] = [bool]$slots[$slot] -or ($used -lt $total)
+                }
+                $c = @{ Stamp = $stamp; Slots = $slots }
+                $script:SrvCache[$key] = $c
+            }
+        }
+        if ($c) { foreach ($kv in $c.Slots.GetEnumerator()) { $all[$kv.Key] = [bool]$all[$kv.Key] -or $kv.Value } }
+    }
+    $all
+}
+
+# ---------------------------------------------------------------------------------------------
 # Data for the details page (MATLABLicenseHunter.html loads LicenseData\dashboard-data.js)
 # ---------------------------------------------------------------------------------------------
 function Js([string]$s) {
@@ -483,7 +786,8 @@ function Export-WebData([switch]$Force) {
     $now = Get-Date
     if (-not $Force -and $now -lt $S.NextExport) { return }
     $myMode = if ($S.Paused) { 'PAUSED' } else { $S.Mode }
-    $sig = "$($S.Rows.Count)|$($S.Tool.Count)|$myMode|" + ((@($S.Online) | ForEach-Object { "$($_.Id)=$($_.Mode)" }) -join ',')
+    $sig = "$($S.Rows.Count)|$($S.Tool.Count)|$myMode|$($S.SrvSlots.Count)|$(if ($S.SrvNow) { $S.SrvNow.At.Ticks })|$($Srv.Err)|" +
+        ((@($S.Online) | ForEach-Object { "$($_.Id)=$($_.Mode)" }) -join ',')
     if (-not $Force -and $sig -eq $S.ExportSig) { return }
     $S.NextExport = $now.AddSeconds(30)
     try {
@@ -511,7 +815,9 @@ function Export-WebData([switch]$Force) {
             [void]$sb.Append('[' + (Js $t.T.ToString('s')) + ',' + (Js $t.User) + ',' + (Js $t.Pc) + ',' + (Js $t.Session) + ',' +
                 (Js $t.Feature) + ',' + (Js $t.Event) + ',' + ([int]$t.Wait) + ']')
         }
-        [void]$sb.Append(']};')
+        [void]$sb.Append('],')
+        [void]$sb.Append((Get-ServerJs $cut))
+        [void]$sb.Append('};')
         # Write a private temp file, then copy over the shared one so readers never see half a file
         $tmp = Join-Path $DataRoot "dashboard-data.$ClientId.tmp"
         [IO.File]::WriteAllText($tmp, $sb.ToString(), (New-Object Text.UTF8Encoding($false)))
@@ -519,6 +825,34 @@ function Export-WebData([switch]$Force) {
         Remove-Item -Path $tmp -Force -ErrorAction SilentlyContinue
         $S.ExportSig = $sig
     } catch {}
+}
+
+# License-server part of dashboard-data.js:
+#   "server": newest check {at, by, rows: [[feature, used, total, queued, [users]]]} or null
+#   "serverSetup": how this PC reads the server {source, target, err}
+#   "serverDays": {"yyyy-MM-dd": one char per 5-min slot from 6am ('1' free, '0' all seats used, '.' no sample)}
+function Get-ServerJs([datetime]$cut) {
+    $out = '"server":'
+    $n = $S.SrvNow
+    if ($n) {
+        $rows = foreach ($r in $n.Rows.Values) {
+            '[' + (Js $r.Name) + ',' + $r.Used + ',' + $r.Total + ',' + $r.Queued + ',[' + ((@($r.Users) | ForEach-Object { Js $_ }) -join ',') + ']]'
+        }
+        $out += '{"at":' + (Js $n.At.ToString('s')) + ',"by":' + (Js $n.By) + ',"rows":[' + (@($rows) -join ',') + ']}'
+    } else { $out += 'null' }
+    $target = switch ($Srv.Source) { 'WEB' { $LicenseWebUrl } 'LMUTIL' { $Srv.Server } default { $Srv.Server } }
+    $out += ',"serverSetup":{"source":' + (Js $Srv.Source) + ',"target":' + (Js $target) + ',"lmutil":' + (Js $Srv.Exe) + ',"err":' + (Js $Srv.Err) + '}'
+    $perDay = $DayHours.Count * 60 / $SlotMinutes
+    $days = @{}
+    foreach ($kv in $S.SrvSlots.GetEnumerator()) {
+        if ($kv.Key -lt $cut) { continue }
+        $d = $kv.Key.ToString('yyyy-MM-dd', $Inv)
+        if (-not $days.ContainsKey($d)) { $days[$d] = New-Object char[] $perDay; for ($i = 0; $i -lt $perDay; $i++) { $days[$d][$i] = '.' } }
+        $i = [int](($kv.Key.Hour - $DayHours[0]) * 60 + $kv.Key.Minute) / $SlotMinutes
+        if ($i -ge 0 -and $i -lt $perDay) { $days[$d][$i] = if ($kv.Value) { '1' } else { '0' } }
+    }
+    $out += ',"serverDays":{' + ((@($days.Keys | Sort-Object) | ForEach-Object { (Js $_) + ':' + (Js (-join $days[$_])) }) -join ',') + '}'
+    $out
 }
 
 function Open-Details {
@@ -1016,7 +1350,8 @@ function Get-TeamLines {
     $wait = if ($st.AvgWait) { Fmt-Dur $st.AvgWait } else { '-' }
     $sess = if ($st.SessN) { Fmt-Dur ($st.SessSum / $st.SessN) } else { '-' }
     $l = @(" $(Bold 'TEAM STATS' 255)  $(C "$($st.Users.Count) users $($G.Mid) since $since $($G.Mid) 6am-6pm" 244)")
-    $l += " $(Bold (Fmt-N $st.Launch) 255) launches    $(Bold (Fmt-N $st.Success) 46) got MATLAB"
+    $l += " $(Bold (Fmt-N $st.Launch) 255) launches    $(Bold (Fmt-N $st.Success) 46) got MATLAB    You today $(Bold $st.MineToday 255)"
+    $l += Get-ServerLine
     $l += " Free in $(Bold $open 46) of $SlotMinutes-min slots    1st try $(Bold $first 255)"
     $l += " Avg hunt $(Bold $wait 255)    Avg session $(Bold $sess 255)"
     if ($st.Best) {
@@ -1026,8 +1361,32 @@ function Get-TeamLines {
     } else {
         $l += ' ' + (C 'Best/worst half hour show up after the first attempt' 244)
     }
-    $l += " You today $(Bold $st.MineToday 255) launches"
     $l
+}
+
+# Server snapshot, or $null when there is none or it's too old to call "now"
+function Get-FreshServer {
+    $n = $S.SrvNow
+    if (-not $n -or ((Get-Date) - $n.At).TotalMinutes -gt 5) { return $null }
+    $n
+}
+
+# "Server  MATLAB 48/50 in use  2 free  20s ago" (or why there is no live server data)
+function Get-ServerLine {
+    $lead = ' ' + (C 'Server  ' 244)
+    $n = Get-FreshServer
+    $m = if ($n) { $n.Rows['matlab'] }
+    if ($m) {
+        $free = $m.Total - $m.Used
+        $q = if ($m.Queued) { C "  $($m.Queued) queued" 220 } else { '' }
+        $ago = [math]::Max(0, [int]((Get-Date) - $n.At).TotalSeconds)
+        return $lead + "MATLAB $(Bold $m.Used 255)$(C "/$($m.Total) in use" 250)  $(Bold "$free free" $(if ($free -gt 0) { 46 } else { 196 }))$q  $(C "$($ago)s ago" 240)"
+    }
+    if ($Srv.Err) { return $lead + (C (Trunc "can't read it: $($Srv.Err)" ($RW - 10)) 220) }
+    if ($n) { return $lead + (C 'read OK, but no MATLAB feature listed' 244) }
+    if ($S.SrvNow) { return $lead + (C "last read $(Fmt-Dur ((Get-Date) - $S.SrvNow.At).TotalSeconds) ago" 244) }
+    if ($Srv.Source -or $Srv.Job) { return $lead + (C 'checking...' 244) }
+    $lead + (C 'not set up - see Details > License server' 244)
 }
 
 function Get-ChartLines {
@@ -1119,6 +1478,20 @@ function Get-BottomLeftLines {
         $avgRow += if ($w.Count) { C ((Fmt-Dur ($w | Measure-Object -Average).Average).PadRight(9)) 255 } else { C ('-'.PadRight(9)) 240 }
     }
     $l += $avgRow
+
+    # Seats free right now, from the license server (free/total)
+    $n = Get-FreshServer
+    if ($n) {
+        $srvRow = ' ' + (C ('Free now'.PadRight(11)) 244)
+        foreach ($f in $Features) {
+            $r = $n.Rows[$f.Id]
+            $srvRow += if ($r) {
+                $free = $r.Total - $r.Used
+                C ("$free/$($r.Total)".PadRight(9)) $(if ($free -gt 0) { 46 } else { 196 })
+            } else { C ('-'.PadRight(9)) 240 }
+        }
+        $l += $srvRow
+    }
     $l
 }
 
@@ -1276,8 +1649,8 @@ function Build-Frame {
     $lines.Add($sep)
     & $add2 @(Get-ChartLines) @(Get-HeatLines) 11
     $lines.Add($sep)
-    $log = @(" $(Bold 'ACTIVITY' 255)") + @(Get-LogLines 4)
-    & $add2 @(Get-BottomLeftLines) $log 5
+    $log = @(" $(Bold 'ACTIVITY' 255)") + @(Get-LogLines 5)
+    & $add2 @(Get-BottomLeftLines) $log 6
 
     $keys = Get-FooterKeys
     $fill = [math]::Max(0, $LW - 1 - (VisLen $keys))
@@ -1340,7 +1713,7 @@ try {
     $raw = $Host.UI.RawUI
     $raw.WindowTitle = 'MATLAB License Hunter'
     $max = $raw.MaxPhysicalWindowSize
-    $w = [math]::Min(120, $max.Width); $hgt = [math]::Min(31, $max.Height)
+    $w = [math]::Min(120, $max.Width); $hgt = [math]::Min(32, $max.Height)
     if ($raw.BufferSize.Width -lt $w) { $raw.BufferSize = New-Object Management.Automation.Host.Size($w, [math]::Max($raw.BufferSize.Height, $hgt)) }
     if ($raw.WindowSize.Width -lt $w -or $raw.WindowSize.Height -lt $hgt) { $raw.WindowSize = New-Object Management.Automation.Host.Size($w, $hgt) }
 } catch {}
@@ -1362,6 +1735,7 @@ try {
             if ($S.Quit) { break }
             switch ($S.Mode) { 'HUNT' { Update-Hunt } 'SURVEY' { Update-Hunt } 'HAVE' { Update-Have } }
             Update-Popup
+            Update-Server
             Update-Data
             Update-Heartbeat
             Export-WebData
