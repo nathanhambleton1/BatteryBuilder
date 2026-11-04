@@ -324,6 +324,7 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
         <tr><td>GrabMatlabLicense.ps1</td><td>The License Hunter itself. Runs in a PowerShell window, launches MATLAB until it gets a seat, and shows live team stats.</td></tr>
         <tr><td>MATLABLicenseAcquisition.m</td><td>The License Acquisition window that opens inside MATLAB. Grabs the toolbox licenses and logs how long each one took.</td></tr>
         <tr><td>PasteIntoPowerShell.txt</td><td>Backup way to start the hunter on PCs that block scripts. Also makes the desktop shortcut.</td></tr>
+        <tr><td>MATLABLicenseHunter.cmd</td><td>For PCs without PowerShell. Double-click it: it opens the normal dashboard if PowerShell works, otherwise a plain cmd version of the hunter that logs to the same shared files.</td></tr>
         <tr><td>MATLABLicenseHunter.html</td><td>This page: the guide plus the detailed stats.</td></tr>
         <tr><td>LicenseData\</td><td>The shared log folder. <code>attempts\</code> (MATLAB launches), <code>toolboxes\</code> (toolbox requests), <code>active\</code> (who has the hunter open right now) and <code>dashboard-data.js</code> (the snapshot this page reads). Please don't edit these by hand.</td></tr>
       </table>
@@ -369,6 +370,13 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
       </ol>
       <h3>After the first time</h3>
       <p>Either way puts a <b>MATLAB License Hunter</b> shortcut on your desktop. Just double-click that from now on.</p>
+      <h3>If you can't use PowerShell at all</h3>
+      <p>Double-click <code>MATLABLicenseHunter.cmd</code> in the shared folder. If PowerShell works on your PC it just opens the normal dashboard. If PowerShell is blocked, it runs a <b>plain cmd version</b> instead:</p>
+      <ul>
+        <li>Same hunting, <a href="#survey">survey mode</a> and the same keys (<kbd>H</kbd> <kbd>S</kbd> <kbd>P</kbd> <kbd>R</kbd> <kbd>K</kbd> <kbd>D</kbd> <kbd>Q</kbd>). Your attempts are logged to the same shared files, so they count in the team stats.</li>
+        <li>No live charts. Each event is printed as a line, and the <b>window title</b> shows what it's doing right now. Press <kbd>D</kbd> for this page, then click <b>Load LicenseData folder</b> at the top for the newest numbers.</li>
+        <li>It can only read window titles, not the text inside MATLAB's error popups. So it spots some denied launches only when they time out (120 s). Those are logged as timeouts and left out of the % numbers.</li>
+      </ul>
     </div>
     <div class="panel">
       <h2>THE LICENSE ACQUISITION WINDOW</h2>
@@ -433,6 +441,7 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
     <div class="panel">
       <h2>SCRIPTS ARE BLOCKED</h2>
       <p>Your PC doesn't allow running <code>.ps1</code> files. Use <code>PasteIntoPowerShell.txt</code> instead (see <a href="#use">How to use</a>). It runs the same hunter and makes a desktop shortcut that works on locked-down PCs.</p>
+      <p>If PowerShell itself won't open, double-click <code>MATLABLicenseHunter.cmd</code> instead (see <a href="#use">How to use</a>).</p>
     </div>
     <div class="panel">
       <h2>WINDOW TOO NARROW</h2>
