@@ -395,6 +395,18 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
       </ul>
       <div class="callout warn">Save your work first. <kbd>K</kbd> (force-kill) does not ask MATLAB nicely, and anything unsaved is lost.</div>
     </div>
+    <div class="panel wide" id="smart">
+      <h2>STARTING UP AND SMART HUNTING</h2>
+      <p>When the hunter opens it asks what you want to do: <kbd>H</kbd> hunt, <kbd>S</kbd> survey, or <kbd>Esc</kbd> to just watch the stats. (If MATLAB is already open on your PC it skips the question and watches that MATLAB.)</p>
+      <p>With the <a href="#srvsetup">license server</a> set up, <b>hunting is smart</b>. Instead of opening and killing MATLAB over and over, it waits until the server (corrected, see <a href="#calib">When the server is wrong</a>) shows a free seat, then launches. Because the server can still be wrong:</p>
+      <ul>
+        <li>The first launch of a hunt always happens right away.</li>
+        <li>While the server says it's full, it still tries <b>one test launch every 3 minutes</b>, in case the server is wrong.</li>
+        <li>After a denied launch it waits for the used count to <b>drop</b> (someone leaving) before trying again.</li>
+        <li>If the server hasn't been read in the last 2 minutes, it goes back to plain retrying every few seconds.</li>
+      </ul>
+      <p>The status line says what it's waiting for, for example <i>full (34 used, ~34 usable), test launch in 2m 10s</i>.</p>
+    </div>
     <div class="panel wide" id="survey">
       <h2>SURVEY MODE</h2>
       <p>Survey mode is <b>only for collecting data</b>. You never get to keep MATLAB. Press <kbd>S</kbd> in the hunter window (or start it with <code>-Survey</code>) and it repeats this every minute:</p>
@@ -412,6 +424,14 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
         <li>The <b>License server</b> panel on the Live page and the <b>Server</b> line in the hunter show how many MATLAB seats are in use right now, and who has them.</li>
         <li>Whichever hunter is open checks the server about <b>once a minute</b> and shares the result with everyone (<code>LicenseData\server\</code>), so the server isn't asked by every PC.</li>
         <li>Every check also counts toward the <b>% charts</b>: a 5-minute slot counts as free if a seat was open in it. That fills in the times nobody was trying, so the charts get far more data.</li>
+      </ul>
+      <h3 id="calib">When the server is wrong</h3>
+      <p>The server's own numbers are often off: it may say 34 of 49 seats are used while nobody can get in, because some seats are reserved for other groups or the counts are stale. So the hunter <b>checks the server against what really happens</b>:</p>
+      <ul>
+        <li>Every launch and toolbox request made while the server was being read is a test. <i>Server said 34 used and we were denied</i> means the real limit is at most 34. <i>It said 30 used and we got in</i> means it's at least 31.</li>
+        <li>It picks the limit that explains the most tests from the last 30 days, and shows it as <b>real limit ~33</b> (hunter) or a crossed-out total with <span class="c-accent">~33</span> (this page). Hover a row here to see the likely range and how many tests it's based on.</li>
+        <li>Until something has been denied at least once, the server's total is trusted as is. The more people hunt, the better the correction gets.</li>
+        <li>The % charts use the corrected numbers too.</li>
       </ul>
       <h3>Way 1: the license-watcher website (easiest)</h3>
       <ol>
@@ -660,7 +680,7 @@ function normalizeLive(raw) {
   } : null;
   return {
     generated: parseTime(raw.generated), by: String(raw.by || ''), online, attempts, toolboxes,
-    server, serverSetup: raw.serverSetup || null, srvSlots: srvSlotsFromDays(raw.serverDays || {}), source: 'live'
+    server, serverSetup: raw.serverSetup || null, srvSlots: srvSlotsFromDays(raw.serverDays || {}), calib: raw.calib || {}, source: 'live'
   };
 }
 
@@ -770,7 +790,7 @@ async function loadFolder(fileList) {
       }) };
     }
   }
-  state.folder = { generated: new Date(), by: 'LicenseData folder (loaded by hand)', online, attempts, toolboxes, server, serverSetup: null, srvSlots, source: 'folder' };
+  state.folder = { generated: new Date(), by: 'LicenseData folder (loaded by hand)', online, attempts, toolboxes, server, serverSetup: null, srvSlots, calib: {}, source: 'folder' };
   renderAll();
 }
 
@@ -1003,17 +1023,28 @@ function renderServer(m) {
   const rows = sv.rows.slice().sort((a, b) => order.indexOf(a.name.toLowerCase()) - order.indexOf(b.name.toLowerCase()));
   let html = '<div class="c-muted" style="margin-bottom:8px">Checked ' + esc(fmtAgo(age)) + ' by ' + esc(sv.by.split('@')[0]) +
     (old ? ' <span class="c-red">(old - nobody has the hunter open?)</span>' : '') + '</div><div class="srv">';
+  const calib = d.calib || {};
+  let anyFix = false;
   for (const r of rows) {
-    const free = r.total - r.used;
-    const p = r.total ? r.used / r.total : 0;
+    // Calibrated real limit (see "How the server is corrected"): [lo, hi, mid, tests, denied, misfits]
+    const c = calib[r.name.toLowerCase()];
+    const fixed = c && c[4] >= 1 && Math.min(r.total, c[2]) !== r.total;
+    const limit = fixed ? Math.min(r.total, c[2]) : r.total;
+    if (fixed) anyFix = true;
+    const free = Math.max(0, limit - r.used);
+    const p = limit ? Math.min(1, r.used / limit) : 1;
     const col = free > 0 ? '#00ff00' : '#ff0000';
-    html += '<div class="srow" title="' + esc(r.users.length ? r.users.join('\n') : 'nobody listed') + '">' +
+    const tip = (fixed ? 'Server says ' + r.used + ' of ' + r.total + ' used, but our own launches show only about ' + limit +
+      ' can really be used (likely ' + c[0] + '-' + Math.min(c[1], r.total) + ', from ' + c[3] + ' tests, ' + c[4] + ' denied).\n' : '') +
+      (r.users.length ? r.users.join('\n') : 'nobody listed');
+    html += '<div class="srow" title="' + esc(tip) + '">' +
       '<span class="n">' + esc(nameOf(r.name.toLowerCase())) + '</span>' +
       '<span class="track"><span style="width:' + (p * 100) + '%;background:' + (free > 0 ? '#ff8700' : '#ff0000') + '"></span></span>' +
-      '<span class="c">' + r.used + '/' + r.total + '</span>' +
+      '<span class="c">' + r.used + '/' + (fixed ? '<s class="c-muted">' + r.total + '</s> <span class="c-accent">~' + limit + '</span>' : r.total) + '</span>' +
       '<span class="f" style="color:' + col + '">' + free + ' free' + (r.queued ? ' &middot; ' + r.queued + ' queued' : '') + '</span></div>';
   }
   html += '</div>';
+  if (anyFix) html += '<div class="c-muted" style="margin-top:8px"><span class="c-accent">~N</span> = the real limit learned from our own launches; the server\'s total is crossed out. <a href="#calib">How?</a></div>';
   const ml = sv.rows.find(r => r.name.toLowerCase() === 'matlab');
   if (ml && ml.users.length) {
     html += '<div class="c-muted" style="margin-top:10px">Using MATLAB: ' + ml.users.map(u => esc(u.replace(/ \(.*$/, ''))).join(', ') + '</div>';

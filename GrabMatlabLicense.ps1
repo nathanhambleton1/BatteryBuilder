@@ -46,6 +46,11 @@
     License server (optional, see the LICENSE SERVER block in the parameters below): the hunter can
     read the real seat counts from the license-watcher website or with lmutil, shows them live, and
     counts every check as a sampled slot in the % charts, so they fill in when nobody is trying.
+    The server's numbers are corrected with our own launches (see Get-Calibration), and hunting
+    becomes "smart": it waits for the server to show a free seat instead of relaunching over and
+    over, with a test launch every -SmartCheckSeconds in case the server is wrong (-PlainHunt: off).
+
+    On start it asks: [H] hunt, [S] survey or [Esc] just watch (-Hunt / -Survey skip the question).
 
 .EXAMPLE
     .\GrabMatlabLicense.ps1 -DashboardOnly
@@ -64,8 +69,14 @@ param(
     [int]$ConfirmSeconds = 15,
     # Don't auto-run MATLABLicenseAcquisition inside MATLAB.
     [switch]$NoAutoRun,
-    # Open the dashboard without starting a hunt (press H to start one).
+    # Open the dashboard without the start menu (press H or S later).
     [switch]$DashboardOnly,
+    # Skip the start menu and start hunting right away.
+    [switch]$Hunt,
+    # Hunt the old way: keep launching MATLAB, ignoring the license server.
+    [switch]$PlainHunt,
+    # (Smart hunt) while the server says it's full, still try one launch this often, in case it's wrong.
+    [int]$SmartCheckSeconds = 180,
     # Start in survey mode: launch, log what's available, kill MATLAB, repeat (data only).
     [switch]$Survey,
     # (Survey) seconds from one probe's launch to the next.
@@ -181,7 +192,13 @@ $S = @{
     LastDetail = ''
     Rows = @()
     Tool = @()
-    SrvSlots = @{}           # 5-min slot -> was a MATLAB seat free (from license-server samples)
+    SrvSlots = @{}           # 5-min slot -> was a MATLAB seat free (from license-server samples, corrected)
+    SrvHist = @{}            # feature -> server readings of the last $CalibDays days (parallel lists T/U/N)
+    Calib = @{}              # feature -> real-limit fit from our own launches/requests (see Get-Calibration)
+    LaunchSrv = $null        # what the server showed when the current launch started: @{ U; N }
+    LastLaunchAt = $null     # (smart hunt) when this hunt last launched MATLAB
+    DenyU = $null            # (smart hunt) server's used count at our last denied launch
+    SmartWhy = ''            # (smart hunt) why it's waiting right now
     SrvNow = $null           # latest server snapshot: @{ At; By; Rows = @{ feature -> @{ Name; Used; Total; Queued; Users } } }
     Stats = $null
     Online = @()
@@ -324,8 +341,11 @@ function Add-SharedLine([string]$path, [string]$header, [string]$line) {
 function Write-Attempt([string]$result, [double]$seconds, [string]$detail) {
     $clean = ($detail -replace '[,\r\n"]', ' ').Trim()
     if ($clean.Length -gt 120) { $clean = $clean.Substring(0, 120) }
-    $line = '{0},{1},{2},{3},{4},{5},,,{6}' -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss', $Inv),
-        $env:USERNAME, $env:COMPUTERNAME, $S.HuntId, $result, [int][math]::Round($seconds), $clean
+    # Launch outcomes also record what the server showed when the launch started (for calibration)
+    $su = ''; $stot = ''
+    if ($S.LaunchSrv -and $result -in 'SUCCESS', 'DENIED', 'FULL', 'TIMEOUT', 'ERROR') { $su = $S.LaunchSrv.U; $stot = $S.LaunchSrv.N }
+    $line = '{0},{1},{2},{3},{4},{5},{6},{7},{8}' -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss', $Inv),
+        $env:USERNAME, $env:COMPUTERNAME, $S.HuntId, $result, [int][math]::Round($seconds), $su, $stot, $clean
     [void](Add-SharedLine $MyAttemptFile $AttemptHeader $line)
     $S.NextData = Get-Date
 }
@@ -372,7 +392,9 @@ $ParseAttempt = {
     if ($p.Count -lt 9) { return }
     $t = ConvertTo-Time $p[0]
     if (-not $t) { return }
-    [pscustomobject]@{ T = $t; User = $p[1]; Pc = $p[2]; Hunt = $p[3]; Result = $p[4]; Sec = [double]$p[5]; Detail = $p[8] }
+    $su = 0; $stot = 0
+    [void][int]::TryParse($p[6], [ref]$su); [void][int]::TryParse($p[7], [ref]$stot)
+    [pscustomobject]@{ T = $t; User = $p[1]; Pc = $p[2]; Hunt = $p[3]; Result = $p[4]; Sec = [double]$p[5]; Detail = $p[8]; SeatsUsed = $su; SeatsTotal = $stot }
 }
 
 $ParseToolbox = {
@@ -493,6 +515,8 @@ function Update-Data {
     $S.NextData = (Get-Date).AddSeconds(10)
     $S.Rows = Get-CsvRows $Dirs.Attempts $ParseAttempt
     $S.Tool = Get-CsvRows $Dirs.Toolboxes $ParseToolbox
+    Update-ServerHistory
+    $S.Calib = Get-Calibration
     $S.SrvSlots = Get-ServerSlots
     $S.SrvNow = Read-ServerLatest
     $S.Stats = Get-Stats $S.Rows $S.SrvSlots
@@ -739,7 +763,8 @@ function Update-Server {
     $Srv.NextTry = $now.AddSeconds(10)
     # Someone (maybe us) checked recently: use theirs instead of asking the server again
     $f = Get-Item -LiteralPath $ServerLatestFile -ErrorAction SilentlyContinue
-    if ($f -and ($now + $S.ShareSkew - $f.LastWriteTime).TotalSeconds -lt $ServerPollSeconds - 5) { return }
+    $every = if ($S.Mode -eq 'HUNT' -and -not $S.Paused -and -not $PlainHunt) { [math]::Min($ServerPollSeconds, 15) } else { $ServerPollSeconds }
+    if ($f -and ($now + $S.ShareSkew - $f.LastWriteTime).TotalSeconds -lt $every - 5) { return }
     if ($Srv.Err) { $Srv.NextTry = $now.AddSeconds([math]::Max(60, $ServerPollSeconds)) }   # back off while it fails
     $ps = [powershell]::Create()
     [void]$ps.AddScript($ServerPollScript.ToString()).AddArgument($Srv.Source).AddArgument($Srv.Exe).AddArgument($Srv.Server).AddArgument($LicenseWebUrl)
@@ -763,37 +788,162 @@ function Read-ServerLatest {
     @{ At = $at; By = "$($head[1])"; Rows = $rows }
 }
 
-# 5-min slot -> was a MATLAB seat free, from the daily server CSVs (work-day hours only).
-# Each file is only re-read when it changes, so this stays cheap.
-$script:SrvCache = @{}
-function Get-ServerSlots {
-    $all = @{}
-    foreach ($f in Get-ChildItem -Path $Dirs.Server -Filter '*.csv' -File -ErrorAction SilentlyContinue) {
+# ---------------------------------------------------------------------------------------------
+# Server history and calibration
+#
+# The server's own numbers can be wrong (seats reserved for other groups, stale counts, ...), so
+# they are checked against what really happened. Every launch and toolbox request made while the
+# server was being read is a test: "server said 34 used and we were denied" means the real limit
+# is at most 34; "it said 30 used and we got in" means it's at least 31. The limit that explains
+# the most tests from the last $CalibDays days is used to correct the server numbers everywhere.
+# Until a feature has been denied at least once, its server total is trusted as is.
+# ---------------------------------------------------------------------------------------------
+$CalibDays = 30
+$script:SrvCache = @{}   # file -> @{ Stamp; Feat = feature -> @{ T; U; N } (parallel lists); Slots; SlotsKey }
+
+function New-SampleList { @{ T = New-Object System.Collections.Generic.List[long]; U = New-Object System.Collections.Generic.List[int]; N = New-Object System.Collections.Generic.List[int] } }
+
+function Read-ServerCsv([string]$path) {
+    $feat = @{}
+    foreach ($line in (Read-SharedFile $path) -split "`r?`n") {
+        $p = $line.Split(',')
+        if ($p.Count -lt 4) { continue }
+        $t = ConvertTo-Time $p[0]
+        if (-not $t) { continue }
+        $used = 0; $total = 0
+        if (-not [int]::TryParse($p[2], [ref]$used) -or -not [int]::TryParse($p[3], [ref]$total) -or $total -le 0) { continue }
+        $k = $p[1].ToLowerInvariant()
+        if (-not $feat.ContainsKey($k)) { $feat[$k] = New-SampleList }
+        $feat[$k].T.Add($t.Ticks); $feat[$k].U.Add($used); $feat[$k].N.Add($total)
+    }
+    $feat
+}
+
+# Loads new/changed daily server CSVs and builds $S.SrvHist (the last $CalibDays days, per feature)
+function Update-ServerHistory {
+    $cut = (Get-Date).Date.AddDays(-$CalibDays).ToString('yyyy-MM-dd', $Inv)
+    $hist = @{}
+    foreach ($f in Get-ChildItem -Path $Dirs.Server -Filter '*.csv' -File -ErrorAction SilentlyContinue | Sort-Object Name) {
         $key = $f.FullName
         $stamp = "$($f.Length)|$($f.LastWriteTimeUtc.Ticks)"
         $c = $script:SrvCache[$key]
         if (-not $c -or $c.Stamp -ne $stamp) {
-            $text = $null
-            try { $text = Read-SharedFile $key } catch {}
-            if ($null -ne $text) {
-                $slots = @{}
-                foreach ($line in $text -split "`r?`n") {
-                    $p = $line.Split(',')
-                    if ($p.Count -lt 4 -or $p[1] -ne 'MATLAB') { continue }
-                    $t = ConvertTo-Time $p[0]
-                    if (-not $t -or $DayHours -notcontains $t.Hour) { continue }
-                    $used = 0; $total = 0
-                    if (-not [int]::TryParse($p[2], [ref]$used) -or -not [int]::TryParse($p[3], [ref]$total) -or $total -le 0) { continue }
-                    $slot = Get-Slot $t
-                    $slots[$slot] = [bool]$slots[$slot] -or ($used -lt $total)
-                }
-                $c = @{ Stamp = $stamp; Slots = $slots }
-                $script:SrvCache[$key] = $c
-            }
+            try { $c = @{ Stamp = $stamp; Feat = (Read-ServerCsv $key); Slots = $null; SlotsKey = '' }; $script:SrvCache[$key] = $c } catch {}
         }
-        if ($c) { foreach ($kv in $c.Slots.GetEnumerator()) { $all[$kv.Key] = [bool]$all[$kv.Key] -or $kv.Value } }
+        if (-not $c -or $f.BaseName -lt $cut) { continue }
+        foreach ($kv in $c.Feat.GetEnumerator()) {
+            if (-not $hist.ContainsKey($kv.Key)) { $hist[$kv.Key] = New-SampleList }
+            $hist[$kv.Key].T.AddRange($kv.Value.T); $hist[$kv.Key].U.AddRange($kv.Value.U); $hist[$kv.Key].N.AddRange($kv.Value.N)
+        }
+    }
+    $S.SrvHist = $hist
+}
+
+# The newest server reading of a feature taken at or just before $t (up to 3 min old), or $null.
+# Readings taken after $t would already count our own seat, so they aren't used.
+function Find-ServerSample([string]$feat, [datetime]$t) {
+    $h = $S.SrvHist[$feat]
+    if (-not $h -or -not $h.T.Count) { return $null }
+    $key = $t.AddSeconds(5).Ticks
+    $i = $h.T.BinarySearch($key)
+    if ($i -lt 0) { $i = (-bnot $i) - 1 }
+    if ($i -lt 0 -or ($key - $h.T[$i]) -gt [timespan]::TicksPerMinute * 3) { return $null }
+    @{ U = $h.U[$i]; N = $h.N[$i] }
+}
+
+# Best-fitting real limit from tests (used count -> got it?), via counts per used value:
+# errors(C) = got-it tests with used >= C + denied tests with used < C. Every C with the fewest
+# errors explains the data equally well; Lo..Hi is that range and Mid its middle.
+function Get-LimitFit($okBy, $denBy, [int]$n, [int]$den) {
+    $max = 0
+    foreach ($u in @($okBy.Keys) + @($denBy.Keys)) { if ($u -gt $max) { $max = $u } }
+    $okAbove = 0; foreach ($v in $okBy.Values) { $okAbove += $v }   # got-it tests with used >= C (C = 0: all)
+    $denBelow = 0
+    $best = [int]::MaxValue; $lo = 0; $hi = 0
+    for ($c = 0; $c -le $max + 1; $c++) {
+        if ($c -gt 0) { $okAbove -= [int]$okBy[$c - 1]; $denBelow += [int]$denBy[$c - 1] }
+        $err = $okAbove + $denBelow
+        if ($err -lt $best) { $best = $err; $lo = $c; $hi = $c } elseif ($err -eq $best) { $hi = $c }
+    }
+    @{ N = $n; Den = $den; Lo = $lo; Hi = $hi; Mid = [int][math]::Ceiling(($lo + $hi) / 2); Err = $best }
+}
+
+# feature -> fit, from our launches (MATLAB) and toolbox requests matched to server readings
+function Get-Calibration {
+    $cut = (Get-Date).Date.AddDays(-$CalibDays)
+    $tests = @{}
+    $addTest = {
+        param($feat, $u, $ok)
+        if (-not $tests.ContainsKey($feat)) { $tests[$feat] = @{ Ok = @{}; Den = @{}; N = 0; D = 0 } }
+        $x = $tests[$feat]; $x.N++
+        if ($ok) { $x.Ok[$u] = [int]$x.Ok[$u] + 1 } else { $x.Den[$u] = [int]$x.Den[$u] + 1; $x.D++ }
+    }
+    foreach ($r in $S.Rows) {
+        if ($r.T -lt $cut -or $r.Result -notin 'SUCCESS', 'DENIED', 'FULL') { continue }
+        # The launch row says what the server showed when that launch started (newer rows), or
+        # we look it up in the server history
+        $u = if ($r.SeatsTotal -gt 0) { $r.SeatsUsed } else {
+            $sm = Find-ServerSample 'matlab' $r.T.AddSeconds(-$r.Sec)
+            if ($sm) { $sm.U } else { -1 }
+        }
+        if ($u -ge 0) { & $addTest 'matlab' $u ($r.Result -eq 'SUCCESS') }
+    }
+    foreach ($t in $S.Tool) {
+        if ($t.T -lt $cut -or $t.Event -notin 'WAITING', 'ACQUIRED') { continue }
+        # WAITING = busy at that moment; ACQUIRED = a seat was free at that moment
+        $sm = Find-ServerSample $t.Feature.ToLowerInvariant() $t.T
+        if ($sm) { & $addTest $t.Feature.ToLowerInvariant() $sm.U ($t.Event -eq 'ACQUIRED') }
+    }
+    $out = @{}
+    foreach ($kv in $tests.GetEnumerator()) {
+        $out[$kv.Key] = Get-LimitFit $kv.Value.Ok $kv.Value.Den $kv.Value.N $kv.Value.D
+    }
+    $out
+}
+
+# Seats really usable for a feature when the server says $total: the calibrated limit (capped at
+# the total), or the total itself while there's no denied test to calibrate with.
+# -Optimistic gives the top of the likely range (smart hunt: rather one launch too many than miss a seat).
+function Get-UsableLimit([string]$feat, [int]$total, [switch]$Optimistic) {
+    $c = $S.Calib[$feat]
+    if (-not $c -or $c.Den -lt 1) { return $total }
+    [math]::Min($total, $(if ($Optimistic) { $c.Hi } else { $c.Mid }))
+}
+
+# 5-min slot -> was a MATLAB seat free (corrected), from the daily server CSVs, work-day hours only
+function Get-ServerSlots {
+    $c = $S.Calib['matlab']
+    $limKey = if ($c -and $c.Den -ge 1) { "$($c.Mid)" } else { 'raw' }
+    $all = @{}
+    foreach ($e in $script:SrvCache.Values) {
+        if ($e.SlotsKey -ne $limKey) {
+            $slots = @{}
+            $m = $e.Feat['matlab']
+            if ($m) {
+                for ($i = 0; $i -lt $m.T.Count; $i++) {
+                    $t = New-Object datetime $m.T[$i]
+                    if ($DayHours -notcontains $t.Hour) { continue }
+                    $lim = if ($limKey -eq 'raw') { $m.N[$i] } else { [math]::Min($m.N[$i], $c.Mid) }
+                    $slot = Get-Slot $t
+                    $slots[$slot] = [bool]$slots[$slot] -or ($m.U[$i] -lt $lim)
+                }
+            }
+            $e.Slots = $slots; $e.SlotsKey = $limKey
+        }
+        foreach ($kv in $e.Slots.GetEnumerator()) { $all[$kv.Key] = [bool]$all[$kv.Key] -or $kv.Value }
     }
     $all
+}
+
+# Newest server reading for a feature with the corrected numbers, if it's fresh enough to act on
+function Get-ServerSeat([string]$feat, [int]$maxAgeSec = 120) {
+    $n = $S.SrvNow
+    if (-not $n -or ((Get-Date) - $n.At).TotalSeconds -gt $maxAgeSec) { return $null }
+    $r = $n.Rows[$feat]
+    if (-not $r) { return $null }
+    $lim = Get-UsableLimit $feat $r.Total
+    @{ Used = $r.Used; Total = $r.Total; Queued = $r.Queued; Limit = $lim; Free = [math]::Max(0, $lim - $r.Used);
+       OptLimit = (Get-UsableLimit $feat $r.Total -Optimistic); At = $n.At; Corrected = ($lim -ne $r.Total) }
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -808,7 +958,7 @@ function Export-WebData([switch]$Force) {
     $now = Get-Date
     if (-not $Force -and $now -lt $S.NextExport) { return }
     $myMode = if ($S.Paused) { 'PAUSED' } else { $S.Mode }
-    $sig = "$($S.Rows.Count)|$($S.Tool.Count)|$myMode|$($S.SrvSlots.Count)|$(if ($S.SrvNow) { $S.SrvNow.At.Ticks })|$($Srv.Err)|" +
+    $sig = "$($S.Rows.Count)|$($S.Tool.Count)|$myMode|$($S.SrvSlots.Count)|$(($S.Calib.Values | ForEach-Object { $_.Mid }) -join '.')|$(if ($S.SrvNow) { $S.SrvNow.At.Ticks })|$($Srv.Err)|" +
         ((@($S.Online) | ForEach-Object { "$($_.Id)=$($_.Mode)" }) -join ',')
     if (-not $Force -and $sig -eq $S.ExportSig) { return }
     $S.NextExport = $now.AddSeconds(30)
@@ -863,6 +1013,11 @@ function Get-ServerJs([datetime]$cut) {
         $out += '{"at":' + (Js $n.At.ToString('s')) + ',"by":' + (Js $n.By) + ',"rows":[' + (@($rows) -join ',') + ']}'
     } else { $out += 'null' }
     $target = switch ($Srv.Source) { 'WEB' { $LicenseWebUrl } 'LMUTIL' { $Srv.Server } default { $Srv.Server } }
+    $cal = foreach ($kv in $S.Calib.GetEnumerator()) {
+        $c = $kv.Value
+        (Js $kv.Key) + ':[' + $c.Lo + ',' + $c.Hi + ',' + $c.Mid + ',' + $c.N + ',' + $c.Den + ',' + $c.Err + ']'
+    }
+    $out += ',"calib":{' + (@($cal) -join ',') + '}'
     $out += ',"serverSetup":{"source":' + (Js $Srv.Source) + ',"target":' + (Js $target) + ',"lmutil":' + (Js $Srv.Exe) + ',"err":' + (Js $Srv.Err) + '}'
     $perDay = $DayHours.Count * 60 / $SlotMinutes
     $days = @{}
@@ -1004,6 +1159,7 @@ function Start-Hunt([switch]$Survey) {
     $S.HuntId = (Get-Date).ToString('yyyyMMddHHmmss', $Inv)
     $S.HuntStart = Get-Date
     $S.HuntStrip.Clear()
+    $S.LastLaunchAt = $null; $S.DenyU = $null; $S.SmartWhy = ''
     Save-Prefs
     Add-Log 'INFO' $(if ($Survey) { "Survey started - one probe every $(Fmt-Dur $SurveyIntervalSeconds)" } else { 'Hunt started' })
 }
@@ -1027,6 +1183,11 @@ function Start-MatlabLaunch {
         $argList = "-nosplash -sd `"$sd`" -r `"MATLABLicenseAcquisition('AutoStart',true$sv,'DataRoot','$dr')`""
     }
     Remove-Item -Path $ReadyFile, $SurveyFile -Force -ErrorAction SilentlyContinue
+    # What the server shows right now, logged with the outcome so the server can be calibrated
+    $seat = Get-ServerSeat 'matlab' 120
+    $S.LaunchSrv = if ($seat) { @{ U = $seat.Used; N = $seat.Total } } else { $null }
+    $S.LastLaunchAt = Get-Date
+    $S.SmartWhy = ''
     $S.LaunchTime = Get-Date
     try {
         $S.Proc = Start-Process -FilePath $MatlabPath -ArgumentList $argList -PassThru
@@ -1076,6 +1237,7 @@ function Fail-Launch([string]$result, [string]$detail) {
     Write-Attempt $result $secs $detail
     $S.LastResult = $result; $S.LastDetail = $detail
     $S.HuntStrip.Add($result)
+    if ($result -eq 'DENIED' -and $S.LaunchSrv) { $S.DenyU = $S.LaunchSrv.U }
     Add-Log $(if ($result -eq 'DENIED') { 'DENY' } else { 'WARN' }) "#$($S.Attempt) $result - $(Trunc $detail 70)"
     Stop-LaunchedMatlab
     $S.Phase = 'WAIT'
@@ -1118,8 +1280,34 @@ function Complete-Success([string]$detail) {
     }
     $S.Mode = 'HAVE'
     $S.SessionStart = Get-Date
+    $S.DenyU = $null; $S.SmartWhy = ''
     $hunt = ((Get-Date) - $S.HuntStart).TotalSeconds
     Add-Log 'GOT' "Got MATLAB on launch #$($S.Attempt) after $(Fmt-Dur $hunt)"
+}
+
+# Smart hunt: rather than opening and killing MATLAB over and over, wait until the license server
+# (corrected by calibration) shows a free seat, then launch. The server is never fully trusted:
+#   * no fresh server reading (2 min) -> plain retrying, as without a server
+#   * still one test launch every $SmartCheckSeconds while it says "full", in case it's wrong
+#   * after a denial, wait for the used count to drop below what it was then (someone left)
+# Returns $true when it's time to launch; otherwise $S.SmartWhy says what it's waiting for.
+function Test-SmartGo {
+    $S.SmartWhy = ''
+    if ($PlainHunt) { return $true }
+    $seat = Get-ServerSeat 'matlab' 120
+    if (-not $seat) { return $true }
+    $since = if ($S.LastLaunchAt) { ((Get-Date) - $S.LastLaunchAt).TotalSeconds } else { [double]::MaxValue }
+    if ($since -ge $SmartCheckSeconds) { return $true }
+    $test = "test launch in $(Fmt-Dur ($SmartCheckSeconds - $since))"
+    if ($seat.Used -ge $seat.OptLimit) {
+        $S.SmartWhy = "full ($($seat.Used) used, ~$($seat.OptLimit) usable), $test"
+        return $false
+    }
+    if ($null -ne $S.DenyU -and $seat.Used -ge $S.DenyU) {
+        $S.SmartWhy = "denied at $($S.DenyU) used, waiting for a drop, $test"
+        return $false
+    }
+    $true
 }
 
 function Update-Hunt {
@@ -1135,6 +1323,7 @@ function Update-Hunt {
                 } else { Start-Hunt }
                 return
             }
+            if ($S.Mode -eq 'HUNT' -and -not (Test-SmartGo)) { return }
             Start-MatlabLaunch
         }
         'LAUNCH' {
@@ -1222,6 +1411,15 @@ function Read-PopupKey([string]$ch, $key) {
     $p = $S.Popup
     if (-not $p) { return $false }
     $esc = $key -eq 'Escape'
+    if ($p.Op -eq 'START') {
+        switch ($ch) {
+            'H' { $S.Popup = $null; Start-Hunt; return $true }
+            'S' { $S.Popup = $null; Start-Hunt -Survey; return $true }
+            { $_ -in 'Q', 'D' } { if ($ch -eq 'Q') { $S.Popup = $null }; return $false }
+        }
+        if ($esc -or $ch -in 'N', 'W') { $S.Popup = $null; Add-Log 'INFO' 'Just watching - press H to hunt or S to survey' }
+        return $true
+    }
     if ($p.Stage -eq 'CONFIRM') {
         if ($ch -eq 'N' -or $esc) { $S.Popup = $null; return $true }
         if ($ch -eq 'Y' -or $key -eq 'Enter' -or $ch -eq $p.Op) {
@@ -1329,6 +1527,7 @@ function Get-StatusLines {
             $l += & $row 'Now' $(switch ($S.Phase) {
                 'WAIT'   {
                     if ($S.Paused) { C 'Paused - press P to resume' 244 }
+                    elseif ($S.SmartWhy -and $now -ge $S.NextAt) { C (Trunc "Waiting for a seat: $($S.SmartWhy)" $VW) 220 }
                     else { C "Next $(if ($surveying) { 'probe' } else { 'launch' }) in $([math]::Max(0, [int]($S.NextAt - $now).TotalSeconds))s" 250 }
                 }
                 'LAUNCH' {
@@ -1386,26 +1585,21 @@ function Get-TeamLines {
     $l
 }
 
-# Server snapshot, or $null when there is none or it's too old to call "now"
-function Get-FreshServer {
-    $n = $S.SrvNow
-    if (-not $n -or ((Get-Date) - $n.At).TotalMinutes -gt 5) { return $null }
-    $n
-}
-
-# "Server  MATLAB 48/50 in use  2 free  20s ago" (or why there is no live server data)
+# "Server  MATLAB 34/49  real limit ~34  0 free  20s ago" (or why there is no live server data)
 function Get-ServerLine {
     $lead = ' ' + (C 'Server  ' 244)
-    $n = Get-FreshServer
-    $m = if ($n) { $n.Rows['matlab'] }
+    $m = Get-ServerSeat 'matlab' 300
     if ($m) {
-        $free = $m.Total - $m.Used
+        $ago = C "$([math]::Max(0, [int]((Get-Date) - $m.At).TotalSeconds))s ago" 240
+        $free = Bold "$($m.Free) free" $(if ($m.Free -gt 0) { 46 } else { 196 })
+        if ($m.Corrected) {
+            return $lead + "MATLAB $(Bold $m.Used 255)$(C "/$($m.Total)" 250)  $(C "real limit ~$($m.Limit)" 220)  $free  $ago"
+        }
         $q = if ($m.Queued) { C "  $($m.Queued) queued" 220 } else { '' }
-        $ago = [math]::Max(0, [int]((Get-Date) - $n.At).TotalSeconds)
-        return $lead + "MATLAB $(Bold $m.Used 255)$(C "/$($m.Total) in use" 250)  $(Bold "$free free" $(if ($free -gt 0) { 46 } else { 196 }))$q  $(C "$($ago)s ago" 240)"
+        return $lead + "MATLAB $(Bold $m.Used 255)$(C "/$($m.Total) in use" 250)  $free$q  $ago"
     }
     if ($Srv.Err) { return $lead + (C (Trunc "can't read it: $($Srv.Err)" ($RW - 10)) 220) }
-    if ($n) { return $lead + (C 'read OK, but no MATLAB feature listed' 244) }
+    if ($S.SrvNow -and -not $S.SrvNow.Rows['matlab']) { return $lead + (C 'read OK, but no MATLAB feature listed' 244) }
     if ($S.SrvNow) { return $lead + (C "last read $(Fmt-Dur ((Get-Date) - $S.SrvNow.At).TotalSeconds) ago" 244) }
     if ($Srv.Source -or $Srv.Job) { return $lead + (C 'checking...' 244) }
     $lead + (C 'not set up - see Details > License server' 244)
@@ -1501,15 +1695,13 @@ function Get-BottomLeftLines {
     }
     $l += $avgRow
 
-    # Seats free right now, from the license server (free/total)
-    $n = Get-FreshServer
-    if ($n) {
+    # Seats free right now, from the license server, corrected by calibration (free/usable)
+    if ($S.SrvNow -and ((Get-Date) - $S.SrvNow.At).TotalSeconds -le 300) {
         $srvRow = ' ' + (C ('Free now'.PadRight(11)) 244)
         foreach ($f in $Features) {
-            $r = $n.Rows[$f.Id]
+            $r = Get-ServerSeat $f.Id 300
             $srvRow += if ($r) {
-                $free = $r.Total - $r.Used
-                C ("$free/$($r.Total)".PadRight(9)) $(if ($free -gt 0) { 46 } else { 196 })
+                C ("$($r.Free)/$($r.Limit)$(if ($r.Corrected) { '*' })".PadRight(9)) $(if ($r.Free -gt 0) { 46 } else { 196 })
             } else { C ('-'.PadRight(9)) 240 }
         }
         $l += $srvRow
@@ -1571,10 +1763,23 @@ function Step([int]$state, [string]$text) {
 function Get-PopupLines {
     $p = $S.Popup
     $el = ((Get-Date) - $p.Since).TotalSeconds
-    $col = if ($p.Stage -eq 'DONE') { 46 } else { switch ($p.Op) { 'R' { 208 } 'K' { 196 } 'Q' { 75 } default { 46 } } }
+    $col = if ($p.Stage -eq 'DONE') { 46 } else { switch ($p.Op) { 'R' { 208 } 'K' { 196 } 'Q' { 75 } 'START' { 208 } default { 46 } } }
     $title = ''; $info = ''; $body = @(); $keys = @()
     $closes = "closes in $([math]::Max(1, [int][math]::Ceiling($PopupDoneSecs - $el)))s"
     switch ("$($p.Op)/$($p.Stage)") {
+        'START/ASK' {
+            $title = 'WHAT DO YOU WANT TO DO?'
+            $smart = -not $PlainHunt -and (Get-ServerSeat 'matlab' 300)
+            $body = @(
+                ((KeyHint 'H' ' Hunt') + (C '     get MATLAB for yourself' 250)),
+                (C $(if ($smart) { '             waits for a seat to free up on the server' } else { '             keeps launching MATLAB until it gets a seat' }) 244),
+                '',
+                ((KeyHint 'S' ' Survey') + (C '   only collect data, never keep MATLAB' 250)),
+                '',
+                ((KeyHint 'Esc' ' Watch') + (C '  just look at the team stats' 250))
+            )
+            $keys = @((C 'You can start either later with H or S.' 244))
+        }
         'R/CONFIRM' {
             $title = 'RELEASE MATLAB?'
             $body = @(
@@ -1747,9 +1952,11 @@ try {
 # ---------------------------------------------------------------------------------------------
 if ($MatlabPath) { Add-Log 'INFO' "MATLAB: $MatlabPath" } else { Add-Log 'ERR' 'MATLAB.exe not found - use -MatlabPath' }
 Add-Log 'INFO' "Shared data: $DataRoot"
+Update-Data   # load the shared data (and the server reading) before the first launch
 if ($Survey) { Start-Hunt -Survey }
+elseif ($Hunt -or (Get-ExistingMatlab)) { Start-Hunt }   # MATLAB already open here: just watch it
 elseif ($DashboardOnly) { Add-Log 'INFO' 'Dashboard mode - press H to start hunting' }
-else { Start-Hunt }
+else { Open-Popup 'START' 'ASK' }
 try {
     while (-not $S.Quit) {
         try {
