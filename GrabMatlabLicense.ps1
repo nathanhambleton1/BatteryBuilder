@@ -564,6 +564,8 @@ $ServerPollScript = {
         $wc = New-Object Net.WebClient
         $wc.UseDefaultCredentials = $true
         $wc.Headers['User-Agent'] = 'MATLABLicenseHunter'
+        # listing=1 is the expiration-date view (no usage numbers); listing=0 is the in-use view
+        $url = $url -replace '(?i)([?&]listing=)1', '${1}0'
         $page = $wc.DownloadString($url)
         if ($page -match 'currently in use') { return $page }
         # The site's home page (or any page linking to "Usage Details"): follow every
@@ -609,17 +611,28 @@ function ConvertFrom-LicenseStatus([string]$text) {
                 $v = [regex]::Replace($_.Groups[1].Value, '(?i)<br\s*/?>', "`n")
                 [Net.WebUtility]::HtmlDecode([regex]::Replace($v, '<[^>]+>', '')).Trim()
             })
-            if ($cells.Count -lt 3) { continue }
-            if ($cells[0] -and $cells[2] -match 'Total of (\d+) licenses?, (\d+) currently in use(?:, (\d+) queued)?') {
-                $cur = & $add $cells[0] ([int]$Matches[1]) ([int]$Matches[2]) ([int]$Matches[3])
-            } elseif (-not $cells[0] -and $cur -and $cells[2] -match 'User:\s*([^\r\n]+)') {
+            if ($cells.Count -lt 2) { continue }
+            # Any cell with "Total of N licenses, M (currently) in use" - older versions word it slightly
+            # differently and put it in other columns, so look at every cell, not just the third
+            $info = @($cells | Where-Object { $_ -match '(?is)Total of (\d+) licen[sc]es?\b.*?\b(\d+) (?:currently )?in use' } | Select-Object -First 1)
+            if ($cells[0] -and $info.Count) {
+                [void]($info[0] -match '(?is)Total of (\d+) licen[sc]es?\b.*?\b(\d+) (?:currently )?in use')
+                $total = [int]$Matches[1]; $used = [int]$Matches[2]
+                $q = if ($info[0] -match '(?i)(\d+) queued') { [int]$Matches[1] } else { 0 }
+                $cur = & $add $cells[0] $total $used $q
+            } elseif (-not $cells[0] -and $cur) {
+                $cell = @($cells | Where-Object { $_ -match 'User:' } | Select-Object -First 1)
+                if (-not $cell.Count) { continue }
+                [void]($cell[0] -match 'User:\s*([^\r\n]+)')
                 $u = $Matches[1].Trim()
-                if ($cells[2] -match 'Computer:\s*([^\r\n]+)') { $u += " ($($Matches[1].Trim()))" }
-                if ($cells[2] -match 'queued') { $u += ' [queued]' }
+                if ($cell[0] -match 'Computer:\s*([^\r\n]+)') { $u += " ($($Matches[1].Trim()))" }
+                if ($cell[0] -match 'queued') { $u += ' [queued]' }
                 $cur.Users.Add($u)
             }
         }
-        return $res
+        if ($res.Count) { return $res }
+        # No usage table: maybe the page just prints lmstat's output - read it as plain text below
+        $text = [Net.WebUtility]::HtmlDecode([regex]::Replace([regex]::Replace($text, '(?i)<br\s*/?>|</(p|div|tr|li|pre)>', "`n"), '<[^>]+>', ''))
     }
     foreach ($line in $text -split "`r?`n") {
         if ($line -match '^Users of ([^:]+):\s+\(Total of (\d+) licenses? issued;\s+Total of (\d+) licenses? in use') {
@@ -636,10 +649,19 @@ function ConvertFrom-LicenseStatus([string]$text) {
 }
 
 # The line of the reply that explains why nothing could be read (lmstat prints its errors to stdout)
+# A web page that couldn't be read is saved to LicenseData\server\last-page-<user@pc>.html to look at.
 function Get-LicenseError([string]$text) {
+    if ($text -match '(?i)<html|<body|<table|<div') {
+        $file = Join-Path $Dirs.Server "last-page-$ClientId.html"
+        try { [IO.File]::WriteAllText($file, $text) } catch {}
+        if ($text -match '(?i)No licenses are currently being used') { return 'the page says no licenses are in use right now' }
+        $rel = "LicenseData\server\$(Split-Path $file -Leaf)"
+        if ($text -match '(?i)<input[^>]+type=.?password') { return "page wants a login (saved: $rel)" }
+        return "no license counts on that page (saved: $rel)"
+    }
     foreach ($line in $text -split "`r?`n") {
         $t = $line.Trim()
-        if ($t -match '(?i)error|cannot|can''t|not responding|down|refused|denied|timed out|unable|not found') { return $t }
+        if ($t -match '(?i)\b(error|cannot|can''t|not responding|is down|refused|denied|timed out|unable|not found)\b') { return $t }
     }
     'no license counts in the reply'
 }
