@@ -11,7 +11,8 @@ $('standard').onclick=()=>{setMission(false);profDirty(true)};
 $('practice').onclick=()=>{setMission(true);profDirty(true)};
 $('helpOpen').onclick=()=>{if(state==='playing')pause();openPanel('help')};$('helpClose').onclick=closePanel;$('hangarOpen').onclick=()=>openPanel('hangar');$('hangarClose').onclick=closePanel;
 $('boardOpen').onclick=()=>openPanel('board');$('achOpen').onclick=()=>openPanel('ach');$('overAch').onclick=()=>openPanel('ach');$('achClose').onclick=closePanel;document.querySelectorAll('#achSeg button').forEach(b=>b.onclick=()=>{lb.achView=b.dataset.v;if(b.dataset.v==='path')lb.achWho='';renderAch()});$('lbChip').onclick=()=>openPanel('board');$('overBoard').onclick=()=>openPanel('board');$('boardClose').onclick=closePanel;
-$('callsign').addEventListener('change',()=>{store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch()});
+// Finishing the callsign (click or tab away, or Enter) loads that sailor's shared profile: read only, no Save cooldown.
+$('callsign').addEventListener('change',()=>{store.set('undertow.callsign',$('callsign').value.trim().slice(0,16));profSwitch();profLoad()});
 $('callsign').addEventListener('input',callsignState);callsignState();
 $('motion').onclick=()=>{reduced=!reduced;$('motion').textContent='Motion effects: '+(reduced?'reduced':'on')};
 $('camBtn').onclick=toggleCam;$('camBtn').textContent='Camera: '+(cam3d?'3D orbit':'flat');

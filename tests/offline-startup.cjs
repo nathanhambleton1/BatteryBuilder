@@ -24,4 +24,8 @@ for(const f of fs.readdirSync(path.join(root,'files')).filter(f=>f.endsWith('.js
  for(const m of src.matchAll(/(setInterval|setTimeout|addEventListener)\([^;]*?(saveAll|profSync|lbFlush|boardRefresh)\(/g))
   assert(f==='manual-save.js'&&m[0].includes("'keydown'"),f+': automatic shared-drive call '+m[0].slice(0,80));
 }
-console.log('PASS: manual-save entry point, launcher and no automatic shared-drive I/O');
+// Finishing the callsign reads that sailor's profile; the read never writes.
+assert(/addEventListener\('change',[^\n]*profSwitch\(\);profLoad\(\)/.test(read('files/main.js')));
+const profLoadSrc=read('files/profile.js').match(/async function profLoad\(\)[\s\S]*?\n\}/)[0];
+assert(!/writeText|saveAll|SAVE_COOLDOWN|saveJob\.tried/.test(profLoadSrc));
+console.log('PASS: manual-save entry point, launcher, callsign load and no automatic shared-drive I/O');

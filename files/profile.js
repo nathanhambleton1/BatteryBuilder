@@ -75,6 +75,26 @@ async function profSync(){
   saveStatus('profile','done','Progress and preferences saved');renderRank();return true;
  }catch(e){saveStatus('profile','error','Progress not saved: '+(e&&e.message||e));if(prof.key===key){prof.pulled=false;prof.note='The shared profile could not be reached ('+(e&&e.message||e)+'). Progress is kept on this computer; press Save to try again.';renderRank()}return false}finally{if(prof.syncJob===job)prof.syncJob=null}
 }
+/* Called when the player finishes typing a callsign (clicks or tabs out of the box): one read of
+   their shared profile, so their level, medals, campaign and settings show up at once. It writes
+   nothing, so it is not Save and does not wait for or start Save's one-minute cooldown. */
+async function profLoad(){
+ const key=prof.key,name=prof.name;if(!key||key==='anonymous')return false;
+ if(!await saveFolder()){if(prof.key===key){prof.note=lb.note||'The shared folder is not available.';renderRank()}return false}
+ if(prof.key!==key)return false;
+ prof.note='Loading '+name+'’s progress from the shared folder…';renderRank();
+ const job=prof.chain.then(async()=>{
+  try{const dir=await lb.dir.getDirectoryHandle(PROFILE_DIR),text=unseal(await readText(key+'.dat',dir));return text?cleanProfile(JSON.parse(text),name):null}
+  catch(e){if(e&&e.name==='NotFoundError')return null;throw e}
+ });
+ prof.chain=job.catch(()=>{});
+ try{
+  const remote=await job;if(prof.key!==key)return false;
+  if(remote){const now=mergeProfiles(profSnapshot(),remote);now.name=name;profApply(now);profSaveLocal();prof.pulled=true;prof.note='Loaded '+name+'’s progress from the shared folder.'}
+  else prof.note='No saved progress for '+name+' in the shared folder yet. Press Save to start it.';
+  renderRank();return true;
+ }catch(e){if(prof.key===key){prof.note='Could not load '+name+'’s progress ('+(e&&e.message||e)+'). Progress on this computer is kept.';renderRank()}return false}
+}
 // Called when the callsign changes: keep the old sailor in this browser, then load the new one.
 function profSwitch(){
  const name=callsign(),key=duelKey(name);if(key===prof.key)return false;analyticsTick();analytics.context=null;
@@ -101,6 +121,6 @@ function renderRank(){
  $('xpBar').style.width=(max?100:clamp((x-lo)/(hi-lo),0,1)*100)+'%';
  const n=prof.note;
  $('profNote').textContent=prof.key==='anonymous'?'Enter a callsign to keep your level, achievements and settings.':
-  n==='new'?'New on this computer. Press Save to load your progress from the shared folder.':
+  n==='new'?'New on this computer. Click outside the callsign box to load your progress from the shared folder.':
   n==='local'?'Progress on this computer. Press Save to sync it with the shared folder.':n;
 }
