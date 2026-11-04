@@ -117,13 +117,17 @@ table.t .n { text-align: right; }
 table.t.wrapcells td { white-space: normal; }
 
 /* ---------- bar chart ---------- */
-.bars { display: grid; grid-template-columns: repeat(12, minmax(22px, 1fr)); gap: 4px; align-items: end; min-width: 300px; }
+.bars { display: grid; grid-template-columns: repeat(24, minmax(12px, 1fr)); gap: 3px; align-items: end; min-width: 420px; }
 .bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 190px; }
 .bar .pct { font-size: 11px; color: var(--bright); white-space: nowrap; }
 .bar .fill { width: 100%; min-height: 2px; }
 .bar.none .fill { background: var(--dimmer); }
 .bar.now .fill { outline: 1px solid var(--bright); }
-.axis { display: grid; grid-template-columns: repeat(12, minmax(22px, 1fr)); gap: 4px; min-width: 300px; border-top: 1px solid var(--muted); padding-top: 3px; text-align: center; font-size: 11px; line-height: 1.15; }
+.bar.thin .fill, table.heat td.thin { opacity: .4; }
+.bars .bar .pct { font-size: 9px; }
+.axis .half { color: var(--dim); }
+table.heat.half td { width: 22px; min-width: 20px; font-size: 9px; }
+.axis { display: grid; grid-template-columns: repeat(24, minmax(12px, 1fr)); gap: 3px; min-width: 420px; border-top: 1px solid var(--muted); padding-top: 3px; text-align: center; font-size: 11px; line-height: 1.15; }
 .axis .now { color: var(--accent); font-weight: bold; }
 .axis .cnt { color: var(--muted); }
 .legend { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; color: var(--muted); }
@@ -231,7 +235,9 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
     <div class="panel">
       <h2>HOW THE % IS COUNTED</h2>
       <p>Counting every launch would make MATLAB look much harder to get than it is. Say you get MATLAB first try at 8:00, then later spend 30 minutes retrying every minute while it's busy: that's 1 success out of 34 launches, but MATLAB was free for part of that time that nobody checked.</p>
-      <p>So the % is counted in <b>10-minute slots</b> instead. Each slot that anyone launched in counts <b>once</b>, and it counts as <b>free</b> if any launch in it got MATLAB. In the example that's 1 free slot out of 4, not 1 of 34.</p>
+      <p>So the % is counted in <b>5-minute slots</b> instead. Each slot that anyone launched in counts <b>once</b>, and it counts as <b>free</b> if any launch in it got MATLAB. In the example that's 1 free slot out of 7, not 1 of 34.</p>
+      <p>The day is shown in <b>30-minute blocks</b>, and each block pools the slots from every day. So a day counts in proportion to how long someone actually tried: one lucky launch is 1 slot, a full half hour of trying is 6. A lucky 100% day plus a 40% full-half-hour day gives about <b>49%</b>, not the 70% you'd get by averaging the two days.</p>
+      <p>Blocks with less than <b>15 minutes</b> of data in total are drawn faded, and best/worst ignore them, so one lucky launch can't show up as the best time of day.</p>
       <p><b>First try</b> is the other fair number: of all the hunts, how many got MATLAB on their very first launch, i.e. your chance when you sit down and need it.</p>
       <p class="c-muted">Nobody checks while they're using MATLAB, so some time is never sampled. <a href="#survey">Survey mode</a> fills those gaps.</p>
     </div>
@@ -253,9 +259,9 @@ footer { color: var(--dim); font-size: 12px; border-top: 1px solid var(--dim); p
       <table class="t files">
         <tr><td>Header</td><td>The banner, today's date and a live clock, plus your user@PC and the MATLAB version it found.</td></tr>
         <tr><td>STATUS</td><td>What you are doing right now: <span class="badge b-hunt">HUNTING</span> (with the attempt number and how long you've been hunting), <span class="badge b-have">YOU HAVE MATLAB</span> (with your session time), <span class="badge b-survey">SURVEYING</span>, <span class="badge b-grey">PAUSED</span> or <span class="badge b-grey">IDLE</span>.</td></tr>
-        <tr><td>TEAM STATS</td><td>Users, launches, how many got MATLAB, % of 10-minute slots it was free, first-try rate, average hunt wait, best and worst hour, and who else has the hunter open.</td></tr>
-        <tr><td>AVAILABILITY BY HOUR</td><td>For each hour of the work day: in what % of 10-minute slots MATLAB was free (see <b>How the % is counted</b>). Red is hard, green is easy.</td></tr>
-        <tr><td>WEEK BY HOUR</td><td>The same %, split by weekday (Mon&ndash;Fri), so you can see e.g. that Tuesday mornings are busy.</td></tr>
+        <tr><td>TEAM STATS</td><td>Users, launches, how many got MATLAB, % of 5-minute slots it was free, first-try rate, average hunt wait, best and worst half hour, and who else has the hunter open.</td></tr>
+        <tr><td>AVAILABILITY BY HALF HOUR</td><td>For each 30-minute block of the work day: in what % of 5-minute slots MATLAB was free (see <b>How the % is counted</b>). Red is hard, green is easy.</td></tr>
+        <tr><td>WEEK BY HALF HOUR</td><td>The same %, split by weekday (Mon&ndash;Fri), so you can see e.g. that Tuesday mornings are busy.</td></tr>
         <tr><td>RECENT TEAM LAUNCHES / TOOLBOXES</td><td>The last launches as symbols (<span class="c-green">&#9679;</span> got it, <span class="c-red">&times;</span> denied, <span class="c-yellow">!</span> timeout/error) and a quick toolbox summary.</td></tr>
         <tr><td>ACTIVITY</td><td>The last few things the hunter did on your PC.</td></tr>
         <tr><td>Bottom line</td><td>The keys you can press right now. See <a href="#keys">Keys</a>.</td></tr>
@@ -394,7 +400,9 @@ const CFG = {
   staleMs: 2 * 60 * 1000,
   dayHours: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
   instantSec: 5,
-  slotMin: 10,   // availability counts slots this long (once each), not launches
+  slotMin: 5,    // availability counts slots this long (once each), not launches
+  binMin: 30,    // charts show the day in blocks this long
+  minSlots: 3,   // blocks with fewer sampled slots are 'thin data': faded, no best/worst
   recentCount: 40,
   workDays: 14
 };
@@ -433,6 +441,13 @@ function dayStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate(
 function slotStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), Math.floor(d.getMinutes() / CFG.slotMin) * CFG.slotMin); }
 function sameDay(a, b) { return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
 function hour12(h) { return (h % 12 || 12) + ' ' + (h < 12 ? 'AM' : 'PM'); }
+const BPH = 60 / CFG.binMin;   // blocks per hour
+const DAY_BINS = CFG.dayHours.flatMap(h => Array.from({ length: BPH }, (_, i) => h * BPH + i));
+function binOf(d) { return d.getHours() * BPH + Math.floor(d.getMinutes() / CFG.binMin); }
+function binLabel(b) {   // 17 -> "8:30 AM"
+  const h = Math.floor(b / BPH), mm = String((b % BPH) * CFG.binMin).padStart(2, '0');
+  return (h % 12 || 12) + ':' + mm + ' ' + (h < 12 ? 'AM' : 'PM');
+}
 function fmtTime(d, secs) {
   if (!d) return '-';
   const h = d.getHours(), m = String(d.getMinutes()).padStart(2, '0');
@@ -623,8 +638,8 @@ function buildModel(data) {
     now, data,
     users: new Set(), first: null,
     launches: 0, success: 0, denied: 0, full: 0, fail: 0,
-    hourOk: new Array(24).fill(0), hourAll: new Array(24).fill(0),
-    heatOk: new Array(35 * 24).fill(0), heatAll: new Array(35 * 24).fill(0),   // [weekday 0..4 (Mon..Fri)][hour]
+    binOk: new Array(24 * BPH).fill(0), binAll: new Array(24 * BPH).fill(0),   // per 30-min block of the day
+    heatOk: new Array(5 * 24 * BPH).fill(0), heatAll: new Array(5 * 24 * BPH).fill(0),   // [weekday 0..4 (Mon..Fri)][block]
     sessions: [], launchesToday: 0, successToday: 0,
     hunts: [], waits: [], best: null, worst: null,
     slots: [], slotN: 0, slotOk: 0, firstN: 0, firstOk: 0,
@@ -667,12 +682,14 @@ function buildModel(data) {
     }
   }
   m.slots = Object.values(slots);
+  // Every slot weighs the same, so a block's % is weighted by how long people actually tried in it
+  const perDay = 24 * BPH;
   for (const s of m.slots) {
-    const h = s.t.getHours(), dow = s.t.getDay();
+    const b = binOf(s.t), dow = s.t.getDay();
     const wd = dow >= 1 && dow <= 5 ? dow - 1 : -1;
-    m.slotN++; m.hourAll[h]++;
-    if (wd >= 0) m.heatAll[wd * 24 + h]++;
-    if (s.ok) { m.slotOk++; m.hourOk[h]++; if (wd >= 0) m.heatOk[wd * 24 + h]++; }
+    m.slotN++; m.binAll[b]++;
+    if (wd >= 0) m.heatAll[wd * perDay + b]++;
+    if (s.ok) { m.slotOk++; m.binOk[b]++; if (wd >= 0) m.heatOk[wd * perDay + b]++; }
   }
   m.hunts = Object.values(hunts);
   for (const h of m.hunts) {
@@ -688,15 +705,17 @@ function buildModel(data) {
     userRow(h.user).waits.push(w);
   }
 
-  // Best / worst hour: any hour with >= 1 sampled slot; ties go to the hour with more slots
-  for (const h of CFG.dayHours) {
-    const n = m.hourAll[h];
-    if (n < 1) continue;
-    const p = m.hourOk[h] / n;
-    if (!m.best || p > m.best.p || (p === m.best.p && n > m.best.n)) m.best = { h, p, n };
-    if (!m.worst || p < m.worst.p || (p === m.worst.p && n > m.worst.n)) m.worst = { h, p, n };
+  // Best / worst block: only blocks with enough data (>= minSlots), unless none has that yet,
+  // so one lucky launch can't make a block "best" at 100%. Ties go to the block with more slots.
+  const minN = DAY_BINS.some(b => m.binAll[b] >= CFG.minSlots) ? CFG.minSlots : 1;
+  for (const b of DAY_BINS) {
+    const n = m.binAll[b];
+    if (n < minN) continue;
+    const p = m.binOk[b] / n;
+    if (!m.best || p > m.best.p || (p === m.best.p && n > m.best.n)) m.best = { b, p, n };
+    if (!m.worst || p < m.worst.p || (p === m.worst.p && n > m.worst.n)) m.worst = { b, p, n };
   }
-  if (m.worst && m.best && m.worst.h === m.best.h) m.worst = null;
+  if (m.worst && m.best && m.worst.b === m.best.b) m.worst = null;
 
   // Last N work days (Mon-Fri), oldest first
   const d = new Date(today);
@@ -766,9 +785,9 @@ function buildToolStats(rows) {
 const PANELS = [
   { id: 'kpis', title: 'TEAM STATS', hint: '6 AM - 6 PM', wide: true, render: renderKpis },
   { id: 'online', title: "WHO'S ON NOW", hint: 'hunter open', render: renderOnline },
-  { id: 'hours', title: 'AVAILABILITY BY HOUR', hint: '% of 10-min slots MATLAB was free', render: renderHours },
-  { id: 'heat', title: 'WEEK BY HOUR', hint: 'same %, by weekday', render: renderHeat },
-  { id: 'days', title: 'LAST 14 WORK DAYS', hint: '% of 10-min slots MATLAB was free', render: renderDays },
+  { id: 'hours', title: 'AVAILABILITY BY HALF HOUR', hint: '% of 5-min slots MATLAB was free', wide: true, render: renderHours },
+  { id: 'heat', title: 'WEEK BY HALF HOUR', hint: 'same %, by weekday', wide: true, render: renderHeat },
+  { id: 'days', title: 'LAST 14 WORK DAYS', hint: '% of 5-min slots MATLAB was free', render: renderDays },
   { id: 'users', title: 'PER USER', wide: true, render: renderUsers },
   { id: 'tools', title: 'TOOLBOXES', hint: 'one request = one toolbox in one MATLAB session', wide: true, render: renderTools },
   { id: 'recent', title: 'RECENT ATTEMPTS', hint: 'newest first', wide: true, render: renderRecent }
@@ -794,8 +813,8 @@ function renderKpis(m) {
   t.push(kpi('Avg hunt wait', fmtDur(mean(m.waits)), m.waits.length + ' hunt' + (m.waits.length === 1 ? '' : 's') + ' that got in'));
   t.push(kpi('Median / longest', fmtDur(median(m.waits)) + ' / ' + fmtDur(longest), 'hunt wait'));
   t.push(kpi('Avg session', fmtDur(mean(m.sessions)), m.sessions.length + ' session' + (m.sessions.length === 1 ? '' : 's') + ' ended'));
-  t.push(kpi('Best hour', m.best ? hour12(m.best.h) : '-', m.best ? pct(m.best.p) + ' of ' + m.best.n + ' slots' : '', m.best ? rateColor(m.best.p) : null));
-  if (m.worst) t.push(kpi('Worst hour', hour12(m.worst.h), pct(m.worst.p) + ' of ' + m.worst.n + ' slots', rateColor(m.worst.p)));
+  t.push(kpi('Best half hour', m.best ? binLabel(m.best.b) : '-', m.best ? pct(m.best.p) + ' of ' + m.best.n + ' slots' : '', m.best ? rateColor(m.best.p) : null));
+  if (m.worst) t.push(kpi('Worst half hour', binLabel(m.worst.b), pct(m.worst.p) + ' of ' + m.worst.n + ' slots', rateColor(m.worst.p)));
   t.push(kpi('Launches today', m.launchesToday, m.successToday + ' got MATLAB'));
   return '<div class="kpis">' + t.join('') + '</div>';
 }
@@ -812,47 +831,56 @@ function renderOnline(m) {
       '</span><span class="pc">' + esc(o.pc) + '</span></div>').join('') + '</div>';
 }
 
+function thinNote(n) { return n < CFG.minSlots ? ' - only ' + n * CFG.slotMin + ' min of data, take with a grain of salt' : ''; }
+
 function renderHours(m) {
-  const nowH = m.now.getHours();
+  const nowB = binOf(m.now);
   const max = 85;   // leave room for the % label above the tallest bar
-  const bars = CFG.dayHours.map(h => {
-    const n = m.hourAll[h], ok = m.hourOk[h];
+  const bars = DAY_BINS.map(b => {
+    const n = m.binAll[b], ok = m.binOk[b];
     const p = n ? ok / n : null;
-    const tip = hour12(h) + ': ' + (n ? 'free in ' + ok + ' of ' + n + ' sampled ' + CFG.slotMin + '-min slots (' + pct(p) + ')' : 'no attempts yet');
+    const tip = binLabel(b) + ': ' + (n ? 'free in ' + ok + ' of ' + n + ' sampled ' + CFG.slotMin + '-min slots (' + pct(p) + ')' + thinNote(n) : 'no attempts yet');
     const height = p == null ? 2 : Math.max(3, Math.round(p * max));
-    return '<div class="bar' + (n ? '' : ' none') + (h === nowH ? ' now' : '') + '" title="' + esc(tip) + '">' +
+    return '<div class="bar' + (n ? '' : ' none') + (n && n < CFG.minSlots ? ' thin' : '') + (b === nowB ? ' now' : '') + '" title="' + esc(tip) + '">' +
       '<span class="pct">' + (n ? pct(p) : '') + '</span>' +
       '<div class="fill" style="height:' + height + '%;' + (n ? 'background:' + rateColor(p) : '') + '"></div></div>';
   }).join('');
-  const axis = CFG.dayHours.map(h => '<div>' + hourHead(h, nowH) + '<br><span class="cnt">' + (m.hourAll[h] || '\u00B7') + '</span></div>').join('');
+  const axis = DAY_BINS.map(b => {
+    const h = Math.floor(b / BPH), half = b % BPH;
+    const head = half
+      ? '<span class="half' + (b === nowB ? ' now' : '') + '">:' + String(half * CFG.binMin).padStart(2, '0') + '<br>&nbsp;</span>'
+      : '<span' + (b === nowB ? ' class="now"' : '') + '>' + (h % 12 || 12) + '<br>' + (h < 12 ? 'AM' : 'PM') + '</span>';
+    return '<div>' + head + '<br><span class="cnt">' + (m.binAll[b] || '·') + '</span></div>';
+  }).join('');
   return '<div class="scroll"><div class="bars">' + bars + '</div><div class="axis">' + axis + '</div></div>' +
-    '<div class="legend">' + gradLegend() + '<span>bottom number = ' + CFG.slotMin + '-min slots sampled in that hour</span><span><span class="sw" style="background:#262626"></span>no attempts yet</span></div>';
+    '<div class="legend">' + gradLegend() + '<span>bottom number = ' + CFG.slotMin + '-min slots sampled in that half hour</span>' +
+    '<span>faded = under ' + CFG.minSlots * CFG.slotMin + ' min of data</span><span><span class="sw" style="background:#262626"></span>no attempts yet</span></div>';
 }
 
 function renderHeat(m) {
-  const nowH = m.now.getHours(), nowWd = m.now.getDay() - 1;
-  let html = '<div class="scroll"><table class="heat"><tr><th></th>' +
-    CFG.dayHours.map(h => '<th' + (h === nowH ? ' class="now"' : '') + '>' + (h % 12 || 12) + '<br>' + (h < 12 ? 'AM' : 'PM') + '</th>').join('') + '</tr>';
+  const nowB = binOf(m.now), nowWd = m.now.getDay() - 1, perDay = 24 * BPH;
+  let html = '<div class="scroll"><table class="heat half"><tr><th></th>' +
+    CFG.dayHours.map(h => '<th colspan="' + BPH + '"' + (h === m.now.getHours() ? ' class="now"' : '') + '>' + (h % 12 || 12) + ' ' + (h < 12 ? 'AM' : 'PM') + '</th>').join('') + '</tr>';
   for (let wd = 0; wd < 5; wd++) {
     const name = DOW[wd + 1];
     html += '<tr><th class="row' + (wd === nowWd ? ' now' : '') + '">' + name + '</th>';
-    for (const h of CFG.dayHours) {
-      const n = m.heatAll[wd * 24 + h], ok = m.heatOk[wd * 24 + h];
-      const cur = wd === nowWd && h === nowH ? ' today-row' : '';
+    for (const b of DAY_BINS) {
+      const n = m.heatAll[wd * perDay + b], ok = m.heatOk[wd * perDay + b];
+      const cur = wd === nowWd && b === nowB ? ' today-row' : '';
       if (!n) {
-        html += '<td class="none' + cur + '" title="' + esc(name + ' ' + hour12(h) + ': no attempts yet') + '">\u00B7</td>';
+        html += '<td class="none' + cur + '" title="' + esc(name + ' ' + binLabel(b) + ': no attempts yet') + '">·</td>';
       } else {
         const p = ok / n;
-        html += '<td class="' + cur.trim() + '" style="background:' + rateColor(p) + '" title="' +
-          esc(name + ' ' + hour12(h) + ': free in ' + ok + ' of ' + n + ' slots (' + pct(p) + ')') + '">' + Math.round(p * 100) + '</td>';
+        html += '<td class="' + ((n < CFG.minSlots ? 'thin' : '') + cur).trim() + '" style="background:' + rateColor(p) + '" title="' +
+          esc(name + ' ' + binLabel(b) + ': free in ' + ok + ' of ' + n + ' slots (' + pct(p) + ')' + thinNote(n)) + '">' + Math.round(p * 100) + '</td>';
       }
     }
     html += '</tr>';
   }
   html += '</table></div>';
   return html + '<div class="legend">' + gradLegend() +
-    '<span><span class="sw" style="background:#262626"></span>empty = no attempts yet in that slot</span>' +
-    '<span>numbers are %; hover a cell for details</span></div>';
+    '<span><span class="sw" style="background:#262626"></span>empty = no attempts yet in that half hour</span>' +
+    '<span>faded = under ' + CFG.minSlots * CFG.slotMin + ' min of data</span><span>numbers are %; hover a cell for details</span></div>';
 }
 
 function renderDays(m) {

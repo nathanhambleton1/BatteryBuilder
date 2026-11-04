@@ -33,9 +33,15 @@
     MATLAB's preferences folder is then restored from a snapshot taken when the hunt started, so a
     half-written prefs file can't make MATLAB crash on its next start.
 
-    Availability stats count 10-minute slots, not launches: a slot counts once, as "free" if any
-    launch in it got MATLAB. Retrying every few seconds while MATLAB is busy would otherwise pile up
-    denied launches and make MATLAB look much harder to get than it is.
+    Availability is shown per 30-minute block of the day and counted in 5-minute slots, not
+    launches: a slot counts once, as "free" if any launch in it got MATLAB. Retrying every few
+    seconds while MATLAB is busy would otherwise pile up denied launches and make MATLAB look much
+    harder to get than it is.
+
+    Each block's % pools the slots from every day, so a day counts in proportion to how much of
+    that block someone actually tried: one lucky launch is 1 slot, a full half hour of trying is 6.
+    (A lucky 100% day and a 40% full-half-hour day give ~49%, not the 70% a per-day average would.)
+    Blocks with less than 15 minutes of data in total are drawn dim, and best/worst skip them.
 
 .EXAMPLE
     .\GrabMatlabLicense.ps1 -DashboardOnly
@@ -93,7 +99,12 @@ $SurveyFile    = Join-Path $Dirs.Active "$ClientId.surveyed"   # (survey) toolbo
 $AttemptHeader = 'Timestamp,User,Computer,Hunt,Result,Seconds,SeatsUsed,SeatsTotal,Detail'
 $Inv = [Globalization.CultureInfo]::InvariantCulture
 $DayHours = 6..17   # analytics only cover the 6am-6pm work day
-$SlotMinutes = 10   # availability is counted per slot this long, not per launch
+$SlotMinutes = 5    # availability is counted per slot this long, not per launch
+$BinMinutes = 30    # charts and best/worst show the day in blocks this long
+$BinsPerHour = 60 / $BinMinutes
+$DayBins = @($DayHours | ForEach-Object { $h = $_; 0..($BinsPerHour - 1) | ForEach-Object { $h * $BinsPerHour + $_ } })
+$MinSlots = 3       # blocks with fewer sampled slots than this are "thin data": drawn dim, no best/worst
+$PopupDoneSecs = 3  # result popups close themselves after this long
 
 $LicenseErrorPatterns = @(
     '*Licensing Error*', '*License Manager Error*', '*licensed number of users*',
@@ -156,7 +167,7 @@ $S = @{
     ReleaseAt = $null
     ReleaseWarned = $false
     KillAt = $null
-    Popup = $null            # @{ Op = R|K|Q|GOT; Stage = CONFIRM|WORK|DONE; Since; Secs }
+    Popup = $null            # @{ Op = R|K|Q; Stage = CONFIRM|WORK|DONE; Since; Secs }
     NextRender = Get-Date
     NextExport = Get-Date
     ExportSig = ''
@@ -349,8 +360,9 @@ function Get-Stats($rows) {
     $st = @{
         Launch = 0; Success = 0; Denied = 0; Full = 0; Fail = 0
         Users = @{}; First = $null
-        HourOk = New-Object int[] 24; HourAll = New-Object int[] 24
-        HeatOk = New-Object int[] 168; HeatAll = New-Object int[] 168
+        # per 30-min block of the 24h day, and per weekday x block
+        BinOk = New-Object int[] (24 * $BinsPerHour); BinAll = New-Object int[] (24 * $BinsPerHour)
+        HeatOk = New-Object int[] (7 * 24 * $BinsPerHour); HeatAll = New-Object int[] (7 * 24 * $BinsPerHour)
         SessSum = 0.0; SessN = 0; MineToday = 0; AvgWait = $null
         SlotN = 0; SlotOk = 0; FirstN = 0; FirstOk = 0
         Recent = New-Object System.Collections.Generic.List[string]
@@ -390,11 +402,12 @@ function Get-Stats($rows) {
             if ($r.Result -eq 'SUCCESS' -and -not $hunts[$k].Got) { $hunts[$k].Got = $r.T }
         }
     }
+    # Every slot weighs the same, so a block's % is weighted by how long people actually tried in it
     foreach ($kv in $slots.GetEnumerator()) {
-        $h = $kv.Key.Hour
-        $i = ((([int]$kv.Key.DayOfWeek) + 6) % 7) * 24 + $h
-        $st.SlotN++; $st.HourAll[$h]++; $st.HeatAll[$i]++
-        if ($kv.Value) { $st.SlotOk++; $st.HourOk[$h]++; $st.HeatOk[$i]++ }
+        $b = Get-Bin $kv.Key
+        $i = ((([int]$kv.Key.DayOfWeek) + 6) % 7) * 24 * $BinsPerHour + $b
+        $st.SlotN++; $st.BinAll[$b]++; $st.HeatAll[$i]++
+        if ($kv.Value) { $st.SlotOk++; $st.BinOk[$b]++; $st.HeatOk[$i]++ }
     }
     # First launch of each hunt/probe: an unbiased sample of "can I get it right now?"
     foreach ($hu in $hunts.Values) {
@@ -402,17 +415,22 @@ function Get-Stats($rows) {
     }
     $waits = @($hunts.Values | Where-Object { $_.Got -and -not $_.Survey } | ForEach-Object { ($_.Got - $_.Start).TotalSeconds })
     if ($waits.Count) { $st.AvgWait = ($waits | Measure-Object -Average).Average }
-    # Any hour with a sampled slot counts; on equal rates the hour with more slots wins
-    for ($h = 0; $h -lt 24; $h++) {
-        $n = $st.HourAll[$h]
-        if ($n -lt 1) { continue }
-        $p = $st.HourOk[$h] / $n
-        if (-not $st.Best -or $p -gt $st.Best.P -or ($p -eq $st.Best.P -and $n -gt $st.Best.N)) { $st.Best = @{ H = $h; P = $p; N = $n } }
-        if (-not $st.Worst -or $p -lt $st.Worst.P -or ($p -eq $st.Worst.P -and $n -gt $st.Worst.N)) { $st.Worst = @{ H = $h; P = $p; N = $n } }
+    # Best/worst block: only blocks with enough data (>= $MinSlots slots), unless none has that yet,
+    # so one lucky launch can't make a block "best" at 100%. On equal rates more slots wins.
+    $minN = if (@($DayBins | Where-Object { $st.BinAll[$_] -ge $MinSlots }).Count) { $MinSlots } else { 1 }
+    foreach ($b in $DayBins) {
+        $n = $st.BinAll[$b]
+        if ($n -lt $minN) { continue }
+        $p = $st.BinOk[$b] / $n
+        if (-not $st.Best -or $p -gt $st.Best.P -or ($p -eq $st.Best.P -and $n -gt $st.Best.N)) { $st.Best = @{ B = $b; P = $p; N = $n } }
+        if (-not $st.Worst -or $p -lt $st.Worst.P -or ($p -eq $st.Worst.P -and $n -gt $st.Worst.N)) { $st.Worst = @{ B = $b; P = $p; N = $n } }
     }
-    if ($st.Best -and $st.Worst -and $st.Worst.H -eq $st.Best.H) { $st.Worst = $null }
+    if ($st.Best -and $st.Worst -and $st.Worst.B -eq $st.Best.B) { $st.Worst = $null }
     $st
 }
+
+# Index of the 30-min block a time falls in (0 = 12:00am, 1 = 12:30am, ...)
+function Get-Bin([datetime]$t) { $t.Hour * $BinsPerHour + [int][math]::Floor($t.Minute / $BinMinutes) }
 
 function ConvertTo-HuntTime([string]$hunt, [datetime]$fallback) {
     $t = [datetime]::MinValue
@@ -746,7 +764,6 @@ function Complete-Success([string]$detail) {
     $S.SessionStart = Get-Date
     $hunt = ((Get-Date) - $S.HuntStart).TotalSeconds
     Add-Log 'GOT' "Got MATLAB on launch #$($S.Attempt) after $(Fmt-Dur $hunt)"
-    if (-not $S.Popup -or $S.Popup.Stage -ne 'CONFIRM') { Open-Popup 'GOT' 'DONE' $hunt }
 }
 
 function Update-Hunt {
@@ -836,11 +853,11 @@ function Kill-Matlab {
     Add-Log 'WARN' 'MATLAB force-killed'
 }
 
-# Popup housekeeping: DONE closes itself after 10s; a release/kill question is dropped once MATLAB is gone.
+# Popup housekeeping: DONE closes itself after $PopupDoneSecs; a release/kill question is dropped once MATLAB is gone.
 function Update-Popup {
     $p = $S.Popup
     if (-not $p) { return }
-    if ($p.Stage -eq 'DONE' -and ((Get-Date) - $p.Since).TotalSeconds -ge 10) { $S.Popup = $null }
+    if ($p.Stage -eq 'DONE' -and ((Get-Date) - $p.Since).TotalSeconds -ge $PopupDoneSecs) { $S.Popup = $null }
     elseif ($p.Stage -eq 'CONFIRM' -and $p.Op -in 'R', 'K' -and $S.Mode -ne 'HAVE') { $S.Popup = $null }
 }
 
@@ -926,7 +943,13 @@ function Get-HourLabels([int]$offset) {
     (' ' * $offset) + ($cells -join '')
 }
 
-function Format-Hour([int]$h) { "$(if ($h % 12) { $h % 12 } else { 12 })$(if ($h -lt 12) { 'am' } else { 'pm' })" }
+# Block index -> "8:30am"
+function Format-Bin([int]$b) {
+    $h = [int][math]::Floor($b / $BinsPerHour); $m = ($b % $BinsPerHour) * $BinMinutes
+    "$(if ($h % 12) { $h % 12 } else { 12 }):$($m.ToString('00'))$(if ($h -lt 12) { 'am' } else { 'pm' })"
+}
+# Dim version of C, for blocks with thin data
+function Dim([string]$t, [int]$c) { "$E[2;38;5;$($c)m$t$E[0m" }
 
 function Get-StatusLines {
     $now = Get-Date
@@ -997,11 +1020,11 @@ function Get-TeamLines {
     $l += " Free in $(Bold $open 46) of $SlotMinutes-min slots    1st try $(Bold $first 255)"
     $l += " Avg hunt $(Bold $wait 255)    Avg session $(Bold $sess 255)"
     if ($st.Best) {
-        $best = " Best hour $(Bold (Format-Hour $st.Best.H) 46) $(C ('{0:P0}' -f $st.Best.P) 244)"
-        if ($st.Worst) { $best += "    Worst $(Bold (Format-Hour $st.Worst.H) 196) $(C ('{0:P0}' -f $st.Worst.P) 244)" }
+        $best = " Best $(Bold (Format-Bin $st.Best.B) 46) $(C ('{0:P0}' -f $st.Best.P) 244)"
+        if ($st.Worst) { $best += "    Worst $(Bold (Format-Bin $st.Worst.B) 196) $(C ('{0:P0}' -f $st.Worst.P) 244)" }
         $l += $best
     } else {
-        $l += ' ' + (C 'Best/worst hour show up after the first attempt' 244)
+        $l += ' ' + (C 'Best/worst half hour show up after the first attempt' 244)
     }
     $l += " You today $(Bold $st.MineToday 255) launches"
     $l
@@ -1009,28 +1032,30 @@ function Get-TeamLines {
 
 function Get-ChartLines {
     $st = $S.Stats
-    $l = @(" $(Bold 'AVAILABILITY BY HOUR' 255)  $(C "% of $SlotMinutes-min slots it was free" 244)")
+    $l = @(" $(Bold 'AVAILABILITY BY HALF HOUR' 255)  $(C "% of $SlotMinutes-min slots free" 244)")
+    # One bar per 30-min block, 2 columns apart, so each hour's 4-column label sits over its :00 bar
     for ($row = 0; $row -lt 8; $row++) {
-        $b = 7 - $row
+        $lvl = 7 - $row
         $label = if ($row % 2 -eq 0) { ('{0}%' -f ((8 - $row) * 25 / 2)).PadLeft(4) } else { '    ' }
         $sb = New-Object System.Text.StringBuilder
         [void]$sb.Append(' ' + (C $label 244) + (C $G.AxV 240))
-        foreach ($h in $DayHours) {
-            $n = $st.HourAll[$h]
+        foreach ($bin in $DayBins) {
+            $n = $st.BinAll[$bin]
             if ($n -eq 0) {
-                [void]$sb.Append($(if ($b -eq 0) { C " $($G.Mid)  " 238 } else { '    ' }))
+                [void]$sb.Append($(if ($lvl -eq 0) { C "$($G.Mid) " 238 } else { '  ' }))
                 continue
             }
-            $p = $st.HourOk[$h] / $n
-            $fill = [math]::Max(0, [math]::Min(8, [int][math]::Round($p * 64) - $b * 8))
-            if ($b -eq 0 -and $fill -eq 0) { $fill = 1 }
-            [void]$sb.Append((C ($Eighths[$fill] * 3) (RateColor $p)) + ' ')
+            $p = $st.BinOk[$bin] / $n
+            $fill = [math]::Max(0, [math]::Min(8, [int][math]::Round($p * 64) - $lvl * 8))
+            if ($lvl -eq 0 -and $fill -eq 0) { $fill = 1 }
+            $cell = if ($n -lt $MinSlots) { Dim $Eighths[$fill] (RateColor $p) } else { C $Eighths[$fill] (RateColor $p) }
+            [void]$sb.Append($cell + ' ')
         }
         $l += $sb.ToString()
     }
     $axis = $G.AxH * 48
-    $i = [array]::IndexOf([int[]]$DayHours, (Get-Date).Hour)
-    if ($i -ge 0) { $axis = (C $axis.Substring(0, $i * 4 + 1) 240) + (C $G.Up $Accent) + (C $axis.Substring($i * 4 + 2) 240) }
+    $i = [array]::IndexOf([int[]]$DayBins, (Get-Bin (Get-Date)))
+    if ($i -ge 0) { $axis = (C $axis.Substring(0, $i * 2) 240) + (C $G.Up $Accent) + (C $axis.Substring($i * 2 + 1) 240) }
     else { $axis = C $axis 240 }
     $l += '      ' + $axis
     $l += Get-HourLabels 6
@@ -1039,22 +1064,24 @@ function Get-ChartLines {
 
 function Get-HeatLines {
     $st = $S.Stats
-    $l = @(" $(Bold 'WEEK BY HOUR' 255)  $(C 'same %, split by weekday' 244)")
+    $l = @(" $(Bold 'WEEK BY HALF HOUR' 255)  $(C 'same %, split by weekday' 244)")
     $l += Get-HourLabels 5
     $days = @('Mon', 'Tue', 'Wed', 'Thu', 'Fri')   # work week only
     $today = ([int](Get-Date).DayOfWeek + 6) % 7
+    $perDay = 24 * $BinsPerHour
     for ($d = 0; $d -lt 5; $d++) {
         $sb = New-Object System.Text.StringBuilder
         [void]$sb.Append(' ' + $(if ($d -eq $today) { Bold $days[$d] $Accent } else { C $days[$d] 250 }) + ' ')
-        foreach ($h in $DayHours) {
-            $n = $st.HeatAll[$d * 24 + $h]
-            if ($n -eq 0) { [void]$sb.Append((C " $($G.Mid)  " 237)); continue }
-            [void]$sb.Append((C ($G.Full * 3) (RateColor ($st.HeatOk[$d * 24 + $h] / $n))) + ' ')
+        foreach ($bin in $DayBins) {
+            $n = $st.HeatAll[$d * $perDay + $bin]
+            if ($n -eq 0) { [void]$sb.Append((C "$($G.Mid) " 237)); continue }
+            $col = RateColor ($st.HeatOk[$d * $perDay + $bin] / $n)
+            [void]$sb.Append($(if ($n -lt $MinSlots) { Dim ($G.Full * 2) $col } else { C ($G.Full * 2) $col }))
         }
         $l += $sb.ToString()
     }
     $l += ''
-    $l += "     $(C '0%' 244) $(($Grad | ForEach-Object { C $G.Full $_ }) -join '') $(C '100%' 244)    $(C "$($G.Mid) = no attempts yet" 240)"
+    $l += "     $(C '0%' 244) $(($Grad | ForEach-Object { C $G.Full $_ }) -join '') $(C '100%' 244)  $(C "$($G.Mid) none yet" 240)  $(Dim ($G.Full * 2) 46)$(C ' thin data' 240)"
     $l
 }
 
@@ -1151,7 +1178,7 @@ function Get-PopupLines {
     $el = ((Get-Date) - $p.Since).TotalSeconds
     $col = if ($p.Stage -eq 'DONE') { 46 } else { switch ($p.Op) { 'R' { 208 } 'K' { 196 } 'Q' { 75 } default { 46 } } }
     $title = ''; $info = ''; $body = @(); $keys = @()
-    $closes = "closes in $([math]::Max(1, [int][math]::Ceiling(10 - $el)))s"
+    $closes = "closes in $([math]::Max(1, [int][math]::Ceiling($PopupDoneSecs - $el)))s"
     switch ("$($p.Op)/$($p.Stage)") {
         'R/CONFIRM' {
             $title = 'RELEASE MATLAB?'
@@ -1203,16 +1230,6 @@ function Get-PopupLines {
             $how = if ($p.Op -eq 'K') { 'MATLAB was killed after' } else { 'MATLAB closed after' }
             $body = @((Step 2 "$how $(Fmt-Dur $p.Secs)"), (Step 2 'Your seats are back with the team'), '',
                 (C 'Press [H] to hunt again.' 250))
-            $keys = @((KeyHint 'Any key' ' Close'))
-        }
-        'GOT/DONE' {
-            $title = 'YOU GOT MATLAB'; $info = $closes
-            $body = @(
-                (C "Got a seat on launch #$($S.Attempt) after $(Fmt-Dur $p.Secs) of hunting." 250),
-                (C $(if ($NoAutoRun) { 'Auto-run is off - open toolboxes in MATLAB yourself.' }
-                    else { 'MATLAB is grabbing your toolboxes now.' }) 250),
-                (C 'Press [R] later to give every seat back.' 244)
-            )
             $keys = @((KeyHint 'Any key' ' Close'))
         }
     }
