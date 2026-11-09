@@ -1,22 +1,18 @@
-function fig = BatteryBuilder(file)
-%BATTERYBUILDER  Battery test viewer + Simscape "Battery (Table-Based)" parameter tool.
+function fig = BatteryDataBuilder(file)
+%BATTERYDATABUILDER  Battery test viewer + Simscape "Battery (Table-Based)" parameter tool.
 %
-%   BatteryBuilder               open the app
-%   BatteryBuilder('cell.csv')   open the app with a test file already loaded
-%   fig = BatteryBuilder(...)    also return the figure (fig.UserData.api is
-%                                a small scripting API, used by the tests)
+%   BatteryDataBuilder               open the app
+%   BatteryDataBuilder('cell.csv')   open the app with a test file already loaded
 %
-%   This is the ONLY file you need to run. The tabs live in src/:
 %     src/plotTab.m              Tab 1  Plot          - zoom / pan / cursor viewer
 %     src/loadProfileTab.m       Tab 2  Load profile  - current profile -> workspace
 %     src/modelingTab.m          Tab 3  Modeling      - block parameters -> workspace
-%   and the work behind them:
+% 
 %     src/loadBatteryCsv.m       reads a cycler CSV (current: + = charge)
 %     src/extractCellParameters.m  the calculations (capacity, OCV, R0, RC, thermal)
 %     src/blockParameterList.m   every block parameter shown on the Modeling tab
 %     src/explainParameter.m     the "How?" pop-up windows
 %
-%   See README.md for a full walk-through.
 
 here = fileparts(mfilename('fullpath'));
 addpath(fullfile(here, 'src'));
