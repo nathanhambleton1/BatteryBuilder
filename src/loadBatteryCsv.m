@@ -15,6 +15,8 @@ function d = loadBatteryCsv(file)
 %     d.Iraw           current exactly as it is in the file
 %     d.stepTime       StepTime column (s) or [] if not present
 %     d.Tcell, d.Tch   cell / chamber temperature (°C), NaN if not present
+%     d.capFile        the file's own "Capacity (Ah)" column, [] if not present
+%                      (only used to cross-check the capacity)
 %     d.T_C            test temperature label (°C) = median chamber temperature
 %     d.signNote       how the current sign was worked out
 %     d.warn           cell array of warnings about the file
@@ -44,6 +46,7 @@ c.state    = findCol(names, {'state','md','mode'}, {});
 c.tcell    = findCol(names, {'temp1','celltemp','temperature1','auxtemp1','temp'}, {'chamber'});
 c.tch      = findCol(names, {'chambertemperaturec','chambertemperature','chamber'}, {});
 c.datetime = findCol(names, {'datetime','date'}, {});
+c.capacity = findCol(names, {'capacityah','capacity'}, {'energy','charge','dis'});
 if isempty(c.current) || isempty(c.voltage)
     error('Could not find Current and Voltage columns. Columns found: %s', strjoin(names, ', '));
 end
@@ -82,6 +85,8 @@ if ~isempty(c.stepTime), d.stepTime = toSeconds(T.(c.stepTime)); end
 d.Tcell = nan(size(t)); d.Tch = nan(size(t));
 if ~isempty(c.tcell), d.Tcell = toNum(T.(c.tcell)); end
 if ~isempty(c.tch),   d.Tch   = toNum(T.(c.tch));   end
+d.capFile = [];                           % cycler's own Ah column (cross-check only)
+if ~isempty(c.capacity), d.capFile = toNum(T.(c.capacity)); end
 d.dtMedian = median(diff(t));
 
 % ---- test temperature label -------------------------------------------------------

@@ -215,6 +215,10 @@ api.getState = @getState;
             elseif strcmp(src.(key),'calc')
                 txt = char([10003 ' From data']); col = C_GREEN;
                 why = 'Calculated from the test data. Press "How?" to see how.';
+                if contains(note, 'CHECK')          % a cross-check disagreed
+                    txt = char([9888 ' Check']); col = C_ORANGE;
+                    why = 'Calculated from the test data, but a cross-check disagreed. Press "How?".';
+                end
             elseif strcmp(src.(key),'user')
                 txt = 'Entered by you'; col = C_BLUE;
                 why = 'Typed in by you (e.g. from the datasheet).';
@@ -237,9 +241,10 @@ api.getState = @getState;
         end
     end
 
-    function onHow(k)
+    function h = onHow(k)
+        h = [];
         if isempty(R) || isempty(k), return; end
-        explainParameter(rows(k).key, R, rows(k));
+        h = explainParameter(rows(k).key, R, rows(k));
     end
 
     function onSave()

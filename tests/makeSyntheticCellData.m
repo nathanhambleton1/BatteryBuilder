@@ -1,5 +1,5 @@
 function [files, truth] = makeSyntheticCellData(outDir, tempsC)
-%MAKESYNTHETICCELLDATA  Cycler-style CSVs from a KNOWN cell, for testing BatteryBuilder.
+%MAKESYNTHETICCELLDATA  Cycler-style CSVs from a KNOWN cell, for testing BatteryDataBuilder.
 %
 %   [files, truth] = makeSyntheticCellData(outDir)            % 0, 25, 45 °C
 %   [files, truth] = makeSyntheticCellData(outDir, [10 25])

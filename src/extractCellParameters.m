@@ -68,8 +68,16 @@ R.diag.capacity = capInfo;
 capUse = NaN;
 if isfinite(cap)
     R.value.AH = cap; R.found.AH = true; capUse = cap;
-    R.note.AH = sprintf('Ah discharged from a full CC-CV charge down to %.3f V at %.3g A', ...
-        min(d.V), capInfo.rateA);
+    R.note.AH = sprintf('Ah discharged from a full CC-CV charge (%.3f V) down to the %.3f V cut-off at %.3g A', ...
+        capInfo.VmaxCV, capInfo.Vmin, capInfo.rateA);
+    if isfinite(capInfo.fileAh)
+        dev = 100*(capInfo.fileAh/cap - 1);
+        R.note.AH = [R.note.AH sprintf('; the cycler''s own Capacity column gives %.4g Ah (%+.1f %%)', ...
+            capInfo.fileAh, dev)];
+        if abs(dev) > 2
+            R.note.AH = [R.note.AH ' - CHECK: these should agree within ~1 %'];
+        end
+    end
 else
     R.note.AH = 'no complete "full CC-CV charge -> discharge to cut-off" in this test';
     if isfinite(userAH)
@@ -83,11 +91,24 @@ rep{end+1} = sprintf('Capacity: %s', R.note.AH);
 % 3. State of charge (coulomb counting)
 % ======================================================================
 soc = [];
+R.diag.soc = struct('anchor','', 'anchorIdx',[], 'ah0',NaN, 'ahAnchor',NaN, 'cap',capUse, ...
+    'raw0',NaN, 'check',[]);
 if isfinite(capUse) && (~isempty(capInfo.fullIdx) || ~isempty(capInfo.emptyIdx))
     soc = socFromAnchors(ah, capInfo, capUse);
     R.value.SOC0 = min(max(soc(1), 0), 1);
     R.found.SOC0 = true;
-    R.note.SOC0  = 'SOC at the first sample of the file (coulomb counted back from the first full charge)';
+    if ~isempty(capInfo.fullIdx)
+        R.diag.soc.anchor = 'full'; R.diag.soc.anchorIdx = min(capInfo.fullIdx);
+        R.note.SOC0 = sprintf(['SOC at the first sample: %.4g Ah went in between the start and the ' ...
+            'first full charge, out of %.4g Ah -> 1 - %.4g/%.4g'], ah(R.diag.soc.anchorIdx) - ah(1), ...
+            capUse, ah(R.diag.soc.anchorIdx) - ah(1), capUse);
+    else
+        R.diag.soc.anchor = 'empty'; R.diag.soc.anchorIdx = capInfo.emptyIdx(1);
+        R.note.SOC0 = sprintf('SOC at the first sample: %.4g Ah came out between the start and the first empty point, out of %.4g Ah', ...
+            ah(1) - ah(R.diag.soc.anchorIdx), capUse);
+    end
+    R.diag.soc.ah0 = ah(1); R.diag.soc.ahAnchor = ah(R.diag.soc.anchorIdx);
+    R.diag.soc.raw0 = soc(1);
 elseif ~isfinite(capUse)
     R.note.SOC0 = 'needs the capacity (AH) first';
 else
@@ -117,6 +138,7 @@ if ~isempty(soc)
 end
 R.diag.edgeIdx = edgeIdx;
 R.diag.fits = fits;
+R.diag.ocvExample = [];
 prov = struct();
 
 % --- R0
@@ -166,7 +188,7 @@ else
                 Tk{end+1} = R.value.(sprintf('tau%d_vec',q)); %#ok<AGROW>
             end
         end
-        pts.ocvDense = denseOcvPoints(d, soc, ph, g, R.value.R0_vec, Rk, Tk, C, capUse);
+        [pts.ocvDense, R.diag.ocvExample] = denseOcvPoints(d, soc, ph, g, R.value.R0_vec, Rk, Tk, C, capUse);
     end
     [ocv, prov.V0_vec] = buildOcv(pts.ocv, pts.ocvDense, g);
     if all(isfinite(ocv))
@@ -180,6 +202,22 @@ else
 end
 R.diag.points = pts;
 R.diag.prov = prov;
+
+% --- check the coulomb-counted SOC against the voltage at the start
+if R.found.SOC0 && R.found.V0_vec
+    ck = socVoltageCheck(d, soc, ph, g, R.value.V0_vec, capInfo);
+    R.diag.soc.check = ck;
+    if ~isempty(ck)
+        R.note.SOC0 = [R.note.SOC0 sprintf(['. Voltage check: the cell rests at %.3f V at %.2f h, ' ...
+            'which the OCV table reads as SOC %.3f (coulomb count: %.3f)'], ck.V, ck.t/3600, ck.socOcv, ck.socCC)];
+        if isfinite(ck.Vempty)
+            R.note.SOC0 = [R.note.SOC0 sprintf('; after the discharge to cut-off it rested at %.3f V', ck.Vempty)];
+        end
+        if abs(ck.socOcv - ck.socCC) > max(0.08, ck.unc)
+            R.note.SOC0 = [R.note.SOC0 ' - CHECK: voltage and coulomb count disagree'];
+        end
+    end
+end
 
 % ======================================================================
 % 5. Thermal mass and h*A
@@ -294,22 +332,28 @@ end
 % ======================================================================
 %  Capacity and SOC
 % ======================================================================
-function [cap, info] = capacityFromData(d, ph, ah, isCV, Vcv, VmaxCV, Vmin, vTol)
+function [cap, info] = capacityFromData(d, ph, ah, isCV, Vcv, VmaxCV, ~, vTol)
 % FULL  = end of a CC-CV charge at the highest CV voltage
-% EMPTY = end of a discharge (>= 5 min) that stopped at the lowest voltage of
-%         the test AND ended on the end-of-discharge "knee" (voltage falling
-%         much faster per Ah than in the middle of the discharge). The knee
-%         check stops a partial discharge being mistaken for empty.
+% EMPTY = end of a long discharge (>= 5 min) that
+%           - stopped at the cut-off: its END voltage is the lowest end voltage
+%             of all long discharges in the test (short pulses are ignored, so
+%             a 10 s pulse dipping below the cut-off cannot move the target)
+%           - ended on the end-of-discharge "knee" (voltage falling much faster
+%             per Ah than in the middle of the discharge), so a partial
+%             discharge is never mistaken for empty.
 % capacity = Ah taken out between a FULL and the next EMPTY (lowest rate wins)
 isFull = isCV & Vcv >= VmaxCV - vTol;
+longD = find([ph.type] == 'D' & [ph.dur] >= 300);
+Vcut = NaN;
+if ~isempty(longD), Vcut = min([ph(longD).Vend]); end
 isEmpty = false(numel(ph),1);
-for k = 1:numel(ph)
-    isEmpty(k) = ph(k).type == 'D' && ph(k).dur >= 300 && ph(k).Vmin <= Vmin + vTol && ...
-        ph(k).Vend <= ph(k).Vmin + vTol && endsAtKnee(d, ph(k), ah);
+for k = longD
+    isEmpty(k) = ph(k).Vend <= Vcut + vTol && ph(k).Vend <= ph(k).Vmin + vTol && ...
+        endsAtKnee(d, ph(k), ah);
 end
 info.fullIdx  = arrayfun(@(p) p.i2, ph(isFull));
 info.emptyIdx = arrayfun(@(p) p.i2, ph(isEmpty));
-info.Vmin = Vmin; info.VmaxCV = VmaxCV;
+info.Vmin = Vcut; info.VmaxCV = VmaxCV;
 cand = [];
 for e = find(isEmpty)'
     f = find(isFull(1:e-1), 1, 'last');
@@ -319,12 +363,32 @@ for e = find(isEmpty)'
     cand(end+1,:) = [ah(a) - ah(b), -mean(d.I(idx)), a, b]; %#ok<AGROW>
 end
 info.candidates = cand;
+info.fileAh = NaN;
 if isempty(cand)
     cap = NaN; info.rateA = NaN; info.a = []; info.b = [];
 else
     [~, j] = min(cand(:,2));
     cap = cand(j,1); info.rateA = cand(j,2); info.a = cand(j,3); info.b = cand(j,4);
+    info.fileAh = fileCapacity(d, info.a, info.b);
 end
+end
+
+function q = fileCapacity(d, a, b)
+% Cross-check: the same discharge measured by the cycler's own "Capacity (Ah)"
+% column, if the file has one. That column counts up within each step and
+% resets to 0 at the next step, so the step totals are added up.
+q = NaN;
+if ~isfield(d, 'capFile') || isempty(d.capFile), return; end
+c = abs(d.capFile(a:b));
+c = c(isfinite(c));
+if numel(c) < 2, return; end
+seg = [0; find(diff(c) < -1e-9); numel(c)];       % a drop = a new step started
+q = 0;
+for k = 1:numel(seg)-1
+    s = c(seg(k)+1:seg(k+1));
+    q = q + max(s);                                % step total (steps start from 0)
+end
+q = q - c(1);                                      % already counted before 'a' (end of the charge)
 end
 
 function tf = endsAtKnee(d, p, ah)
@@ -366,6 +430,42 @@ else
 end
 end
 
+function ck = socVoltageCheck(d, soc, ph, g, ocv, capInfo)
+% Reads the relaxed voltage of the first rest through the OCV table and
+% compares it with the coulomb-counted SOC at the same moment.
+%   - first rest = the rest the file starts in (>= 60 s), otherwise the first
+%     rest of >= 10 min anywhere in the test
+%   - unc = SOC uncertainty from a 5 mV voltage error on the local OCV slope
+%     (large on a flat curve, e.g. LFP)
+% Also reports the voltage the cell relaxed to after the discharge to cut-off
+% (that rest IS "SOC 0" by definition), for comparison.
+ck = [];
+k = [];
+if ph(1).type == 'R' && ph(1).dur >= 60, k = 1; end
+if isempty(k), k = find([ph.type] == 'R' & [ph.dur] >= 600, 1); end
+if isempty(k), return; end
+i = ph(k).i2;
+V = d.V(i);
+if V <= ocv(1)
+    s = g(1);
+elseif V >= ocv(end)
+    s = g(end);
+else
+    s = interp1(ocv, g, V);
+end
+j = min(max(find(g <= s, 1, 'last'), 1), numel(g)-1);
+slope = (ocv(j+1) - ocv(j)) / (g(j+1) - g(j));            % V per unit SOC
+ck = struct('idx',i, 't',d.t(i), 'V',V, 'socOcv',s, 'socCC',soc(i), ...
+    'slope',slope, 'unc',0.005/max(slope, 1e-6), 'Vempty',NaN, 'tEmpty',NaN);
+if ~isempty(capInfo.emptyIdx)
+    e = capInfo.emptyIdx(1);
+    r = find([ph.i1] == e + 1 & [ph.type] == 'R', 1);
+    if ~isempty(r) && ph(r).dur >= 60
+        ck.Vempty = d.V(ph(r).i2); ck.tEmpty = d.t(ph(r).i2);
+    end
+end
+end
+
 % ======================================================================
 %  R0 and RC relaxations
 % ======================================================================
@@ -387,7 +487,7 @@ function fits = fitRelaxations(d, soc, ph, C, nRC, AH)
 % x_k(t_sw) = current in RC branch k when the current switched off, found by
 % passing the real current history through a first-order filter (tau_k).
 % Vinf = fully relaxed voltage = an OCV point at that SOC.
-fits = struct('soc',{},'Vinf',{},'R',{},'tau',{},'rmse',{},'t0',{},'tr',{},'v',{},'vfit',{});
+fits = struct('soc',{},'Vinf',{},'R',{},'tau',{},'x0',{},'rmse',{},'t0',{},'tr',{},'v',{},'vfit',{});
 t = d.t; I = d.I; V = d.V;
 for k = 2:numel(ph)
     r = ph(k);
@@ -455,22 +555,24 @@ if isempty(bestTau), return; end
 fr = min(max((log(bestTau) - lo)/(hi - lo), 0.02), 0.98);
 z = fminsearch(obj, -log(1./fr - 1), optimset('Display','off','MaxFunEvals',600,'MaxIter',400,'TolX',1e-4));
 tau = toTau(z);
-[sse, c, A] = relaxSSE(tau);
+[sse, c, A, x0] = relaxSSE(tau);
 [tau, ord] = sort(tau);
-Rv = c(2:end); Rv = Rv(ord);
+Rv = c(2:end); Rv = Rv(ord); x0 = x0(ord);
 Rv(Rv <= 0) = NaN;                  % pair not identifiable from this rest
 tau(isnan(Rv)) = NaN;
 f.soc = NaN; f.Vinf = c(1); f.R = Rv(:)'; f.tau = tau(:)';
+f.x0 = x0(:)';                      % RC branch currents when the current stopped (A)
 f.rmse = sqrt(sse/numel(v));
 f.t0 = NaN; f.tr = tr; f.v = v; f.vfit = A*c;
 
-    function [sse, c, A] = relaxSSE(tau)
+    function [sse, c, A, x0] = relaxSSE(tau)
         A = ones(numel(tr), 1 + numel(tau));
+        x0 = zeros(1, numel(tau));
         for q = 1:numel(tau)
             aq = exp(-dtw/tau(q));
             w = aq.^((nW-1):-1:0)';
-            x0 = (1 - aq) * (w' * Iw);          % RC branch current at the switch
-            A(:,q+1) = x0 * exp(-tr/tau(q));
+            x0(q) = (1 - aq) * (w' * Iw);       % RC branch current at the switch
+            A(:,q+1) = x0(q) * exp(-tr/tau(q));
         end
         [c, sse] = lsqNonnegTail(A, v);
     end
@@ -540,22 +642,26 @@ else
 end
 end
 
-function pts = denseOcvPoints(d, soc, ph, g, R0, Rk, Tk, C, AH)
+function [pts, ex] = denseOcvPoints(d, soc, ph, g, R0, Rk, Tk, C, AH)
 % OCV estimate along low-rate CC charge / discharge (I positive = charge):
 %   OCV = V - I*R0(SOC) - sum_k R_k(SOC) * x_k
 % Charge and discharge estimates are averaged per 1 % SOC bin, which cancels
 % most of the remaining model error and the hysteresis.
-pts = [];
+% ex = one sample worked through by hand (for the "How?" window)
+pts = []; ex = [];
 I = d.I; V = d.V; t = d.t;
 mask = abs(I) > 0 & abs(I) <= C.ocvMaxCrate*AH;
 if nnz(mask) < 20, return; end
 sc = min(max(soc, g(1)), g(end));
-est = V - I.*interp1(g, R0, sc);
+r0 = interp1(g, R0, sc);
+est = V - I.*r0;
+Rx = zeros(numel(I), numel(Rk));
 tauMaxUsed = 0;
 for q = 1:numel(Rk)
     tau = median(Tk{q}, 'omitnan');
     tauMaxUsed = max(tauMaxUsed, tau);
-    est = est - interp1(g, Rk{q}, sc).*rcCurrent(t, I, tau);
+    Rx(:,q) = interp1(g, Rk{q}, sc).*rcCurrent(t, I, tau);
+    est = est - Rx(:,q);
 end
 settled = false(size(I));          % skip the first 3*tau of each phase
 for k = 1:numel(ph)
@@ -564,6 +670,13 @@ for k = 1:numel(ph)
     settled(idx) = (t(idx) - ph(k).t1) > min(3*tauMaxUsed, 0.3*ph(k).dur);
 end
 mask = mask & settled & soc >= -0.02 & soc <= 1.02;
+cand = find(mask & I < 0);
+if isempty(cand), cand = find(mask); end
+if ~isempty(cand)
+    [~, j] = min(abs(soc(cand) - 0.5)); i = cand(j);
+    ex = struct('t',t(i), 'soc',soc(i), 'V',V(i), 'I',I(i), 'R0',r0(i), 'IR0',I(i)*r0(i), ...
+        'Rx',Rx(i,:), 'est',est(i));
+end
 bins = round(soc*100)/100;
 dch = mask & I < 0; chg = mask & I > 0;
 [ud, ~, id] = unique(bins(dch)); vd = accumarray(id, est(dch), [], @mean);
@@ -688,6 +801,7 @@ th.mcp = 1/c(1); th.hA = c(2)/c(1);
 if th.mcp < 0.5 || th.mcp > 1e5 || th.hA > 1e3
     th.why = sprintf('fit out of range (m*cp %.3g J/K, h*A %.3g W/K)', th.mcp, th.hA); return
 end
+th.mcp0 = th.mcp; th.hA0 = th.hA;            % first (least-squares) estimate
 th.t = tg - tg(1); th.Tmeas = Tg; th.Q = Qg; th.Tamb = Tag;
 p0 = log([th.mcp th.hA]);
 cost = @(p) getfield(simulateThermal(th, exp(p(1)), exp(p(2))), 'rmse'); %#ok<GFLD>

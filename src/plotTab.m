@@ -129,67 +129,102 @@ api.getState   = @getState;
 %  Plotting
 % =========================================================================
     function createAxes()
-        if ~isempty(ax) && isvalid(ax), delete(ax); end
+        % ONE axes for the life of the tab, with both Y axes created up front.
+        % (Deleting and re-creating a uiaxes on every change - what this tab used
+        % to do - sometimes left the right-axis lines undrawn until the next
+        % click forced a repaint.) The right ruler is just hidden when unused.
         ax = uiaxes(gAx);
         styleAxes(ax);
         ax.Interactions = [];               % this tab does its own mouse handling
         disableDefaultInteractivity(ax);
         ax.Toolbar.Visible = 'off';
+        yyaxis(ax,'right'); ax.YAxis(2).Color = [0.25 0.25 0.25];
+        yyaxis(ax,'left');  ax.YAxis(1).Color = [0.25 0.25 0.25];
+        ax.YAxis(2).Visible = 'off';
         cursorX = [];
     end
 
     function refreshPlot(keepLimits)
+        % Redraw the selected columns. keepLimits = true keeps the current zoom;
+        % otherwise the view is fitted to the new curves - so changing ANY axis
+        % selection always shows every curve straight away.
         lims = [];
         if keepLimits && ~isempty(series), lims = currentLimits(); end
-        createAxes();
-        series = series([]);
+        clearPlot();
         if isempty(d), title(ax,'Open a CSV file to start'); return; end
         xName = ddX.Value;
         leftNames  = lbLeft.Value;
         rightNames = setdiff(lbRight.Value, leftNames, 'stable');
         hasRight = ~isempty(rightNames);
         pal = seriesColors(numel(leftNames) + numel(rightNames));
-        c = 0;
-    
-        % ---- Plot right‑hand side series (if any) ----
-        if hasRight
-            yyaxis(ax,'right'); hold(ax,'on');
-            for k = 1:numel(rightNames)
-                c = c+1;
-                addSeries(xName, rightNames{k}, 'right', pal(c,:));
-            end
-            ylabel(ax, strjoin(rightNames, ', '), 'Interpreter','none');
-            ax.YAxis(2).Color = [0.25 0.25 0.25];
-            yyaxis(ax,'left');
-        end
-    
-        % ---- Plot left‑hand side series ----
-        hold(ax,'on');
+
+        % ---- left Y axis ----
+        yyaxis(ax,'left'); hold(ax,'on');
         for k = 1:numel(leftNames)
-            c = c+1;
-            addSeries(xName, leftNames{k}, 'left', pal(c,:));
+            addSeries(xName, leftNames{k}, 'left', pal(k,:));
         end
-        ylabel(ax, strjoin(leftNames, ', '), 'Interpreter','none');
-        if hasRight, ax.YAxis(1).Color = [0.25 0.25 0.25]; end
+        hold(ax,'off');
+        ax.YAxis(1).Label.String = strjoin(leftNames, ', ');
+        ax.YAxis(1).Label.Interpreter = 'none';
+
+        % ---- right Y axis (hidden when nothing is picked) ----
+        yyaxis(ax,'right'); hold(ax,'on');
+        for k = 1:numel(rightNames)
+            addSeries(xName, rightNames{k}, 'right', pal(numel(leftNames)+k,:));
+        end
+        hold(ax,'off');
+        ax.YAxis(2).Label.String = strjoin(rightNames, ', ');
+        ax.YAxis(2).Label.Interpreter = 'none';
+        ax.YAxis(2).Visible = onOff(hasRight);
+        yyaxis(ax,'left');                  % mouse / zoom code works in left-axis units
+
         xlabel(ax, xName, 'Interpreter','none');
         title(ax, d.name, 'Interpreter','none');
-    
-        % ---- Legend (forced to bottom‑left) ----
         if ~isempty(series)
-            legend(ax, [series.h], {series.name}, ...
-                   'Interpreter','none', ...
-                   'Location','southwest', ... 
-                   'AutoUpdate','off');
+            legend(ax, [series.h], {series.name}, 'Interpreter','none', ...
+                'Location','southwest', 'AutoUpdate','off');
         end
-    
-        hold(ax,'off');
-        if ~isempty(lims)
-            setLimits(lims{:});
-        else
-            fitView('all', false);
-        end
+
+        if ~isempty(lims), setLimits(lims{:}); else, fitView('all', false); end
         if cursorOn, buildCursor(); end
+        repaintSoon();
     end
+
+    function clearPlot()
+        deleteCursor();
+        for k = 1:numel(series)
+            if isvalid(series(k).h), delete(series(k).h); end
+        end
+        series = series([]);
+        legend(ax,'off');
+        hasRight = false;
+        ax.YAxis(2).Visible = 'off';
+        yyaxis(ax,'left');
+    end
+
+    function repaintSoon()
+        % Belt and braces: re-apply the limits once the window has actually
+        % painted the new lines (the same thing clicking "Fit all" did by hand).
+        drawnow limitrate
+        lims = currentLimits();
+        tmr = timer('StartDelay',0.25,'ExecutionMode','singleShot', ...
+            'TimerFcn',@(tm,~) reapply(tm, lims));
+        start(tmr);
+        function reapply(tm, L)
+            stop(tm); delete(tm);
+            if isempty(ax) || ~isvalid(ax) || isempty(series), return; end
+            if ~isequal(currentLimits(), L), return; end    % user already zoomed: leave it
+            setLimits(L{:});
+            % adding + removing an invisible object forces a full repaint
+            % (this is what a click on the plot used to do by accident)
+            hold(ax,'on');
+            h = plot(ax, NaN, NaN, 'HandleVisibility','off', 'PickableParts','none');
+            hold(ax,'off');
+            drawnow limitrate
+            delete(h);
+        end
+    end
+
     function addSeries(xName, yName, side, color)
         T = d.tbl;
         if ~all(ismember({xName, yName}, T.Properties.VariableNames)), return; end
@@ -315,15 +350,18 @@ api.getState   = @getState;
             for k = find(strcmp({series.side},'right'))
                 plot(a2, series(k).x, series(k).y, 'Color', series(k).color, 'DisplayName', series(k).name);
             end
-            ylim(a2, lims{3}); ylabel(a2, ax.YAxis(2).Label.String); yyaxis(a2,'left');
+            ylim(a2, lims{3}); ylabel(a2, ax.YAxis(2).Label.String, 'Interpreter','none');
+            yyaxis(a2,'left');
         end
         hold(a2,'on');
         for k = find(strcmp({series.side},'left'))
             plot(a2, series(k).x, series(k).y, 'Color', series(k).color, 'DisplayName', series(k).name);
         end
         xlim(a2, lims{1}); ylim(a2, lims{2});
-        xlabel(a2, ax.XLabel.String); ylabel(a2, ax.YAxis(1).Label.String);
-        legend(a2,'Interpreter','none'); grid(a2,'on');
+        xlabel(a2, ax.XLabel.String, 'Interpreter','none');
+        ylabel(a2, ax.YAxis(1).Label.String, 'Interpreter','none');
+        legend(a2, 'Interpreter','none', 'Location','southwest');   % bottom-left
+        grid(a2,'on');
     end
 
 % =========================================================================
@@ -589,6 +627,10 @@ function styleAxes(a)
 a.FontName = 'Segoe UI'; a.FontSize = 11; a.Box = 'on';
 grid(a,'on'); a.GridAlpha = 0.12;
 a.Title.FontWeight = 'bold';
+end
+
+function s = onOff(tf)
+if tf, s = 'on'; else, s = 'off'; end
 end
 
 function c = seriesColors(n)

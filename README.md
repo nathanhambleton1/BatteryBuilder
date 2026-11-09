@@ -16,8 +16,8 @@ Building and running the Simulink model is up to you. This app only produces the
 
 ```matlab
 cd 'C:\App Projects\BatteryBuilder'
-BatteryBuilder                    % opens the app
-BatteryBuilder('cell_25C.csv')    % opens it with a file already loaded
+BatteryDataBuilder                    % opens the app
+BatteryDataBuilder('cell_25C.csv')    % opens it with a file already loaded
 ```
 
 1. **Open CSV...** → pick one test file (one cell, one temperature).
@@ -33,7 +33,7 @@ Requirements: MATLAB R2021a or newer. No toolboxes are needed for the app itself
 ## 2. Files
 
 ```
-BatteryBuilder.m              <- the ONLY file you run. Builds the window and the three tabs.
+BatteryDataBuilder.m              <- the ONLY file you run. Builds the window and the three tabs.
 src/
   plotTab.m                   Tab 1 - interactive plot
   loadProfileTab.m            Tab 2 - current profile -> workspace
@@ -47,12 +47,12 @@ tests/
   runValidation.m             checks the calculations against that known cell (PASS / FAIL)
 ```
 
-`BatteryBuilder.m` adds `src/` to the path itself, so you never need to touch the other files to use the app.
+`BatteryDataBuilder.m` adds `src/` to the path itself, so you never need to touch the other files to use the app.
 
 How the pieces talk to each other:
 
 ```
-BatteryBuilder.m
+BatteryDataBuilder.m
    | Open CSV  -> loadBatteryCsv(file) -> d (dataset)
    |              d is handed to every tab: plotTab.setData(d), loadProfileTab.setData(d), modelingTab.setData(d)
    |
@@ -98,7 +98,7 @@ The top bar of the app shows which case was found (e.g. *"magnitude in file, sig
 
 | Control | Action |
 |---|---|
-| X axis / Left Y / Right Y | Pick columns. Ctrl+click picks several. A right axis is added when something is selected there. |
+| X axis / Left Y / Right Y | Pick columns. Ctrl+click picks several. A right axis is shown when something is selected there. Changing any of them redraws and fits the view to every curve straight away. |
 | **Fit all** | Show all the data. |
 | **Fit horizontal** | Full X range, keep the Y zoom. |
 | **Fit vertical** | Fit Y to the data inside the X range you are looking at. |
@@ -109,10 +109,12 @@ The top bar of the app shows which case was found (e.g. *"magnitude in file, sig
 | Double-click | Fit all. |
 | Right-click / **Zoom back** | Undo the last zoom or pan. |
 | **Cursor** | A vertical line follows the mouse. Every curve gets a marker where the line crosses it, with its value in a label right next to the crossing. Labels move up and down with the curves, are pushed apart when they would overlap, and flip to the left side near the right edge. If the X column goes back and forth (e.g. Voltage vs SOC), the nearest point on screen is used instead. |
-| **Copy plot to a figure** | A normal MATLAB figure of the current view, for saving or printing. |
+| **Copy plot to a figure** | A normal MATLAB figure of the current view, for saving or printing (legend bottom-left). |
 | Keys | `f` = fit all, `Backspace` = zoom back, `Esc` = cancel a drag. |
 
 Extra columns added for plotting: `Test Time (h)`, `Current, +charge (A)`, `Power, +charge (W)`, `Net Ah in (Ah)`, and after an extraction `SOC (-)`.
+
+The tab keeps **one** axes for its whole life, with both Y axes created up front; the right ruler is only hidden when nothing is picked for it. On every change the old lines are deleted, the new ones drawn, the view fitted, and ~0.25 s later the limits are applied once more and the axes repainted (`refreshPlot`, `repaintSoon`). Earlier versions deleted and re-created the axes on each change, which sometimes left the right-axis curves undrawn until a click or **Fit all** forced a repaint.
 
 Pan is implemented in `plotTab.m` → `onMouseDown` (`SelectionType == 'extend'`, which is what MATLAB reports for the middle button) and `onMouseMove`, which turns the mouse movement in pixels into data units using the axes' size in pixels.
 
@@ -155,7 +157,8 @@ Cyclers log the *new* current on the first sample of a step. `buildProfile` (in 
    * **Optional** (grey): leave it empty if you don't have it.
    * Hover over the status to see *why* it could not be found (e.g. *"no cell temperature column in the file"*) and what to look for on the datasheet.
 3. Any box can be typed into: a number, a vector like `[0.02 0.021 0.022]`, or `0:0.1:1`. Typed values show as **Entered by you** (blue) and are never overwritten by Extract.
-4. **How?** (on green boxes) opens a window with the method, the equation, the table of numbers and plots of the data it came from.
+4. **How?** (on green boxes) opens a window that walks through the calculation step by step: what the parameter means in the block, the equations (rendered in LaTeX), the actual numbers from your file plugged into them (a worked example), the final table, and plots of the data it came from.
+   A box whose cross-check failed shows **⚠ Check** instead of ✓ (e.g. AH vs the cycler's own Capacity column, or SOC0 vs the voltage).
 5. **2. Save to workspace** writes every filled box as its `batt_*` variable and tells you which required boxes are still empty.
 
 **Hover over any box** to see its workspace variable name and exactly where it goes in the block dialog.
@@ -214,11 +217,20 @@ A charge phase is a **CC-CV charge** when its current has tapered below 35 % of 
 
 ### 7.2 Capacity `batt_AH`
 * **FULL** = the end of a CC-CV charge at the highest CV voltage.
-* **EMPTY** = the end of a discharge that is at least 5 minutes long, stopped at the lowest voltage in the test, *and* ended on the end-of-discharge knee: over its last 3 % the voltage falls more than 3× faster per Ah than over its middle half (`endsAtKnee`). This stops a partial discharge, like one HPPC step, from being mistaken for empty.
+* **EMPTY** = the end of a discharge that is at least 5 minutes long, stopped at the cut-off, *and* ended on the end-of-discharge knee: over its last 3 % the voltage falls more than 3× faster per Ah than over its middle half (`endsAtKnee`). The cut-off is the lowest **end** voltage of all long discharges, so a short pulse that dips below the cut-off cannot move it. The knee check stops a partial discharge, like one HPPC step, from being mistaken for empty.
 * `AH = Ah_in(FULL) − Ah_in(EMPTY)` with `Ah_in = Σ I·dt / 3600` (zero-order hold). If there are several full→empty discharges, the slowest one wins.
+* **Cross-check:** if the file has its own `Capacity (Ah)` column, the same discharge is added up from it too (`fileCapacity`; the column restarts at 0 on every step). The two should agree within ~1 %; more than 2 % apart marks the box **⚠ Check**.
 
 ### 7.3 SOC and `batt_SOC0`
-Coulomb counting that resets to SOC = 1 at every FULL point: `SOC = 1 + (Ah_in − Ah_in(FULL)) / AH`. Before the first full charge the same line is run backwards. `batt_SOC0` is the SOC of the first sample.
+Coulomb counting that resets to SOC = 1 at every FULL point: `SOC = 1 + (Ah_in − Ah_in(FULL)) / AH`. Before the first full charge the same line is run backwards, so
+
+```
+SOC0 = 1 − (Ah put in between the first sample and the first FULL point) / AH
+```
+
+If it took almost a whole AH to fill the cell, the file started almost empty, and SOC0 is close to 0. That is normal when a test starts on a cell left at its cut-off: once the current stops, the voltage of a lithium-ion cell recovers to ~3.1–3.3 V even though it is empty.
+
+**Cross-check against the voltage** (`socVoltageCheck`): the relaxed voltage of the first rest (the rest the file starts in, or else the first ≥ 10 min rest) is read backwards through the OCV table and compared with the coulomb-counted SOC at that moment. The window also shows the voltage the cell relaxed to after the discharge to cut-off (SOC 0 by definition) for comparison. A difference of more than 0.08 (or more than the check's own uncertainty, 5 mV divided by the local OCV slope, which is large on flat curves such as LFP) marks the box **⚠ Check**.
 
 ### 7.4 R0 `batt_R0_vec`
 At every sharp current step (|ΔI| > 5 % of the maximum current, sampled at ≤ 5 s): `R0 = ΔV / ΔI`. The RC branches cannot change instantly, so the instant jump is purely resistive. Each SOC breakpoint takes the median of the steps closest to it (`r0FromEdges`, `gridPoints`).
@@ -277,7 +289,7 @@ These were "Extraction settings" boxes in the old version. They are now fixed in
 
 ## 8. Code walk-through
 
-### `BatteryBuilder.m`
+### `BatteryDataBuilder.m`
 Builds the window: title, **Open CSV...**, file info, and a tab group. It calls `plotTab`, `loadProfileTab` and `modelingTab` to fill the three tabs. Each returns a small `api` struct (`setData`, ...). `openFile` reads the CSV with `loadBatteryCsv` and hands the dataset to all three tabs. `onDataChanged` passes the SOC column from the Modeling tab back to the Plot tab. `fig.UserData.api` exposes the tab APIs for scripting and tests.
 
 ### `src/loadBatteryCsv.m`
@@ -318,7 +330,7 @@ One entry per box: key, label, variable, block location, unit, group, required /
 The calculations, described in §7. Returns `R.value`, `R.found`, `R.note`, `R.diag` (data for the pop-ups), `R.d` (dataset with SOC) and `R.report` (text summary).
 
 ### `src/explainParameter.m`
-One `case` per parameter: text (method, equation, table with M/I/E flags) plus one or two plots, e.g. an example relaxation with its fit, or an example current step with its ΔV/ΔI.
+One `case` per parameter. The left side is a scrolling list of blocks built with four small helpers: `H` (heading), `P` (paragraph), `EQ` (an equation, shown with a LaTeX `uilabel`) and `M` (a monospaced table with the M/I/E flags). Each window explains what the parameter means, the model equations, the method step by step, and a worked example with this file's own numbers (e.g. `AH = Q_in(full) − Q_in(empty) = …`, an example current step's ΔV/ΔI, an example relaxation fit's x_k(0), R_k and τ_k). The right side has one or two plots of the data behind it.
 
 ---
 
@@ -326,10 +338,12 @@ One `case` per parameter: text (method, equation, table with M/I/E flags) plus o
 
 `tests/runValidation.m` writes 0 °C and 25 °C test files from a cell with known parameters (`makeSyntheticCellData.m`). The tests contain rest, CC-CV, a C/5 discharge, HPPC, a dynamic load and a logged cell temperature. Each file is run through the extraction and compared with the truth (SOC 0.1–0.95):
 
-| | AH | OCV max error | R0 | R1 | R2 | tau1 | tau2 | m·cp | h·A |
-|---|---|---|---|---|---|---|---|---|---|
-| 25 °C | −1.3 % | 3.1 mV | 1.7 % | 2.8 % | 1.7 % | 1.5 % | 0.5 % | +0.4 % | +0.9 % |
-| 0 °C | −1.5 % | 2.0 mV | 2.4 % | 3.4 % | 3.3 % | 1.3 % | 1.7 % | +1.3 % | +2.3 % |
+| | AH | SOC0 | OCV max error | R0 | R1 | R2 | tau1 | tau2 | m·cp | h·A |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 25 °C | −1.3 % | 0.501 (error 0.000) | 3.1 mV | 1.7 % | 2.8 % | 1.7 % | 1.5 % | 0.5 % | +0.4 % | +0.9 % |
+| 0 °C | −1.5 % | 0.500 (error 0.000) | 2.0 mV | 2.4 % | 3.4 % | 3.3 % | 1.3 % | 1.7 % | +1.3 % | +2.3 % |
+
+The synthetic cell starts at SOC 0.5; the voltage cross-check agrees with the coulomb count to within 0.001.
 
 (The AH difference is because the capacity is measured down to the test's cut-off voltage at C/5, as defined in §7.2.)
 
