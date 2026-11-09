@@ -34,25 +34,6 @@ btnSave = uibutton(gL,'Text','Save load profile to workspace','FontWeight','bold
                        'batt_load_ts (timeseries) and batt_load_tEnd to the base workspace.']));
 lblInfo = uilabel(gL,'Text','Open a CSV file first.','WordWrap','on','VerticalAlignment','top', ...
     'FontName','Consolas','FontSize',12);
-txtHelp = uitextarea(gL,'Editable','off','FontSize',12,'Value',{
-    'HOW TO USE IT IN SIMULINK'
-    ''
-    '1. From Workspace block'
-    '     Data: batt_load'
-    '     Interpolate data: on'
-    '     Form output after final data value: Holding final value'
-    '2. Simulink-PS Converter, output unit A'
-    '3. Controlled Current Source (Simscape > Foundation >'
-    '   Electrical > Electrical Sources)'
-    '     source + (arrow head)  ->  battery +'
-    '     source -               ->  battery -'
-    '   A positive signal then pushes current INTO the'
-    '   battery (charging), negative = discharging.'
-    '4. Model Stop time: batt_load_tEnd'
-    ''
-    'Extra points are added just before every current step so'
-    'that the interpolated signal reproduces the steps exactly'
-    '(no ramps between a rest and a pulse).'});
 
 axI = uiaxes(g);
 axI.Layout.Column = 2;
