@@ -145,37 +145,51 @@ api.getState   = @getState;
         series = series([]);
         if isempty(d), title(ax,'Open a CSV file to start'); return; end
         xName = ddX.Value;
-        leftNames = lbLeft.Value;
+        leftNames  = lbLeft.Value;
         rightNames = setdiff(lbRight.Value, leftNames, 'stable');
         hasRight = ~isempty(rightNames);
         pal = seriesColors(numel(leftNames) + numel(rightNames));
         c = 0;
+    
+        % ---- Plot right‑hand side series (if any) ----
         if hasRight
             yyaxis(ax,'right'); hold(ax,'on');
             for k = 1:numel(rightNames)
-                c = c+1; addSeries(xName, rightNames{k}, 'right', pal(c,:));
+                c = c+1;
+                addSeries(xName, rightNames{k}, 'right', pal(c,:));
             end
             ylabel(ax, strjoin(rightNames, ', '), 'Interpreter','none');
             ax.YAxis(2).Color = [0.25 0.25 0.25];
             yyaxis(ax,'left');
         end
+    
+        % ---- Plot left‑hand side series ----
         hold(ax,'on');
         for k = 1:numel(leftNames)
-            c = c+1; addSeries(xName, leftNames{k}, 'left', pal(c,:));
+            c = c+1;
+            addSeries(xName, leftNames{k}, 'left', pal(c,:));
         end
         ylabel(ax, strjoin(leftNames, ', '), 'Interpreter','none');
         if hasRight, ax.YAxis(1).Color = [0.25 0.25 0.25]; end
         xlabel(ax, xName, 'Interpreter','none');
         title(ax, d.name, 'Interpreter','none');
+    
+        % ---- Legend (forced to bottom‑left) ----
         if ~isempty(series)
-            legend(ax, [series.h], {series.name}, 'Interpreter','none', ...
-                'Location','best','AutoUpdate','off');
+            legend(ax, [series.h], {series.name}, ...
+                   'Interpreter','none', ...
+                   'Location','southwest', ... 
+                   'AutoUpdate','off');
         end
+    
         hold(ax,'off');
-        if ~isempty(lims), setLimits(lims{:}); else, fitView('all', false); end
+        if ~isempty(lims)
+            setLimits(lims{:});
+        else
+            fitView('all', false);
+        end
         if cursorOn, buildCursor(); end
     end
-
     function addSeries(xName, yName, side, color)
         T = d.tbl;
         if ~all(ismember({xName, yName}, T.Properties.VariableNames)), return; end
@@ -290,6 +304,11 @@ api.getState   = @getState;
         if isempty(series), return; end
         f2 = figure('Name','Battery plot','Color','w');
         a2 = axes(f2);
+        a2.FontName = 'Century Gothic';
+        a2.FontSize = 16;
+        a2.Title.FontName = 'Century Gothic';
+        a2.XLabel.FontName = 'Century Gothic';
+        a2.YLabel.FontName = 'Century Gothic';
         lims = currentLimits();
         if hasRight
             yyaxis(a2,'right'); hold(a2,'on');
