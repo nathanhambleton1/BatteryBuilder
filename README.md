@@ -101,6 +101,7 @@ The top bar of the app shows which case was found (e.g. *"magnitude in file, sig
 |---|---|
 | X axis / Left Y / Right Y | Pick columns. Ctrl+click picks several. A right axis is shown when something is selected there. Changing any of them redraws and fits the view to every curve straight away. **(none)** at the top of a Y list leaves that axis empty. |
 | **Load twin from workspace** | Adds the digital-twin signals at the bottom of both Y lists, under a separator (see below). Press again after a new simulation run. |
+| **Same units -> same Y scale** | On by default. When every curve on the left **and** the right has the same unit, both Y axes get the same limits, so e.g. measured voltage (left) and twin voltage (right) lie on top of each other. The lock holds through every zoom, pan and fit. The box shows `(locked: V)`, or `(units differ)` when it cannot apply. Untick it to give each side its own scale again. |
 | **Fit all** | Show all the data. |
 | **Fit horizontal** | Full X range, keep the Y zoom. |
 | **Fit vertical** | Fit Y to the data inside the X range you are looking at. |
@@ -118,7 +119,14 @@ The top bar of the app shows which case was found (e.g. *"magnitude in file, sig
 
 Log the twin with To Workspace blocks named `twin_soc`, `twin_current`, `twin_voltage` and `twin_temp` (format **Timeseries** or **Structure With Time**; *Array* also works together with `tout`). They are read from the base workspace, or from `out` when the model uses "Single simulation output". They show up as `Twin: SOC (-)`, `Twin: Current (A)`, `Twin: Voltage (V)`, `Twin: Temp (°C)`, drawn dashed. The twin's time starts at 0 like `batt_load`, so it lines up with the test on any X column (time columns are extended past the end of the test). A temperature above 150 is taken to be kelvin and converted to °C; an SOC above 1.5 is taken to be percent.
 
-Each twin signal has a measured partner: SOC ↔ `SOC (-)` (after Extract), current ↔ `Current, +charge (A)`, voltage ↔ the file's voltage column, temperature ↔ the cell temperature column (`Temp 1`). With both shown and the **Cursor** on, a yellow label on the other side of the cursor line shows `Δ = twin − measured` at the cursor position.
+Each twin signal has a measured partner: SOC ↔ `SOC (-)` (after Extract), current ↔ `Current, +charge (A)`, voltage ↔ the file's voltage column, temperature ↔ the cell temperature column (`Temp 1`). With both shown and the **Cursor** on, a yellow label on the other side of the cursor line shows `Δ = twin − measured` at the cursor position. When there is no room on that side (the cursor is near an edge), the label moves below the value labels instead.
+
+**Comparing twin and measured.** Two ways, both on one scale:
+* Put both in the **same** list (Ctrl+click), e.g. `Voltage (V)` and `Twin: Voltage (V)` on the left. That leaves the right axis free for something else, such as current.
+* Or put one on each side, e.g. `Voltage (V)` left and `Twin: Voltage (V)` right. With **Same units -> same Y scale** ticked, the right axis copies the left one.
+
+The unit is the text in the last brackets of the name (`Voltage (V)` → V); the temperature columns count as °C. A twin signal counts as having its measured partner's unit, so `Temp 1` and `Twin: Temp (°C)` lock together too (`unitKey`, `updateLock` in `plotTab.m`).
+
 
 Extra columns added for plotting: `Test Time (h)`, `Current, +charge (A)`, `Power, +charge (W)`, `Net Ah in (Ah)`, and after an extraction `SOC (-)`.
 

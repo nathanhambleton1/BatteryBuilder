@@ -19,6 +19,14 @@ function api = plotTab(tab, fig)
 %   Y lists: "(none)" at the top shows nothing on that axis. Below the file's
 %   columns come the digital-twin signals read from the MATLAB workspace
 %   (twin_soc, twin_current, twin_voltage, twin_temp - see loadTwin).
+%   Ctrl+click picks several signals for one axis.
+%
+%   Same units, same scale: when every curve on the left AND the right has
+%   the same unit (e.g. measured voltage left, twin voltage right) both Y
+%   axes get the SAME limits, so the curves sit on top of each other and
+%   stay that way through every zoom / pan / fit. A twin signal counts as
+%   having its measured partner's unit. Untick "Same units -> same Y scale"
+%   to give each side its own scale again.
 
 NONE = '(none)';
 SEP  = char([9472 9472 32 'Twin (from workspace)' 32 9472 9472]);   % list separator, not selectable
@@ -36,12 +44,14 @@ zoomStack  = {};
 drag       = struct('active',false,'p0',[0 0],'box',[]);
 pan        = struct('active',false,'px0',[0 0],'lims0',{{}});
 hasRight   = false;
+locked     = false;       % left and right Y axes share their limits (same unit)
+lockUnit   = '';
 ax         = [];
 
 % ---------------- layout -----------------------------------------------------
 g = uigridlayout(tab,[1 2],'ColumnWidth',{240,'1x'},'Padding',[6 6 6 6]);
 gCtl = uigridlayout(g,[15 2],'Padding',[0 0 0 0],'RowSpacing',4,'ColumnSpacing',4, ...
-    'RowHeight',{'fit',24,'fit','1x','fit','1x',26,8,26,26,24,26,26,8,'fit'});
+    'RowHeight',{'fit',24,'fit','1x','fit','1x',26,22,26,26,24,26,26,8,'fit'});
 gCtl.Layout.Column = 1;
 axHolder = uipanel(g,'BorderType','none','BackgroundColor','white');
 axHolder.Layout.Column = 2;
@@ -61,7 +71,14 @@ btnTwin = uibutton(gCtl,'Text','Load twin from workspace','ButtonPushedFcn',@(~,
     'Tooltip',sprintf(['Reads twin_soc, twin_current, twin_voltage and twin_temp from the MATLAB\n' ...
     'workspace (or from "out" if the model saves a single simulation output)\n' ...
     'and adds them at the bottom of the Y lists. Press again after a new run.']));
-place(btnTwin,r,[1 2]); r = r+2;
+place(btnTwin,r,[1 2]); r = r+1;
+cbLock = uicheckbox(gCtl,'Text','Same units -> same Y scale','Value',true, ...
+    'ValueChangedFcn',@(~,~) onLockChanged(), ...
+    'Tooltip',sprintf(['When every curve on the left and right Y axes has the same unit\n' ...
+    '(e.g. measured voltage left, twin voltage right), both axes get the same\n' ...
+    'limits so the curves can be compared directly. A twin signal counts as\n' ...
+    'having the unit of its measured partner.']));
+place(cbLock,r,[1 2]); r = r+1;
 btnFitAll = uibutton(gCtl,'Text','Fit all','FontWeight','bold','ButtonPushedFcn',@(~,~) fitView('all'));
 place(btnFitAll,r,[1 2]); r = r+1;
 btnFitX = uibutton(gCtl,'Text','Fit horizontal','ButtonPushedFcn',@(~,~) fitView('x'));
@@ -105,7 +122,8 @@ api.loadTwin   = @loadTwin;
 
     function st = getState()     % nested (not anonymous) so it sees the live values
         st = struct('series',series,'ax',ax,'zoomDepth',numel(zoomStack),'twin',twin, ...
-            'leftItems',{lbLeft.Items},'rightItems',{lbRight.Items});
+            'leftItems',{lbLeft.Items},'rightItems',{lbRight.Items},'locked',locked, ...
+            'lockUnit',lockUnit);
     end
 
 % =========================================================================
@@ -272,6 +290,7 @@ api.loadTwin   = @loadTwin;
         ax.YAxis(2).Label.Interpreter = 'none';
         ax.YAxis(2).Visible = onOff(hasRight);
         yyaxis(ax,'left');                  % mouse / zoom code works in left-axis units
+        updateLock();
 
         xlabel(ax, xName, 'Interpreter','none');
         title(ax, d.name, 'Interpreter','none');
@@ -283,6 +302,48 @@ api.loadTwin   = @loadTwin;
         if ~isempty(lims), setLimits(lims{:}); else, fitView('all', false); end
         if cursorOn, buildCursor(); end
         repaintSoon();
+    end
+
+    function updateLock()
+        % lock when the curves on both sides all share one unit
+        locked = false; lockUnit = '';
+        if ~hasRight || ~cbLock.Value || isempty(series), cbLock.Text = 'Same units -> same Y scale'; return; end
+        u = arrayfun(@(s) unitKey(s.name), series, 'UniformOutput', false);
+        if all(~cellfun(@isempty, u)) && numel(unique(u)) == 1
+            locked = true; lockUnit = u{1};
+            cbLock.Text = sprintf('Same units -> same Y scale (locked: %s)', unitLabel(lockUnit));
+        else
+            cbLock.Text = 'Same units -> same Y scale (units differ)';
+        end
+    end
+
+    function k = unitKey(name)
+        % the unit of a curve: the text in its last (...) - "Voltage (V)" -> V.
+        % Temperature columns count as °C. A twin signal takes its measured
+        % partner's unit; a column without a unit is only "the same unit" as
+        % itself and its own twin.
+        t = find(strcmp({twin.name}, name), 1);
+        if ~isempty(t) && ~isempty(twin(t).pair), name = twin(t).pair; end
+        k = '';
+        if ~isempty(d) && any(strcmp(name, {d.colNames.tcell, d.colNames.tch})), k = 'degC'; return; end
+        tok = regexp(name, '\(([^()]*)\)\s*$', 'tokens', 'once');
+        if ~isempty(tok), k = strtrim(tok{1}); else, k = ['col:' name]; end
+        if any(strcmpi(k, {'C','°C','degC','deg C'})), k = 'degC'; end
+    end
+
+    function s = unitLabel(k)
+        if strcmp(k, 'degC'), s = '°C';
+        elseif startsWith(k, 'col:'), s = k(5:end);
+        else, s = k;
+        end
+    end
+
+    function onLockChanged()
+        if isempty(series), updateLock(); return; end
+        updateLock();
+        pushZoom();
+        fitView('y', false);
+        if cursorOn, refreshCursorAtLast(); end
     end
 
     function clearPlot()
@@ -372,6 +433,7 @@ api.loadTwin   = @loadTwin;
     function setLimits(xl, yl, yr)
         if any(~isfinite(xl)) || diff(xl) <= 0, xl = xl(1) + [-0.5 0.5]; end
         ax.XLim = xl;
+        if locked, yr = yl; end             % one scale for both sides
         if hasRight
             if isfinite(diff(yl)) && diff(yl) > 0, ax.YAxis(1).Limits = yl; end
             if ~isempty(yr) && isfinite(diff(yr)) && diff(yr) > 0, ax.YAxis(2).Limits = yr; end
@@ -418,6 +480,7 @@ api.loadTwin   = @loadTwin;
             if strcmp(mode,'all'), xr = []; else, xr = xl; end
             [a,b] = extentOf('left', xr); yl = [a b];
             if hasRight, [a,b] = extentOf('right', xr); yr = [a b]; end
+            if locked, yl = [min(yl(1), yr(1)), max(yl(2), yr(2))]; yr = yl; end
         end
         setLimits(xl, yl, yr);
     end
@@ -442,7 +505,8 @@ api.loadTwin   = @loadTwin;
         if ~isempty(xl), newX = sort(xl); end
         if ~isempty(yl)
             yl = sort(yl);
-            if hasRight                         % right axis zooms by the same fraction
+            if hasRight && ~locked              % right axis zooms by the same fraction
+
                 f = (yl - lims{2}(1)) / diff(lims{2});
                 newR = lims{3}(1) + f*diff(lims{3});
             end
@@ -767,6 +831,18 @@ api.loadTwin   = @loadTwin;
                 set(s.dlabel,'Position',[xc+dx ly 0],'HorizontalAlignment','left','String',str);
             else
                 set(s.dlabel,'Position',[xc-dx ly 0],'HorizontalAlignment','right','String',str);
+            end
+            % no room on that side (cursor near the edge): put it on the
+            % value-label side instead, below all the value labels
+            e = s.dlabel.Extent;
+            if numel(e) >= 3 && (e(1) < xl(1) || e(1) + e(3) > xl(2))
+                below = min(labFrac(isfinite(labFrac))) - 0.06*find(order == j, 1);
+                ly = yl(1) + min(max(below, 0.03), 0.97)*diff(yl);
+                if rightSide
+                    set(s.dlabel,'Position',[xc-dx ly 0],'HorizontalAlignment','right');
+                else
+                    set(s.dlabel,'Position',[xc+dx ly 0],'HorizontalAlignment','left');
+                end
             end
         end
     end
