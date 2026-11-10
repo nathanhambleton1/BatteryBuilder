@@ -10,7 +10,7 @@ A MATLAB app for lithium-ion cell test data. It has three tabs:
 
 Building and running the Simulink model is up to you. This app only produces the workspace variables the model needs.
 
-**Video walk-through:** [`docs/Modeling_Tab_Explained.mp4`](docs/Modeling_Tab_Explained.mp4) (18 min, narrated, English subtitles) goes through every Modeling-tab value on a test that follows the real profile and chamber schedule, with the plots and the numbers. How it is made: §13.
+**Presentation + video:** [`Modeling_Tab_Presentation.pptx`](Modeling_Tab_Presentation.pptx) (57 slides, Century Gothic, MATLAB charts as movable pictures, speaker notes) and [`Modeling_Tab_Presentation.mp4`](Modeling_Tab_Presentation.mp4) (the same deck presented with a voice-over, about an hour) explain how every Modeling-tab value is calculated from the charge and discharge cycles, why each method was chosen, and how to set up the thermal mass and h·A for the Simulink convection block. See §13.
 
 ---
 
@@ -45,14 +45,8 @@ src/
   explainParameter.m          the "How?" pop-up windows
   batterySources.m            the published sources behind each method (links shown in the "How?" windows)
   loadBatteryCsv.m            reads a cycler CSV
-tests/
-  makeSyntheticCellData.m     writes test CSVs from a cell whose parameters are KNOWN
-  runValidation.m             checks the calculations against that known cell (PASS / FAIL)
-tools/video/
-  makeExplainerFrames.m       pictures + narration for the walk-through video (§13)
-  build_video.py, tts.ps1     voice-over and video assembly
-docs/
-  Modeling_Tab_Explained.mp4  the walk-through video (+ .srt subtitles)
+Modeling_Tab_Presentation.pptx   the presentation (§13)
+Modeling_Tab_Presentation.mp4    the presentation, narrated (§13)
 ```
 
 `BatteryDataBuilder.m` adds `src/` to the path itself, so you never need to touch the other files to use the app.
@@ -517,7 +511,7 @@ One `case` per parameter. The left side is a scrolling list of blocks built with
 
 ## 9. Validation
 
-`tests/runValidation.m` writes test files from a cell with **known** parameters (`makeSyntheticCellData.m`, a 2-RC cell with a lumped thermal mass, the same structure as the block). Each file is run through the extraction and compared with the truth. The script prints PASS / FAIL.
+The extraction was validated on test files written from a cell with **known** parameters (a 2-RC cell with a lumped thermal mass, the same structure as the block). Each file is run through the extraction and compared with the truth. The validation scripts (`tests/runValidation.m`, `tests/makeSyntheticCellData.m`) are no longer in the repository; they are in the git history (commit `0cd3cc2`) if you want to re-run them.
 
 **1. Your profile (the rate test).** `makeSyntheticCellData(dir, 25, 'rate')`:
 * the cell starts nearly empty;
@@ -550,11 +544,6 @@ The synthetic cell does not reproduce the poorly defined post-CV rest fits that 
 This file has only one full discharge, so it uses the older OCV method. Its few-mV OCV error ends up in the heat estimate I·(V − OCV) over many hours, hence m·cp +9 %. The AH difference is because the capacity is measured down to the test's cut-off voltage at C/5, as defined in §7.2.
 
 **3. No guessing.** A file cut down to 11 hours with no full discharge and no temperature columns must give AH, SOC, OCV, R, tau and the thermal values all **empty**. Typing in a datasheet AH then lets R0 and the RC pairs be calculated.
-
-```matlab
-cd tests
-runValidation      % prints PASS / FAIL
-```
 
 Synthetic data only proves the method recovers values that are really there. On real data the remaining differences come from things the synthetic cell does not have, such as hysteresis and a resistance that changes with rate. Each **How?** window shows the cross-checks:
 * AH against the cycler's capacity column;
@@ -655,22 +644,11 @@ Also useful, but not checked online: G. Plett, *Battery Management Systems, Vol.
 
 ---
 
-## 13. The walk-through video
+## 13. The presentation and the video
 
-[`docs/Modeling_Tab_Explained.mp4`](docs/Modeling_Tab_Explained.mp4) explains every Modeling-tab value, in the order the extraction calculates them: the test and the chamber schedule, phases and CC-CV detection, AH (with the knee check and the rate table), SOC and SOC0, R0, the RC pairs, the multi-rate wait, the multi-rate OCV / R_dc fit, the charge side and the two ends, the R tables scaled to R_dc, the thermal fit, and the summary. Arrows appear on the plots as the narration reaches them.
+* [`Modeling_Tab_Presentation.pptx`](Modeling_Tab_Presentation.pptx): 57 slides, all text in Century Gothic. Every chart is a MATLAB figure inserted as a picture you can copy, move or resize. The arrows and labels on the charts are separate PowerPoint shapes (grouped per callout) that fade in on click, so they can be edited too. Slides use fade / push transitions. The speaker notes hold the full talk.
+* [`Modeling_Tab_Presentation.mp4`](Modeling_Tab_Presentation.mp4): the same deck presented, about an hour, with a natural-sounding voice-over (Kokoro, an open-source neural text-to-speech model run locally). The callouts appear as the talk reaches them.
 
-Every picture and every number in it comes from a real run of `extractCellParameters` on a synthetic 10 °C file (plus its 25 °C partner) that follows your profile and chamber schedule. Because the synthetic cell's values are known, the video also shows how close each result is.
+What it covers, in the order the extraction runs: the model and what a test can show; the CSV and the chamber schedule (charges at 25 °C, discharges at T) with the ±3 K window; phases, FULL and EMPTY (knee check); AH and the rate table; SOC, SOC0 and its voltage check; R0 at the current steps; the RC pairs from the rests (branch currents from the real history, how the fit is solved); the multi-rate fit (settle wait, the 25 °C OCV problem, the straight line per SOC, charge side and hysteresis, the two ends); how the tables are built (M / I / E / S); and the thermal side: the heat source, the m·cp / h·A fit, two checks you can do by hand (the first minute of the fast discharge gives m·cp; every chamber step gives τ_th = m·cp / h·A), the Simulink wiring of the battery thermal port and the Convective Heat Transfer block, and what to use when the thermal boxes are empty.
 
-To rebuild it (for example after changing the extraction):
-
-```matlab
-addpath tools/video
-makeExplainerFrames           % -> tools/video/build/frames/*.png + narration.tsv
-```
-
-```bash
-pip install imageio-ffmpeg    # only if ffmpeg is not on PATH
-python tools/video/build_video.py
-```
-
-The voice is Windows' built-in text-to-speech (offline, `tts.ps1`). The narration text is written in `makeExplainerFrames.m` next to each picture; an `@` in it marks where the next arrow appears.
+Every chart and number comes from a run of `extractCellParameters` on synthetic 10 °C and 25 °C files that follow the real profile and chamber schedule (~70 h, 0.1 / 0.2 / 0.5 / 1 / 5C). Because the synthetic cell's values are known, the deck also shows how close each result is.
