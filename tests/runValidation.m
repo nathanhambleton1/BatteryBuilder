@@ -83,7 +83,31 @@ ok = ok && mr.ok && abs(r.AH) < 3 && abs(r.SOC0) < 0.02 && r.ocv < 10 && r.Rsum 
      r.tau2 < 15 && abs(r.mcp) < 15 && abs(r.hA) < 15;
 results.rate = r;
 
-fprintf('\n== 4. partial test: nothing may be guessed\n');
+fprintf('\n== 4. the real chamber schedule (charges at 25 °C, rest + discharge at the test temperature)\n');
+[fc, tc] = makeSyntheticCellData(outDir, [25 10], 'chamber');
+for k = 1:numel(fc)
+    d = loadBatteryCsv(fc{k});
+    R = extractCellParameters(d, 2, grid);
+    S = load(regexprep(fc{k}, '\.csv$', '_truth.mat'));
+    m = [ones(numel(R.d.soc),1), R.d.soc] \ S.trueSOC;
+    g = R.value.SOC_vec; gt = m(1) + m(2)*g; T = d.T_C;
+    mid = g >= 0.05 & g <= 0.95;
+    c.T = T; c.hours = d.t(end)/3600; c.ocvFound = R.found.V0_vec;
+    c.ocv = NaN; c.Rsum = NaN;
+    if R.found.V0_vec, c.ocv = 1000*max(abs(R.value.V0_vec - tc.ocv(gt,T))); end
+    if R.found.R0_vec && R.found.R1_vec && R.found.R2_vec
+        Rs = R.value.R0_vec + R.value.R1_vec + R.value.R2_vec;
+        Rt = tc.R0(gt,T) + tc.R1(gt,T) + tc.R2(gt,T);
+        c.Rsum = 100*median(abs(Rs(mid)./Rt(mid) - 1));
+    end
+    c.AH = 100*(R.value.AH/tc.Q - 1);
+    fprintf('   label %.1f °C (%.0f h) | OCV found %d, max err %.1f mV | R0+R1+R2 %.1f%% | AH %+.1f%% | charge side: %s\n', ...
+        T, c.hours, c.ocvFound, c.ocv, c.Rsum, c.AH, R.diag.multiRate.chargeHow);
+    ok = ok && c.ocvFound && abs(T - [25 10]*(k == [1 2])') < 0.5 && c.ocv < 10 && c.Rsum < 10 && abs(c.AH) < 3;
+    results.(sprintf('chamber%d', round(T))) = c;
+end
+
+fprintf('\n== 5. partial test: nothing may be guessed\n');
 
 opts = detectImportOptions(files{1}, 'VariableNamingRule','preserve');
 opts = setvaropts(opts, 'DateTime', 'Type','string');

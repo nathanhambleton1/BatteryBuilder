@@ -12,6 +12,12 @@ function [files, truth] = makeSyntheticCellData(outDir, tempsC, profile)
 %            -> 0.51C -> rest -> 0.34C CC-CV -> rest -> 1C -> rest
 %            -> 0.34C CC-CV -> rest -> 5.8C -> rest      (2 h rests, ~60 h)
 %       Files are called synthRate_<T>C.csv. No pulses at mid SOC.
+%   profile 'chamber'        - the same kind of rate test with the REAL chamber
+%       schedule: 0.34C CC-CV charges at 25 °C; right after each charge the
+%       chamber goes to the file's test temperature T and holds it through the
+%       rest and the 0.1 / 0.2 / 0.5 / 1 / 5C discharge, then back to 25 °C for
+%       the rest before the next charge (3.6 h rests, ~70 h, chamber with a
+%       10 min lag). Files are called synthChamber_<T>C.csv.
 %
 %   The "true" cell is a 2-RC equivalent circuit with SOC- and temperature-
 %   dependent OCV / R0 / R1 / R2, a lumped thermal mass and convection to the
@@ -33,7 +39,9 @@ rng(1);
 truth = cellTruth(lower(profile));
 files = cell(1, numel(tempsC));
 for k = 1:numel(tempsC)
-    if strcmpi(profile, 'rate')
+    if strcmpi(profile, 'chamber')
+        files{k} = fullfile(outDir, sprintf('synthChamber_%gC.csv', tempsC(k)));
+    elseif strcmpi(profile, 'rate')
         files{k} = fullfile(outDir, sprintf('synthRate_%gC.csv', tempsC(k)));
     else
         files{k} = fullfile(outDir, sprintf('synthCell_%gC.csv', tempsC(k)));
@@ -45,7 +53,7 @@ end
 % -----------------------------------------------------------------------
 function c = cellTruth(profile)
 % 'rate': a power cell (resistances x0.4) that can actually take the 5.8C step
-kR = 1; if strcmp(profile, 'rate'), kR = 0.4; end
+kR = 1; if any(strcmp(profile, {'rate','chamber'})), kR = 0.4; end
 c.Q    = 3.0;                       % Ah
 c.Vmax = 4.2; c.Vmin = 2.75;
 c.mcp  = 45;                        % J/K
@@ -65,12 +73,24 @@ function simulateTest(file, Tch, c, profile)
 Cr = c.Q;                            % 1C in A
 s0 = 0.5;                            % true SOC at the start of the file
 % ---- the schedule: {type, args...}
+Tset = Tch;                          % chamber set-point (changed by 'tset' items)
 if strcmp(profile, 'rate')
     s0 = 0.03;                       % the real test starts nearly empty (~3.1 V)
     sched = {{'rest', 1800}};
     for r = [0.1 0.2 0.51 1 5.8]
         sched = [sched; {{'cccv', 0.34*Cr, c.Q/20}; {'rest', 7200}; ...
                          {'cc', r*Cr, inf}; {'rest', 7200}}]; %#ok<AGROW>
+    end
+elseif strcmp(profile, 'chamber')
+    % the real chamber schedule: charges (and the rest after each discharge)
+    % at 25 °C; right after each charge the chamber goes to the file's test
+    % temperature and holds it through the rest and the discharge.
+    s0 = 0.03;
+    Tset = 25;
+    sched = {{'rest', 1800}};
+    for r = [0.1 0.2 0.5 1 5]
+        sched = [sched; {{'tset', 25}; {'cccv', 0.34*Cr, c.Q/20}; {'tset', Tch}; {'rest', 13000}; ...
+                         {'cc', r*Cr, inf}; {'tset', 25}; {'rest', 13000}}]; %#ok<AGROW>
     end
 else
 sched = {
@@ -90,9 +110,9 @@ sched = {
 end
 
 % ---- state
-s = s0; x1 = 0; x2 = 0; T = Tch; t = 0;
+s = s0; x1 = 0; x2 = 0; T = Tset; Tam = Tset; t = 0;
 dt = 1;
-rows = zeros(400000, 11); % t step stepTime I(+dis) V Tcell Ah Wh state(1C 2D 3R) trueSOC
+rows = zeros(400000, 12); % t step stepTime I(+dis) V Tcell Ah Wh state(1C 2D 3R) trueSOC
 nr = 0;
 step = 0;
 
@@ -105,7 +125,8 @@ step = 0;
         x1 = a1*x1 + (1-a1)*I;
         x2 = a2*x2 + (1-a2)*I;
         s  = s - I*dt/3600/c.Q;
-        T  = T + dt/c.mcp*(q - c.hA*(T - Tch));
+        Tam = Tam + (Tset - Tam)*(1 - exp(-dt/600));   % chamber follows its set-point (10 min lag)
+        T  = T + dt/c.mcp*(q - c.hA*(T - Tam));
         t  = t + dt;
     end
     function stepStart()
@@ -113,7 +134,7 @@ step = 0;
     end
     function logRow(I, V, code)
         nr = nr + 1;
-        rows(nr,:) = [t, step, t - st0, I, V, T, ah, wh, code, s, I^2*c.R0(s,T) + c.R1(s,T)*x1^2 + c.R2(s,T)*x2^2];
+        rows(nr,:) = [t, step, t - st0, I, V, T, ah, wh, code, s, I^2*c.R0(s,T) + c.R1(s,T)*x1^2 + c.R2(s,T)*x2^2, Tam];
     end
     function ok = runCC(I, dur, vStop)    % constant current (+ = discharge)
         stepStart(); n = 0; ok = true;
@@ -150,6 +171,7 @@ st0 = 0; ah = 0; wh = 0;
 for k = 1:numel(sched)
     a = sched{k};
     switch a{1}
+        case 'tset', Tset = a{2};
         case 'rest', runRest(a{2});
         case 'cccv', runCCCV(a{2}, a{3});
         case 'cc',   runCC(a{2}, a{3}, c.Vmin);
@@ -187,7 +209,7 @@ dtm = datetime(2026,1,5,8,0,0) + seconds(rows(:,1));
 tbl = table((1:n)', rows(:,2), rows(:,1), rows(:,3), rows(:,7), rows(:,8), ...
     abs(rows(:,4)) + 0.0002*randn(n,1).*(rows(:,4)~=0), round(rows(:,5) + Vnoise, 4), ...
     string(stateChar(rows(:,9))'), zeros(n,1), string(dtm, 'MM/dd/yyyy HH:mm:ss'), ...
-    round(rows(:,6) + Tnoise, 2), round(Tch + 0.05*randn(n,1), 2), ...
+    round(rows(:,6) + Tnoise, 2), round(rows(:,12) + 0.05*randn(n,1), 2), ...
     'VariableNames', {'Record#','Step','TestTime (s)','StepTime (s)','Capacity (Ah)', ...
     'Energy (Wh)','Current (A)','Voltage (V)','State','ES','DateTime','Temp 1', ...
     'Chamber Temperature (C)'});

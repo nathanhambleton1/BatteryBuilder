@@ -10,6 +10,8 @@ A MATLAB app for lithium-ion cell test data. It has three tabs:
 
 Building and running the Simulink model is up to you. This app only produces the workspace variables the model needs.
 
+**Video walk-through:** [`docs/Modeling_Tab_Explained.mp4`](docs/Modeling_Tab_Explained.mp4) (18 min, narrated, English subtitles) goes through every Modeling-tab value on a test that follows the real profile and chamber schedule, with the plots and the numbers. How it is made: §13.
+
 ---
 
 ## 1. Quick start
@@ -46,6 +48,11 @@ src/
 tests/
   makeSyntheticCellData.m     writes test CSVs from a cell whose parameters are KNOWN
   runValidation.m             checks the calculations against that known cell (PASS / FAIL)
+tools/video/
+  makeExplainerFrames.m       pictures + narration for the walk-through video (§13)
+  build_video.py, tts.ps1     voice-over and video assembly
+docs/
+  Modeling_Tab_Explained.mp4  the walk-through video (+ .srt subtitles)
 ```
 
 `BatteryDataBuilder.m` adds `src/` to the path itself, so you never need to touch the other files to use the app.
@@ -82,7 +89,7 @@ Current (A)  Voltage (V)  State  ES  DateTime  Temp 1  Chamber Temperature (C)
 | State (C / D / R) | sign of the current when the cycler logs a positive magnitude, and rest detection |
 | StepTime (s) | the exact moment the current switched off, for the relaxation fits |
 | Temp 1 | cell temperature: thermal fit and initial temperature |
-| Chamber Temperature (C) | ambient for the thermal fit, and the test temperature label |
+| Chamber Temperature (C) | ambient for the thermal fit (and `batt_ambient`), and the test temperature label: the median chamber temperature **during the discharges** (§7.0) |
 
 ### Current sign: positive = charge
 
@@ -262,12 +269,27 @@ SOC      = SOC0 − ∫ i dt / (3600·AH)                       coulomb counting
 m·cp · dT/dt = i²·R0 + Σ_k R_k·x_k² − h·A·(T − T_amb)      lumped thermal mass + convection
 ```
 
-**Your test** is a rate test, all at one chamber temperature (about 70 h):
+**Your test** is a rate test of about 70 h: 5 CC-CV charges and 5 discharges to the cut-off, with rests in between. Most files use 0.1C, 0.2C, 0.5C and 1C, then one fast discharge that varies from about 3C to 7C:
 
 ```
-0.34C CC-CV charge → 0.1C discharge to cut-off → 0.34C CC-CV → 0.2C → 0.34C CC-CV → ~0.51C
-                   → 0.34C CC-CV → 1C → 0.34C CC-CV → ~5.8C          (with rests in between)
+0.34C CC-CV charge → 0.1C discharge to cut-off → 0.34C CC-CV → 0.2C → 0.34C CC-CV → ~0.5C
+                   → 0.34C CC-CV → 1C → 0.34C CC-CV → ~3-7C          (with rests in between)
 ```
+
+**The chamber schedule.** One file = one test temperature T, but the chamber is not at T all the time:
+
+```
+25 °C : rest → CC-CV charge
+   T  : (right after the charge) rest → discharge
+25 °C : (right after the discharge) rest → next charge ...            and so on, 5 times
+```
+
+So every **discharge** runs at the file's temperature T and every **charge** runs at 25 °C. What that means for the extraction:
+
+* **Test temperature label** (`d.T_C`, what the tables are "for") = the median chamber temperature over the *discharge* samples. The median over the whole file can land on 25 °C for a cold test, because about half the test is at 25 °C (`loadBatteryCsv.m`). The top bar says so when the chamber moves by more than 3 K.
+* **The ±3 K window** (§7.10 `maxDT`) then does the right thing by itself. In a file that is not at 25 °C, the charges, the steps at the start of each charge and the rests after the charges are at 25 °C, so they are left out of the R0 / RC / OCV tables: they belong to the 25 °C file. The discharges, the steps at their start and end, and the rests right after them are used.
+* **In the 25 °C file** everything is at 25 °C, so the charges are used too. The OCV then also gets its charge side (§7.6 step 4), and the rests after the full charges give the SOC-1 end of the OCV.
+* **Thermal fit and `batt_ambient`** use the chamber column as it is, steps and all, so the 25 ↔ T switching is in the heat balance and in the Simulink ambient. `batt_T0` is the first cell reading (≈ 25 °C, because the chamber starts at 25 °C), which is the right start for a simulation driven by `batt_ambient`.
 
 That decides what can be measured, and where:
 
@@ -362,7 +384,9 @@ This is the part built around your test.
    ```
    V(SOC, i) = V0(SOC) − i · R_dc(SOC),     R_dc = R0 + R1 + R2
    ```
-   A sample is used once what is left of each RC transient, `R_k·i·exp(−t/tau_k)`, is below 1 mV. R_k and tau_k come from the rest fits (§7.5). On the synthetic copy of your test that wait is about 2, 6, 12 and 16 min for 0.1, 0.2, 0.51 and 1C.
+   A sample is used once what is left of each RC transient, `R_k·i·exp(−t/tau_k)`, is below 1 mV. R_k and tau_k come from the rest fits (§7.5), **from the rests that follow a discharge only**. On the synthetic copy of your test that wait is a few minutes (2, 4, 6 and 7 min for 0.1, 0.2, 0.5 and 1C in the chamber-schedule file).
+
+   *Why only those rests (the 25 °C bug).* A rest after a CC-CV charge starts with almost no current left in the RC branches, because the CV step has tapered it away. Its R_k and tau_k are poorly defined and can come out as a long tau with a large R. Earlier versions took the median over **all** rests. In a 25 °C file the post-charge rests are not too warm, so they were included, and the wait could grow longer than the 0.5C and 1C discharges themselves. Those rates then dropped out, the fit no longer covered the top of the SOC range, and the **OCV box stayed empty in the 25 °C files only**. In every other file those rests were already left out by the ±3 K window (the chamber had moved to T), which is why the other temperatures worked. If a rate is still dropped for never settling, the OCV note and its **How?** window now name the rate and the wait.
 2. **Line the discharges up on one SOC axis.** Each discharge starts from FULL, so its SOC is exact (§7.3). Its voltage is averaged in 1 % SOC bins; bins the data only partly covers are skipped.
 3. **Fit a straight line per bin.** At each 1 % of SOC: voltage against current over the discharges at ≤ 2C, using only samples with the cell within 3 K of the chamber. The 5.8C discharge is left out: it heats the cell by tens of kelvin and is past the range where V is linear in I.
    * **intercept** (i = 0) = V0 on the discharge side;
@@ -370,7 +394,7 @@ This is the part built around your test.
 
    With 3 or more rates, the scatter around the line is reported, as a check that the straight-line model holds.
 4. **Charge side, then average.** The discharge-side OCV still carries hysteresis: a cell rests slightly lower after a discharge than after a charge.
-   * The CC part of the 0.34C charges gives the other side as `V_chg − i_chg·R_dc`. One resistance is used for both directions, as in the block. With charges at 2+ rates it would get its own straight-line fit.
+   * The CC part of the 0.34C charges gives the other side as `V_chg − i_chg·R_dc`. With the chamber schedule this only happens in the **25 °C file**: everywhere else the charges ran at 25 °C, outside the ±3 K window, and the OCV is the discharge side alone (the note says *discharge side only*). One resistance is used for both directions, as in the block. With charges at 2+ rates it would get its own straight-line fit.
    * `V0 = ½·(V0,chg + V0,dis)`; where only one side exists, it is shifted by half the measured gap.
 5. **The two ends.** The first minutes of each discharge are never settled, so there is no multi-rate point at the very top; there is none at the very bottom either. There the relaxed rest voltages are used: after a full charge the cell rests at its SOC-1 OCV, after the discharge to cut-off at its SOC-0 OCV. A smooth (pchip) curve joins them to the multi-rate curve (`ocvFromMultiRate`). Rest points inside the fitted range are only a check. The table is forced to rise with SOC.
 6. **R tables between the measured points (`scaleToRdc`).** At SOC breakpoints where R0 was **not** measured, R0, R1 and R2 are interpolated from the nearest measured points. They are then multiplied by **one** common factor so that `R0 + R1 + R2 = R_dc` there. These entries are flagged **S**. At measured breakpoints nothing is changed: the sum and R_dc are only compared, as a cross-check shown in the R0 **How?** window. So the total, which is what a constant current feels, is always measured. Only the split between R0 and the RC pairs is interpolated.
@@ -507,6 +531,15 @@ One `case` per parameter. The left side is a scrolling list of blocks built with
 
 The multi-rate fit used the 0.1–1C discharges. One step and one rest at the end of the 5.8C discharge were left out as too hot. Before the rate-test changes, the same file gave R0 about 50 % low at mid SOC (only interpolated, with a hot end point), so this is the change that matters for your data.
 
+**1b. Your profile with the real chamber schedule.** `makeSyntheticCellData(dir, [25 10], 'chamber')`: charges at 25 °C, rest + discharge at T, 0.1 / 0.2 / 0.5 / 1 / 5C, 3.6 h rests, 69 h, the chamber following its set-point with a 10 min lag:
+
+| file | label | OCV found | OCV max error | R0+R1+R2 (SOC 0.05–0.95) | AH | OCV charge side |
+|---|---|---|---|---|---|---|
+| 25 °C | 25.0 °C | yes | 1.0 mV | 4.6 % | −0.8 % | 0.34C charge |
+| 10 °C | 10.0 °C | yes | 2.8 mV | 7.5 % | −0.8 % | none (charges at 25 °C) |
+
+The synthetic cell does not reproduce the poorly defined post-CV rest fits that real data gives, so it cannot show the old 25 °C failure itself; it checks that the schedule is handled and that nothing else changed.
+
 **2. An HPPC test** (rest, CC-CV, C/5 discharge, HPPC, dynamic load) at 25 °C and 0 °C, compared over SOC 0.1–0.95:
 
 | | AH | SOC0 | OCV max error | R0 | R1 | R2 | tau1 | tau2 | m·cp | h·A |
@@ -540,6 +573,7 @@ Synthetic data only proves the method recovers values that are really there. On 
 | AH stays empty | No CC-CV charge followed by a full discharge to cut-off. Type the datasheet capacity into the AH box and press Extract again: SOC, R0 and the RC pairs can then be calculated. |
 | R1/tau1 empty | No rests ≥ 5 min after charges / discharges (or every rest started with the cell > 3 K from the chamber temperature). |
 | OCV empty | The multi-rate fit, rests and low-rate data do not cover SOC 0..1. The OCV window's note says which part is missing. Use the datasheet OCV curve. |
+| OCV empty in the 25 °C file only | Fixed: the multi-rate wait no longer uses the rests after the CC-CV charges (§7.6 step 1). If it still happens, the OCV note names the discharge rate that never settled. |
 | OCV note says "no multi-rate fit" | Fewer than 2 different CC discharge rates start from a full CC-CV charge. The older single-rate method is used. |
 | `batt_ambient` not saved | The file has no chamber temperature column. Use a Constant block with the chamber temperature (K). |
 | Thermal mass empty | No `Temp 1` / chamber column, or the cell heats by less than 0.5 K. Enter mass × specific heat. |
@@ -618,3 +652,25 @@ Each source was opened and checked in November 2026. **(free)** means readable w
   Typical convection coefficients: free convection in gases 2–25 W/(m²·K), forced 25–250. A sanity check for h = `batt_hA` / cell area.
 
 Also useful, but not checked online: G. Plett, *Battery Management Systems, Vol. I: Battery Modeling*, Artech House 2015 (ISBN 9781630810238). It is the standard textbook for equivalent-circuit models, OCV tests and coulomb counting.
+
+---
+
+## 13. The walk-through video
+
+[`docs/Modeling_Tab_Explained.mp4`](docs/Modeling_Tab_Explained.mp4) explains every Modeling-tab value, in the order the extraction calculates them: the test and the chamber schedule, phases and CC-CV detection, AH (with the knee check and the rate table), SOC and SOC0, R0, the RC pairs, the multi-rate wait, the multi-rate OCV / R_dc fit, the charge side and the two ends, the R tables scaled to R_dc, the thermal fit, and the summary. Arrows appear on the plots as the narration reaches them.
+
+Every picture and every number in it comes from a real run of `extractCellParameters` on a synthetic 10 °C file (plus its 25 °C partner) that follows your profile and chamber schedule. Because the synthetic cell's values are known, the video also shows how close each result is.
+
+To rebuild it (for example after changing the extraction):
+
+```matlab
+addpath tools/video
+makeExplainerFrames           % -> tools/video/build/frames/*.png + narration.tsv
+```
+
+```bash
+pip install imageio-ffmpeg    # only if ffmpeg is not on PATH
+python tools/video/build_video.py
+```
+
+The voice is Windows' built-in text-to-speech (offline, `tts.ps1`). The narration text is written in `makeExplainerFrames.m` next to each picture; an `@` in it marks where the next arrow appears.

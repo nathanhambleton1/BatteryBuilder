@@ -18,6 +18,7 @@ function d = loadBatteryCsv(file)
 %     d.capFile        the file's own "Capacity (Ah)" column, [] if not present
 %                      (only used to cross-check the capacity)
 %     d.T_C            test temperature label (°C) = median chamber temperature
+%                      during the discharges (the chamber is at 25 °C while charging)
 %     d.signNote       how the current sign was worked out
 %     d.warn           cell array of warnings about the file
 %     d.tbl            the whole file as a table + a few added plot columns
@@ -133,6 +134,22 @@ else
 end
 I(abs(I) < thr) = 0;
 d.I = I;
+
+% ---- test temperature = the chamber temperature during the DISCHARGES -------------
+% The chamber schedule of these tests: 25 °C while charging (and in the rest after
+% each discharge), the file's own test temperature from the end of each charge
+% through the rest and the discharge. The median over the whole file can then land
+% on 25 °C for a 10 °C test, so the label is taken over the discharge samples.
+d.T_all_C = d.T_C;
+dis = I < 0 & isfinite(d.Tch);
+if nnz(dis) > 10
+    d.T_C = round(median(d.Tch(dis))*10)/10;
+    if any(isfinite(d.Tch)) && abs(max(d.Tch) - min(d.Tch)) > 3
+        d.warn{end+1} = sprintf(['chamber changes between %.1f and %.1f °C: test temperature = %.1f °C ' ...
+            '(chamber during the discharges); data with the cell more than 3 K away is left out'], ...
+            min(d.Tch), max(d.Tch), d.T_C);
+    end
+end
 
 % ---- extra columns for the Plot tab ---------------------------------------------------------
 T.('Test Time (h)') = t/3600;

@@ -134,10 +134,19 @@ if ~isempty(soc)
     [fits, R.diag.hot.fits] = fitRelaxations(d, soc, ph, C, nRC, capUse, Tref);
     % RC branches seen in the rests (median over the fits) -> how long the
     % multi-rate fit must wait after a step before the transient is gone
-    rc = struct('R',[], 'tau',[]);
+    % Only rests that follow a DISCHARGE are used for this: the multi-rate fit
+    % waits on discharges, and a rest after a CC-CV charge starts with almost
+    % no branch current (the CV taper), so its R_k / tau_k are poorly defined
+    % (a long tau / large R there made the wait longer than the 0.5C and 1C
+    % discharges themselves, which left the OCV empty in the 25 °C files,
+    % the only ones where the post-charge rests are not dropped as too warm).
+    rc = struct('R',[], 'tau',[], 'from','');
     if ~isempty(fits)
-        rc.R = median(vertcat(fits.R), 1, 'omitnan');
-        rc.tau = median(vertcat(fits.tau), 1, 'omitnan');
+        useF = [fits.after] == 'D';
+        rc.from = sprintf('%d rest(s) after a discharge', nnz(useF));
+        if ~any(useF), useF = true(size(fits)); rc.from = sprintf('%d rest(s) after a charge (no discharge rest fitted)', numel(fits)); end
+        rc.R = median(vertcat(fits(useF).R), 1, 'omitnan');
+        rc.tau = median(vertcat(fits(useF).tau), 1, 'omitnan');
         keep = isfinite(rc.R) & isfinite(rc.tau);
         rc.R = rc.R(keep); rc.tau = rc.tau(keep);
     end
@@ -221,12 +230,20 @@ elseif mr.ok
     [ocv, prov.V0_vec] = ocvFromMultiRate(pts.ocv, mr.dense, g);
     if all(isfinite(ocv))
         R.value.V0_vec = ocv(:)'; R.found.V0_vec = true;
-        R.note.V0_vec = sprintf(['zero-current extrapolation of %d discharges (%s C) at each SOC, averaged ' ...
-            'with the %s charge branch; level set by %d relaxed rest voltages'], numel(mr.use), ...
-            strjoin(compose('%.2g', mr.crate(mr.use)), ', '), mr.chargeHow, size(pts.ocv,1));
-        R.note.V0_vec = strrep(R.note.V0_vec, 'level set by', 'ends (above / below the fit) from');
+        if isempty(mr.Ic)
+            chgTxt = 'discharge side only (no charge within the temperature window: charges run at 25 °C)';
+        else
+            chgTxt = sprintf('averaged with the charge branch (%s)', mr.chargeHow);
+        end
+        R.note.V0_vec = sprintf(['zero-current extrapolation of %d discharges (%s C) at each SOC, %s; ' ...
+            'ends (above / below the fit) from %d relaxed rest voltages'], numel(mr.use), ...
+            strjoin(compose('%.2g', mr.crate(mr.use)), ', '), chgTxt, size(pts.ocv,1));
     else
         R.note.V0_vec = sprintf('the multi-rate OCV and the rests do not cover SOC %.2f..%.2f', g(1), g(end));
+        if ~isempty(mr.unsettled)
+            R.note.V0_vec = [R.note.V0_vec sprintf(' (%s C discharge(s) left out: the RC wait of %s s is longer than the discharge)', ...
+                strjoin(compose('%.2g', mr.crate(mr.unsettled)), ', '), strjoin(compose('%.0f', mr.settle(mr.unsettled)), ', '))];
+        end
         R.diag.ocvPartial = ocv;
     end
 else
@@ -572,7 +589,7 @@ function [fits, nHot] = fitRelaxations(d, soc, ph, C, nRC, AH, Tref)
 % Rests that start with the cell more than C.maxDT away from Tref (e.g. after
 % a fast discharge heated it) are left out: the relaxation is then mixed with
 % the cell cooling down, and the values belong to another temperature.
-fits = struct('soc',{},'Vinf',{},'R',{},'tau',{},'x0',{},'rmse',{},'t0',{},'tr',{},'v',{},'vfit',{});
+fits = struct('soc',{},'Vinf',{},'R',{},'tau',{},'x0',{},'rmse',{},'t0',{},'tr',{},'v',{},'vfit',{},'after',{});
 t = d.t; I = d.I; V = d.V;
 nHot = 0;
 for k = 2:numel(ph)
@@ -598,6 +615,7 @@ for k = 2:numel(ph)
     if isempty(f) || f.rmse > C.maxFitRmse, continue; end
     f.soc = soc(a);
     f.t0 = tsw;
+    f.after = prev.type;                         % 'C' or 'D': what the rest follows
     fits(end+1) = f; %#ok<AGROW>
 end
 end
@@ -952,7 +970,7 @@ function mr = multiRate(d, soc, ph, C, AH, Tref, rc)
 % (cancels hysteresis), like the low-rate "pseudo-OCV" method.
 mr = struct('ok',false, 'why','', 'sf',(0:0.01:1)', 'rates',[], 'crate',[], 'phase',[], ...
     'use',[], 'Vd',[], 'nRate',[], 'ocvD',[], 'Rdc',[], 'rms',[], 'Ic',[], 'Vc',[], ...
-    'ocvC',[], 'chargeHow','', 'hyst',NaN, 'dense',[], 'RdcPts',[], 'settle',[], 'rc',rc, ...
+    'ocvC',[], 'chargeHow','', 'hyst',NaN, 'dense',[], 'RdcPts',[], 'settle',[], 'dur',[], 'unsettled',[], 'rc',rc, ...
     'maxDT',C.maxDT, 'Tref',Tref, 'maxCrate',C.mrMaxCrate);
 if ~isfinite(AH), mr.why = 'needs the capacity'; return; end
 sf = mr.sf;
@@ -982,6 +1000,8 @@ for r = 1:numel(mr.rates)
     if useT, keep = keep & abs(d.Tcell(idx) - Tref) <= C.maxDT; end
     mr.Vd(r,:) = binMean(soc(idx(keep)), d.V(idx(keep)), sf);
 end
+mr.dur = arrayfun(@(k) ph(k).dur, mr.phase);
+mr.unsettled = find(mr.crate <= C.mrMaxCrate & ~any(isfinite(mr.Vd), 2)');   % rates that never settled
 mr.use = find(mr.crate <= C.mrMaxCrate & any(isfinite(mr.Vd), 2)');
 if numel(unique(round(mr.rates(mr.use)*1e3))) < 2
     mr.why = sprintf('only %d usable discharge rate(s) from full (need 2+ different rates)', numel(mr.use));
