@@ -7,7 +7,10 @@ function results = runValidation(outDir)
 %      2-RC cell (same structure as the Simscape Table-Based block).
 %   2. Each file is run through extractCellParameters on its own (exactly what
 %      the Modeling tab does) and every table is compared with the truth.
-%   3. A cut-down file (no full discharge, no temperature columns) checks that
+%   3. The real test profile (rate test: 0.34C CC-CV charges, 0.1 / 0.2 /
+%      0.51 / 1 / 5.8C discharges, no mid-SOC pulses) at 25 °C: OCV and
+%      R_dc come from the multi-rate fit, R0 / RC at the steps and rests only.
+%   4. A cut-down file (no full discharge, no temperature columns) checks that
 %      nothing is made up: AH, SOC, OCV, R and thermal must come back EMPTY.
 %   Prints PASS / FAIL.
 
@@ -53,7 +56,35 @@ for k = 1:numel(files)
     results.(sprintf('T%d', round(T))) = e;
 end
 
-fprintf('\n== 3. partial test: nothing may be guessed\n');
+fprintf('\n== 3. the real profile: rate test (no pulses at mid SOC)\n');
+[fr, tr] = makeSyntheticCellData(outDir, 25, 'rate');
+d = loadBatteryCsv(fr{1});
+R = extractCellParameters(d, 2, grid);
+S = load(regexprep(fr{1}, '\.csv$', '_truth.mat'));
+m = [ones(numel(R.d.soc),1), R.d.soc] \ S.trueSOC;
+g = R.value.SOC_vec; gt = m(1) + m(2)*g; T = 25;
+mid = g >= 0.05 & g <= 0.95;
+Rsum = R.value.R0_vec + R.value.R1_vec + R.value.R2_vec;
+Rtru = tr.R0(gt,T) + tr.R1(gt,T) + tr.R2(gt,T);
+r.AH   = 100*(R.value.AH/tr.Q - 1);
+r.ocv  = 1000*max(abs(R.value.V0_vec - tr.ocv(gt,T)));
+r.Rsum = 100*median(abs(Rsum(mid)./Rtru(mid) - 1));
+r.R0   = 100*median(abs(R.value.R0_vec(mid)./tr.R0(gt(mid),T) - 1));
+r.tau2 = 100*median(abs(R.value.tau2_vec./tr.tau2(gt,T) - 1));
+r.mcp  = 100*(R.value.thermal_mass/tr.mcp - 1);
+r.hA   = 100*(R.value.hA/tr.hA - 1);
+r.SOC0 = R.value.SOC0 - (S.trueSOC(1) - m(1))/m(2);
+mr = R.diag.multiRate;
+fprintf(['   rates %s C (multi-rate fit uses %d) | AH %+.1f%% | SOC0 err %+.3f | OCV max %.1f mV (all SOC)\n' ...
+         '   R0+R1+R2 %.1f%%  R0 %.1f%%  tau2 %.1f%% (mid SOC) | m*cp %+.1f%%  h*A %+.1f%% | hot points left out %d\n'], ...
+    mat2str(round(mr.crate,2)), numel(mr.use), r.AH, r.SOC0, r.ocv, r.Rsum, r.R0, r.tau2, r.mcp, r.hA, ...
+    R.diag.hot.edges + R.diag.hot.fits);
+ok = ok && mr.ok && abs(r.AH) < 3 && abs(r.SOC0) < 0.02 && r.ocv < 10 && r.Rsum < 10 && r.R0 < 15 && ...
+     r.tau2 < 15 && abs(r.mcp) < 15 && abs(r.hA) < 15;
+results.rate = r;
+
+fprintf('\n== 4. partial test: nothing may be guessed\n');
+
 opts = detectImportOptions(files{1}, 'VariableNamingRule','preserve');
 opts = setvaropts(opts, 'DateTime', 'Type','string');
 Tb = readtable(files{1}, opts);

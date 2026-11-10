@@ -1,8 +1,17 @@
-function [files, truth] = makeSyntheticCellData(outDir, tempsC)
+function [files, truth] = makeSyntheticCellData(outDir, tempsC, profile)
 %MAKESYNTHETICCELLDATA  Cycler-style CSVs from a KNOWN cell, for testing BatteryDataBuilder.
 %
 %   [files, truth] = makeSyntheticCellData(outDir)            % 0, 25, 45 °C
 %   [files, truth] = makeSyntheticCellData(outDir, [10 25])
+%   [files, truth] = makeSyntheticCellData(outDir, 25, 'rate')
+%
+%   profile 'hppc' (default) - see below.
+%   profile 'rate'           - the real test this tool is used on: a rate test
+%       rest -> 0.34C CC-CV -> rest -> 0.1C discharge to Vmin -> rest
+%            -> 0.34C CC-CV -> rest -> 0.2C  -> rest -> 0.34C CC-CV -> rest
+%            -> 0.51C -> rest -> 0.34C CC-CV -> rest -> 1C -> rest
+%            -> 0.34C CC-CV -> rest -> 5.8C -> rest      (2 h rests, ~60 h)
+%       Files are called synthRate_<T>C.csv. No pulses at mid SOC.
 %
 %   The "true" cell is a 2-RC equivalent circuit with SOC- and temperature-
 %   dependent OCV / R0 / R1 / R2, a lumped thermal mass and convection to the
@@ -16,20 +25,27 @@ function [files, truth] = makeSyntheticCellData(outDir, tempsC)
 %     Current (A) Voltage (V) State ES DateTime Temp 1 Chamber Temperature (C)
 %   (current is logged as a positive magnitude, State gives C / D / R).
 
-if nargin < 2, tempsC = [0 25 45]; end
+if nargin < 2 || isempty(tempsC), tempsC = [0 25 45]; end
+if nargin < 3, profile = 'hppc'; end
 if ~isfolder(outDir), mkdir(outDir); end
 rng(1);
 
-truth = cellTruth();
+truth = cellTruth(lower(profile));
 files = cell(1, numel(tempsC));
 for k = 1:numel(tempsC)
-    files{k} = fullfile(outDir, sprintf('synthCell_%gC.csv', tempsC(k)));
-    simulateTest(files{k}, tempsC(k), truth);
+    if strcmpi(profile, 'rate')
+        files{k} = fullfile(outDir, sprintf('synthRate_%gC.csv', tempsC(k)));
+    else
+        files{k} = fullfile(outDir, sprintf('synthCell_%gC.csv', tempsC(k)));
+    end
+    simulateTest(files{k}, tempsC(k), truth, lower(profile));
 end
 end
 
 % -----------------------------------------------------------------------
-function c = cellTruth()
+function c = cellTruth(profile)
+% 'rate': a power cell (resistances x0.4) that can actually take the 5.8C step
+kR = 1; if strcmp(profile, 'rate'), kR = 0.4; end
 c.Q    = 3.0;                       % Ah
 c.Vmax = 4.2; c.Vmin = 2.75;
 c.mcp  = 45;                        % J/K
@@ -37,17 +53,26 @@ c.hA   = 0.08;                      % W/K
 c.ocv  = @(s,T) 3.25 + 0.55*s + 0.40*s.^2 - 0.55*exp(-max(s,0)/0.035) + 0.0004*(T-25).*(s-0.5);
 arr    = @(T) exp(2200*(1./(T+273.15) - 1/298.15));
 c.arr  = arr;
-c.R0   = @(s,T) 0.020*arr(T).*(1 + 0.4*exp(-max(s,0)/0.10));
-c.R1   = @(s,T) 0.010*arr(T).*(1 + 0.5*exp(-max(s,0)/0.10));
-c.R2   = @(s,T) 0.012*arr(T).*(1 + 0.3*exp(-max(s,0)/0.15));
+c.R0   = @(s,T) kR*0.020*arr(T).*(1 + 0.4*exp(-max(s,0)/0.10));
+c.R1   = @(s,T) kR*0.010*arr(T).*(1 + 0.5*exp(-max(s,0)/0.10));
+c.R2   = @(s,T) kR*0.012*arr(T).*(1 + 0.3*exp(-max(s,0)/0.15));
 c.tau1 = @(s,T) 12 + 0*s;
 c.tau2 = @(s,T) 350 + 0*s;
 end
 
 % -----------------------------------------------------------------------
-function simulateTest(file, Tch, c)
+function simulateTest(file, Tch, c, profile)
 Cr = c.Q;                            % 1C in A
+s0 = 0.5;                            % true SOC at the start of the file
 % ---- the schedule: {type, args...}
+if strcmp(profile, 'rate')
+    s0 = 0.03;                       % the real test starts nearly empty (~3.1 V)
+    sched = {{'rest', 1800}};
+    for r = [0.1 0.2 0.51 1 5.8]
+        sched = [sched; {{'cccv', 0.34*Cr, c.Q/20}; {'rest', 7200}; ...
+                         {'cc', r*Cr, inf}; {'rest', 7200}}]; %#ok<AGROW>
+    end
+else
 sched = {
     {'rest', 1800}
     {'cccv', 0.5*Cr, c.Q/20}
@@ -62,11 +87,12 @@ sched = {
     {'rest', 1800}
     {'dyn',  3600}
     {'rest', 1800}};
+end
 
 % ---- state
-s = 0.5; x1 = 0; x2 = 0; T = Tch; t = 0;
+s = s0; x1 = 0; x2 = 0; T = Tch; t = 0;
 dt = 1;
-rows = zeros(400000, 10); % t step stepTime I(+dis) V Tcell Ah Wh state(1C 2D 3R) trueSOC
+rows = zeros(400000, 11); % t step stepTime I(+dis) V Tcell Ah Wh state(1C 2D 3R) trueSOC
 nr = 0;
 step = 0;
 
@@ -87,7 +113,7 @@ step = 0;
     end
     function logRow(I, V, code)
         nr = nr + 1;
-        rows(nr,:) = [t, step, t - st0, I, V, T, ah, wh, code, s];
+        rows(nr,:) = [t, step, t - st0, I, V, T, ah, wh, code, s, I^2*c.R0(s,T) + c.R1(s,T)*x1^2 + c.R2(s,T)*x2^2];
     end
     function ok = runCC(I, dur, vStop)    % constant current (+ = discharge)
         stepStart(); n = 0; ok = true;
@@ -166,6 +192,6 @@ tbl = table((1:n)', rows(:,2), rows(:,1), rows(:,3), rows(:,7), rows(:,8), ...
     'Energy (Wh)','Current (A)','Voltage (V)','State','ES','DateTime','Temp 1', ...
     'Chamber Temperature (C)'});
 writetable(tbl, file);
-trueSOC = rows(:,10); %#ok<NASGU>  % sidecar for the validation script only
-save(regexprep(file, '\.csv$', '_truth.mat'), 'trueSOC');
+trueSOC = rows(:,10); trueHeat = rows(:,11); %#ok<NASGU>  % sidecar for the validation script only
+save(regexprep(file, '\.csv$', '_truth.mat'), 'trueSOC', 'trueHeat');
 end

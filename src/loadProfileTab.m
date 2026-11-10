@@ -21,6 +21,9 @@ function api = loadProfileTab(tab, fig)
 %     batt_stopTime    length of the test (s)  -> model Stop time
 %     batt_Ts          sampling interval of the test (s, median) -> To Workspace
 %                      "Sample time", or a fixed-step solver's step size
+%     batt_ambient     [t T]  chamber temperature (K) on the same time base
+%     batt_ambient_ts  the same as a timeseries
+%                      (only when the file has a chamber temperature column)
 %
 %   In Simulink:
 %     From Workspace (Data = batt_load, Interpolate data = on,
@@ -29,6 +32,13 @@ function api = loadProfileTab(tab, fig)
 %       -> Controlled Current Source (Simscape > Foundation > Electrical > Sources)
 %     Wire the source "+" (arrow head) to battery "+" and "-" to battery "-":
 %     a positive signal then pushes current INTO the battery = charging.
+%
+%   Thermal port (block "Thermal model" = Lumped thermal mass):
+%     From Workspace (batt_ambient) -> Simulink-PS Converter (unit K)
+%       -> Controlled Temperature Source (Foundation > Thermal > Sources;
+%          port A to a Thermal Reference)
+%       -> Convective Heat Transfer (Area 1 m^2, coefficient batt_hA)
+%       -> battery port H
 
 d = [];
 prof = [];
@@ -44,7 +54,8 @@ btnSave = uibutton(gL,'Text','Save load profile to workspace','FontWeight','bold
     'BackgroundColor',[0.20 0.45 0.80],'FontColor','white','Enable','off', ...
     'ButtonPushedFcn',@(~,~) onSave(), ...
     'Tooltip',sprintf(['Writes batt_load = [t I] (positive = charge), batt_load_ts (timeseries),\n' ...
-                       'batt_stopTime (model Stop time) and batt_Ts (sampling interval)\n' ...
+                       'batt_stopTime (model Stop time), batt_Ts (sampling interval) and\n' ...
+                       'batt_ambient / batt_ambient_ts (chamber temperature, K, for the thermal port)\n' ...
                        'to the base workspace.']));
 lblInfo = uilabel(gL,'Text','Open a CSV file first.','WordWrap','on','VerticalAlignment','top', ...
     'FontName','Consolas','FontSize',12);
@@ -189,9 +200,23 @@ api.getPulses = @getPulses;
             'batt_Ts        %.4g s\n' ...
             '               -> To Workspace Sample time\n' ...
             '               (median logging interval;\n' ...
-            '                the file ranges %.3g .. %.4g s)'], ...
+            '                the file ranges %.3g .. %.4g s)\n%s'], ...
             d.name, prof.t(end)/3600, numel(prof.t), max(prof.I), min(prof.I), ahIn, ahOut, ...
-            nC, nD, cr, numel(prof.t), prof.t(end), Ts, dtMin, dtMax);
+            nC, nD, cr, numel(prof.t), prof.t(end), Ts, dtMin, dtMax, ambientInfo());
+    end
+
+    function s = ambientInfo()
+        if isempty(prof.Tamb)
+            s = sprintf(['batt_ambient   NOT saved: %s\n' ...
+                         '               (type the chamber temperature\n' ...
+                         '                into a Constant block instead)'], prof.TambWhy);
+        else
+            s = sprintf(['batt_ambient   %d x 2  [t (s), T (K)]\n' ...
+                         '               chamber %.1f .. %.1f °C\n' ...
+                         '               -> Controlled Temperature Source\n' ...
+                         'batt_ambient_ts timeseries of the same'], ...
+                numel(prof.t), min(prof.Tamb) - 273.15, max(prof.Tamb) - 273.15);
+        end
     end
 
     function onSave()
@@ -201,12 +226,20 @@ api.getPulses = @getPulses;
         assignin('base', 'batt_load_ts', timeseries(prof.I, prof.t, 'Name', 'Cell current, +charge (A)'));
         assignin('base', 'batt_stopTime', prof.t(end));
         assignin('base', 'batt_Ts', Ts);
+        if isempty(prof.Tamb)
+            amb = sprintf('  batt_ambient   NOT saved: %s', prof.TambWhy);
+        else
+            assignin('base', 'batt_ambient', [prof.t, prof.Tamb]);
+            assignin('base', 'batt_ambient_ts', timeseries(prof.Tamb, prof.t, 'Name', 'Chamber temperature (K)'));
+            amb = sprintf(['  batt_ambient   %d x 2  [t (s), T (K)]  (thermal port)\n' ...
+                           '  batt_ambient_ts timeseries'], numel(prof.t));
+        end
         uialert(fig, sprintf(['Saved to the base workspace:\n\n' ...
             '  batt_load      %d x 2  [t (s), I (A)]\n' ...
             '  batt_load_ts   timeseries\n' ...
             '  batt_stopTime  %.6g s   (model Stop time)\n' ...
-            '  batt_Ts        %.4g s   (sampling interval)\n\nPositive current = charge.'], ...
-            numel(prof.t), prof.t(end), Ts), 'Load profile saved', 'Icon','success');
+            '  batt_Ts        %.4g s   (sampling interval)\n%s\n\nPositive current = charge.'], ...
+            numel(prof.t), prof.t(end), Ts, amb), 'Load profile saved', 'Icon','success');
     end
 end
 
@@ -229,6 +262,19 @@ II = [I; Ib];
 prof.t = tt;
 prof.I = II(ord);
 prof.tData = t; prof.IData = I;
+% chamber temperature = the ambient for the thermal port, in K on the same
+% time points (missing readings are bridged linearly between their neighbours)
+prof.Tamb = []; prof.TambWhy = '';
+Tc = d.Tch(iu);
+if nnz(isfinite(Tc)) < 2
+    prof.TambWhy = 'no chamber temperature column in the file';
+else
+    ok = isfinite(Tc);
+    Tc = interp1(t(ok), Tc(ok), t, 'linear');
+    if any(~isfinite(Tc)), Tc = fillmissing(Tc, 'nearest'); end   % before the first / after the last reading
+    TT = [Tc; interp1(t, Tc, tb, 'linear')];
+    prof.Tamb = TT(ord) + 273.15;
+end
 end
 
 function P = findPulses(t, I)

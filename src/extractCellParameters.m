@@ -121,13 +121,28 @@ noSoc = 'SOC could not be worked out (see AH / initial SOC), so nothing can be p
 % ======================================================================
 % 4. R0 from current steps, RC pairs + OCV points from rests
 % ======================================================================
-pts.R0 = []; pts.ocv = []; pts.ocvDense = [];
+pts.R0 = []; pts.ocv = []; pts.ocvDense = []; pts.Rdc = [];
 for q = 1:3, pts.(sprintf('R%d',q)) = []; pts.(sprintf('tau%d',q)) = []; end
 fits = [];
 edgeIdx = [];
+Tref = d.T_C;                         % the temperature these tables are for
+R.diag.Tref = Tref;
+R.diag.hot = struct('edges',0, 'fits',0);
+mr = struct('ok',false, 'why','needs SOC first');
 if ~isempty(soc)
-    [pts.R0, edgeIdx] = r0FromEdges(d, soc, C.maxEdgeDt);
-    fits = fitRelaxations(d, soc, ph, C, nRC, capUse);
+    [pts.R0, edgeIdx, R.diag.hot.edges] = r0FromEdges(d, soc, C, capUse, Tref);
+    [fits, R.diag.hot.fits] = fitRelaxations(d, soc, ph, C, nRC, capUse, Tref);
+    % RC branches seen in the rests (median over the fits) -> how long the
+    % multi-rate fit must wait after a step before the transient is gone
+    rc = struct('R',[], 'tau',[]);
+    if ~isempty(fits)
+        rc.R = median(vertcat(fits.R), 1, 'omitnan');
+        rc.tau = median(vertcat(fits.tau), 1, 'omitnan');
+        keep = isfinite(rc.R) & isfinite(rc.tau);
+        rc.R = rc.R(keep); rc.tau = rc.tau(keep);
+    end
+    mr = multiRate(d, soc, ph, C, capUse, Tref, rc);
+    if mr.ok, pts.Rdc = mr.RdcPts; end
     for f = fits
         pts.ocv = [pts.ocv; f.soc, f.Vinf];
         for q = 1:nRC
@@ -138,8 +153,14 @@ if ~isempty(soc)
 end
 R.diag.edgeIdx = edgeIdx;
 R.diag.fits = fits;
+R.diag.multiRate = mr;
 R.diag.ocvExample = [];
 prov = struct();
+hotNote = '';
+if R.diag.hot.edges + R.diag.hot.fits > 0
+    hotNote = sprintf(' (%d step(s) / %d rest(s) left out: cell more than %g K away from %.3g °C)', ...
+        R.diag.hot.edges, R.diag.hot.fits, C.maxDT, Tref);
+end
 
 % --- R0
 if isempty(soc)
@@ -149,7 +170,7 @@ elseif isempty(pts.R0)
 else
     [R.value.R0_vec, prov.R0_vec] = gridPoints(pts.R0, g);
     R.found.R0_vec = true;
-    R.note.R0_vec = sprintf('R0 = dV/dI at %d current steps, median per SOC breakpoint', size(pts.R0,1));
+    R.note.R0_vec = sprintf('R0 = dV/dI at %d current steps, median per SOC breakpoint%s', size(pts.R0,1), hotNote);
 end
 % --- R1..R3, tau1..tau3
 for q = 1:3
@@ -172,13 +193,42 @@ for q = 1:3
     [R.value.(kT), prov.(kT)] = gridPoints(pT, g);
     R.found.(kR) = true; R.found.(kT) = true;
     n = nnz(isfinite(pR(:,2)));
-    R.note.(kR) = sprintf('fitted to %d voltage relaxations (rests after a current pulse)', n);
+    R.note.(kR) = sprintf('fitted to %d voltage relaxations (rests after a current pulse)%s', n, hotNote);
     R.note.(kT) = R.note.(kR);
+end
+
+% --- between the measured SOC points: make R0 + R1 + ... equal the DC
+%     resistance measured by the multi-rate fit (the split between them
+%     stays interpolated, the SUM is measured)
+R.diag.rdcCheck = [];
+if R.found.R0_vec && mr.ok
+    [R, prov, R.diag.rdcCheck] = scaleToRdc(R, prov, mr, g, nRC);
+    if any(prov.R0_vec == 'S')
+        R.note.R0_vec = [R.note.R0_vec sprintf(['; between them (S) R0 + R1..R%d are scaled so their sum ' ...
+            'equals the DC resistance from the %d discharge rates'], nRC, numel(mr.use))];
+        for q = 1:nRC
+            kR = sprintf('R%d_vec',q);
+            if R.found.(kR), R.note.(kR) = [R.note.(kR) ' (S breakpoints: sum scaled to the multi-rate DC resistance)']; end
+        end
+    end
 end
 
 % --- OCV: relaxed rest voltages + low-rate CC curve corrected for R0 / RC drops
 if isempty(soc)
     R.note.V0_vec = noSoc;
+elseif mr.ok
+    pts.ocvDense = mr.dense;
+    [ocv, prov.V0_vec] = ocvFromMultiRate(pts.ocv, mr.dense, g);
+    if all(isfinite(ocv))
+        R.value.V0_vec = ocv(:)'; R.found.V0_vec = true;
+        R.note.V0_vec = sprintf(['zero-current extrapolation of %d discharges (%s C) at each SOC, averaged ' ...
+            'with the %s charge branch; level set by %d relaxed rest voltages'], numel(mr.use), ...
+            strjoin(compose('%.2g', mr.crate(mr.use)), ', '), mr.chargeHow, size(pts.ocv,1));
+        R.note.V0_vec = strrep(R.note.V0_vec, 'level set by', 'ends (above / below the fit) from');
+    else
+        R.note.V0_vec = sprintf('the multi-rate OCV and the rests do not cover SOC %.2f..%.2f', g(1), g(end));
+        R.diag.ocvPartial = ocv;
+    end
 else
     if R.found.R0_vec
         Rk = {}; Tk = {};
@@ -193,8 +243,9 @@ else
     [ocv, prov.V0_vec] = buildOcv(pts.ocv, pts.ocvDense, g);
     if all(isfinite(ocv))
         R.value.V0_vec = ocv(:)'; R.found.V0_vec = true;
-        R.note.V0_vec = sprintf('%d relaxed rest voltages + %d points of corrected low-rate curve', ...
-            size(pts.ocv,1), size(pts.ocvDense,1));
+        R.note.V0_vec = sprintf(['%d relaxed rest voltages + %d points of a low-rate curve corrected with ' ...
+            'R0 / RC (only one discharge rate from full, so no multi-rate fit: %s)'], ...
+            size(pts.ocv,1), size(pts.ocvDense,1), mr.why);
     else
         R.note.V0_vec = sprintf(['not enough rests (>= %g s) or low-rate (<= %g C) charge/discharge ' ...
             'data to cover SOC %.2f..%.2f'], C.minRestS, C.ocvMaxCrate, g(1), g(end));
@@ -223,8 +274,8 @@ end
 % 5. Thermal mass and h*A
 % ======================================================================
 th = [];
-if ~R.found.R0_vec
-    why = 'needs R0 first (the heat generated is I^2*R)';
+if ~R.found.V0_vec
+    why = 'needs the OCV first (the heat generated is I*(V - OCV))';
     R.note.thermal_mass = why; R.note.hA = why;
 else
     Rk = {}; Tk = {};
@@ -234,11 +285,12 @@ else
             Tk{end+1} = R.value.(sprintf('tau%d_vec',q)); %#ok<AGROW>
         end
     end
-    th = fitThermal(d, soc, g, R.value.R0_vec, Rk, Tk);
+    th = fitThermal(d, soc, g, R.value.V0_vec, Rk, Tk);
     if th.ok
         R.value.thermal_mass = th.mcp; R.found.thermal_mass = true;
         R.value.hA = th.hA;            R.found.hA = true;
-        R.note.thermal_mass = sprintf('fitted to the measured cell temperature (rms error %.2f K)', th.rmse);
+        R.note.thermal_mass = sprintf(['fitted to the measured cell temperature with the heat I*(V - OCV) ' ...
+            '(rms error %.2f K, peak rise %.1f K)'], th.rmse, max(th.Tmeas) - min(th.Tmeas));
         R.note.hA = R.note.thermal_mass;
     else
         R.note.thermal_mass = th.why; R.note.hA = th.why;
@@ -284,6 +336,16 @@ C.minRestS    = 300;    % s    rests shorter than this are not used for RC / OCV
 C.maxFitRmse  = 0.008;  % V    relaxation fits worse than this are thrown away
 C.maxEdgeDt   = 5;      % s    current steps sampled coarser than this are not used for R0
 C.ocvMaxCrate = 0.5;    % C    only CC data at or below this rate builds the OCV curve
+C.minStepC    = 0.08;   % C    smallest current step used for R0 (0.08C: a 0.1C step counts)
+C.maxDT       = 3;      % K    points where the cell is further than this from the test
+                        %      temperature are left out of the tables (they belong to a
+                        %      different temperature: resistance depends on temperature)
+C.mrMaxCrate  = 2;      % C    discharges faster than this are left out of the multi-rate
+                        %      fit (V is no longer linear in I, and the cell heats up)
+C.settleV     = 0.001;  % V    multi-rate fit: wait after a step until the RC transient
+                        %      left over is below this
+C.settleNoFit = 1800;   % s    ... or this long when no rest could be fitted (no RC known)
+
 end
 
 % ======================================================================
@@ -469,32 +531,59 @@ end
 % ======================================================================
 %  R0 and RC relaxations
 % ======================================================================
-function [pts, k] = r0FromEdges(d, soc, maxDt)
-% Instantaneous resistance at every current step:  R0 = dV / dI
+function [pts, k, nHot] = r0FromEdges(d, soc, C, AH, Tref)
+% Instantaneous (ohmic) resistance at every current step:  R0 = dV / dI
+%   between the last sample before the step and the first sample after it
+%   (INL Battery Test Manual eq. 4; MathWorks "Characterize Battery Cell").
+% What matters is how soon after the step that first sample was taken (the
+% RC branches start to charge straight away): it must be <= C.maxEdgeDt.
+% The StepTime column says exactly when the step happened; without it the
+% gap between the two samples is used (a 10 s rest log is then too coarse).
+% Steps where the cell is more than C.maxDT away from Tref are left out.
 I = d.I; V = d.V; t = d.t;
 dI = diff(I); dV = diff(V); dt = diff(t);
-thr = max(0.05*max(abs(I)), 10*d.restThr);
-k = find(abs(dI) > thr & dt <= maxDt & dt > 0);
+dtAfter = dt;
+if ~isempty(d.stepTime)
+    st = d.stepTime(2:end);
+    use = isfinite(st) & st >= 0 & st < dt;
+    dtAfter(use) = st(use);
+end
+if isfinite(AH), thr = C.minStepC*AH; else, thr = 0.05*max(abs(I)); end
+thr = max(thr, 10*d.restThr);
+k = find(abs(dI) > thr & dtAfter <= C.maxEdgeDt & dt > 0);
 Rv = dV(k)./dI(k);
 ok = Rv > 0 & Rv < 1;
-k = k(ok);
-pts = [soc(k), Rv(ok)];
+k = k(ok); Rv = Rv(ok);
+nHot = 0;
+if isfinite(Tref) && any(isfinite(d.Tcell))
+    hot = abs(d.Tcell(k+1) - Tref) > C.maxDT;
+    nHot = nnz(hot);
+    k = k(~hot); Rv = Rv(~hot);
+end
+pts = [soc(k), Rv];
 end
 
-function fits = fitRelaxations(d, soc, ph, C, nRC, AH)
+function [fits, nHot] = fitRelaxations(d, soc, ph, C, nRC, AH, Tref)
 % Fit every long rest that follows a current pulse with
 %   V(t) = Vinf + sum_k R_k * x_k(t_sw) * exp(-(t - t_sw)/tau_k)
 % x_k(t_sw) = current in RC branch k when the current switched off, found by
 % passing the real current history through a first-order filter (tau_k).
 % Vinf = fully relaxed voltage = an OCV point at that SOC.
+% Rests that start with the cell more than C.maxDT away from Tref (e.g. after
+% a fast discharge heated it) are left out: the relaxation is then mixed with
+% the cell cooling down, and the values belong to another temperature.
 fits = struct('soc',{},'Vinf',{},'R',{},'tau',{},'x0',{},'rmse',{},'t0',{},'tr',{},'v',{},'vfit',{});
 t = d.t; I = d.I; V = d.V;
+nHot = 0;
 for k = 2:numel(ph)
     r = ph(k);
     if r.type ~= 'R' || r.dur < C.minRestS, continue; end
     prev = ph(k-1);
     if prev.type == 'R' || abs(prev.ah) < 0.002*AH, continue; end
     a = r.i1; b = r.i2;
+    if isfinite(Tref) && isfinite(d.Tcell(a)) && abs(d.Tcell(a) - Tref) > C.maxDT
+        nHot = nHot + 1; continue
+    end
     tsw = t(a);
     if ~isempty(d.stepTime) && isfinite(d.stepTime(a)) && d.stepTime(a) < (t(a) - t(a-1))
         tsw = t(a) - d.stepTime(a);              % exact switch time from StepTime
@@ -760,10 +849,22 @@ end
 % ======================================================================
 %  Thermal
 % ======================================================================
-function th = fitThermal(d, soc, g, R0, Rk, Tk)
+function th = fitThermal(d, soc, g, ocv, Rk, Tk)
 % Lumped model   m*cp * dT/dt = Q - h*A*(T - T_chamber)
-% Q is the same Joule heat the Simscape block produces:
-%   Q = I^2*R0(SOC) + sum_k R_k(SOC) * x_k^2      (x_k = RC branch current)
+% Q = heat the cell generates:
+%     I*(V - OCV(SOC))   electrical power lost in the cell (Bernardi et al.
+%                        1985, irreversible part; I positive = charge, so it
+%                        is >= 0 both ways). From the MEASURED voltage, so it
+%                        is right even when the cell is hot and its
+%                        resistance has dropped.
+%   - sum R_k*i_k*(I - i_k)  minus the power going into / coming out of the
+%                        RC capacitors (stored, not heat yet; i_k = RC branch
+%                        current). This makes Q exactly the block's own heat
+%                        I^2*R0 + sum R_k*i_k^2, and puts it at the right time
+%                        (the capacitors give their energy back as heat
+%                        during the rest that follows).
+%     The reversible (entropic) heat I*T*dOCV/dT needs OCV at several
+%     temperatures and is left out - the block leaves it out too.
 % Linear in [1/(m*cp), h*A/(m*cp)] -> least squares on dT/dt, then refined by
 % fitting the simulated temperature curve itself.
 th = struct('t',[],'Tmeas',[],'Tmodel',[],'Q',[],'Tamb',[],'mcp',NaN,'hA',NaN, ...
@@ -771,22 +872,25 @@ th = struct('t',[],'Tmeas',[],'Tmodel',[],'Q',[],'Tamb',[],'mcp',NaN,'hA',NaN, .
 if all(~isfinite(d.Tcell)), th.why = 'no cell temperature column in the file'; return; end
 Tch = d.Tch;
 if all(~isfinite(Tch)), th.why = 'no chamber temperature column (needed as the ambient)'; return; end
-ok = isfinite(d.Tcell) & isfinite(Tch);
+ok = isfinite(d.Tcell) & isfinite(Tch) & isfinite(soc);
 if max(d.Tcell(ok)) - min(d.Tcell(ok)) < 0.5
     th.why = 'cell temperature changes by less than 0.5 K - no self-heating to fit'; return
 end
 sc = min(max(soc, g(1)), g(end));
-Qall = d.I.^2 .* interp1(g, R0, sc);
+Qall = d.I .* (d.V - interp1(g, ocv, sc));
+Qall(d.I == 0) = 0;
 for q = 1:numel(Rk)
     x = rcCurrent(d.t, d.I, median(Tk{q}, 'omitnan'));
-    Qall = Qall + interp1(g, Rk{q}, sc) .* x.^2;
+    Qall = Qall - interp1(g, Rk{q}, sc) .* x .* (d.I - x);
 end
+
 t = d.t(ok); Tc = d.Tcell(ok); Ta = Tch(ok); Q = Qall(ok);
 dtg = 10;                                   % uniform 10 s grid
 tg = (t(1):dtg:t(end))';
 if numel(tg) < 50, th.why = 'record too short'; return; end
 [tu, iu] = unique(t);
-E = cumtrapz(tu, Q(iu));
+Qz = Q(iu);                                 % heat holds until the next sample
+E = [0; cumsum(Qz(1:end-1).*diff(tu))];
 Qg = diff(interp1(tu, E, [tg; tg(end)+dtg], 'linear', 'extrap'))/dtg;
 Tg = interp1(tu, Tc(iu), tg); Tag = interp1(tu, Ta(iu), tg);
 Ts = smoothdata(Tg, 'movmean', 7);
@@ -810,7 +914,6 @@ if cost(p1) < cost(p0), th.mcp = exp(p1(1)); th.hA = exp(p1(2)); end
 th = simulateThermal(th, th.mcp, th.hA);
 th.ok = true;
 end
-
 function th = simulateThermal(th, mcp, hA)
 n = numel(th.t);
 T = zeros(n,1); T(1) = th.Tmeas(1);
@@ -822,4 +925,218 @@ for k = 2:n
 end
 th.Tmodel = T;
 th.rmse = sqrt(mean((T - th.Tmeas).^2, 'omitnan'));
+end
+
+% ======================================================================
+%  Multi-rate analysis (the rate test: the same full -> empty discharge at
+%  several C-rates)
+% ======================================================================
+function mr = multiRate(d, soc, ph, C, AH, Tref, rc)
+% Once the RC branches have settled after the step, a constant-current
+% discharge sits at
+%     V(SOC, I) = OCV(SOC) - R_dc(SOC) * |I|,   R_dc = R0 + R1 + R2 + ...
+% (the block's own equation with every branch current equal to I). With the
+% same discharge done at several currents, a straight-line fit of V against
+% |I| at each SOC gives
+%     intercept = OCV on the discharge side   (voltage at zero current)
+%     slope     = R_dc                         (the DC resistance)
+% Only CC discharges that start from a full charge are used (so SOC is
+% exact), only samples within C.maxDT of Tref, rates <= C.mrMaxCrate.
+% "Settled": what is left of each RC transient, R_k*|I|*exp(-t/tau_k), is
+% below C.settleV (R_k, tau_k = median of the rest fits), i.e.
+%     t >= max_k tau_k * ln(R_k*|I| / C.settleV)
+% (C.settleNoFit when no rest could be fitted).
+% The charge side: CC part of the charges. With 2+ charge rates it gets its
+% own fit; with one rate (0.34C here) its OCV is V - I*R_dc (one resistance
+% for both directions, as in the block). OCV = average of the two sides
+% (cancels hysteresis), like the low-rate "pseudo-OCV" method.
+mr = struct('ok',false, 'why','', 'sf',(0:0.01:1)', 'rates',[], 'crate',[], 'phase',[], ...
+    'use',[], 'Vd',[], 'nRate',[], 'ocvD',[], 'Rdc',[], 'rms',[], 'Ic',[], 'Vc',[], ...
+    'ocvC',[], 'chargeHow','', 'hyst',NaN, 'dense',[], 'RdcPts',[], 'settle',[], 'rc',rc, ...
+    'maxDT',C.maxDT, 'Tref',Tref, 'maxCrate',C.mrMaxCrate);
+if ~isfinite(AH), mr.why = 'needs the capacity'; return; end
+sf = mr.sf;
+useT = isfinite(Tref) && any(isfinite(d.Tcell));
+if isempty(rc.R)
+    settleT = @(I) C.settleNoFit;
+else
+    settleT = @(I) max([60, rc.tau .* log(max(rc.R*I/C.settleV, 1))]);
+end
+% ---- discharges from full
+for k = 1:numel(ph)
+    p = ph(k);
+    if p.type ~= 'D' || p.dur < 300 || soc(p.i1) < 0.97, continue; end
+    Ia = abs(d.I(p.i1:p.i2));
+    if std(Ia)/mean(Ia) > 0.05, continue; end          % not constant current
+    mr.phase(end+1) = k; mr.rates(end+1) = median(Ia);
+end
+mr.crate = mr.rates/AH;
+if isempty(mr.rates), mr.why = 'no constant-current discharge starting from a full charge'; return; end
+mr.Vd = nan(numel(mr.rates), numel(sf));
+mr.settle = nan(1, numel(mr.rates));
+for r = 1:numel(mr.rates)
+    p = ph(mr.phase(r));
+    idx = (p.i1:p.i2)';
+    mr.settle(r) = settleT(mr.rates(r));
+    keep = d.t(idx) - p.t1 >= mr.settle(r);
+    if useT, keep = keep & abs(d.Tcell(idx) - Tref) <= C.maxDT; end
+    mr.Vd(r,:) = binMean(soc(idx(keep)), d.V(idx(keep)), sf);
+end
+mr.use = find(mr.crate <= C.mrMaxCrate & any(isfinite(mr.Vd), 2)');
+if numel(unique(round(mr.rates(mr.use)*1e3))) < 2
+    mr.why = sprintf('only %d usable discharge rate(s) from full (need 2+ different rates)', numel(mr.use));
+    return
+end
+[mr.ocvD, mr.Rdc, mr.rms] = deal(nan(numel(sf),1));
+mr.nRate = zeros(numel(sf),1);
+for j = 1:numel(sf)
+    u = mr.use(isfinite(mr.Vd(mr.use, j)));
+    if numel(u) < 2 || max(mr.rates(u)) < 1.5*min(mr.rates(u)), continue; end
+    A = [ones(numel(u),1), -mr.rates(u)'];
+    c = A \ mr.Vd(u, j);
+    if c(2) <= 0, continue; end
+    mr.ocvD(j) = c(1); mr.Rdc(j) = c(2); mr.nRate(j) = numel(u);
+    if numel(u) >= 3, mr.rms(j) = sqrt(mean((A*c - mr.Vd(u, j)).^2)); end
+end
+if nnz(isfinite(mr.ocvD)) < 5, mr.why = 'the discharge rates do not overlap at enough SOC points'; return; end
+% ---- charge side
+chg = struct('I',{},'V',{});
+for k = 1:numel(ph)
+    p = ph(k);
+    if p.type ~= 'C' || p.dur < 300, continue; end
+    idx = (p.i1:p.i2)';
+    Ia = d.I(idx);
+    cc = Ia >= 0.95*max(Ia);                            % the CC part
+    keep = cc & d.t(idx) - p.t1 >= settleT(median(Ia(cc)));
+    if useT, keep = keep & abs(d.Tcell(idx) - Tref) <= C.maxDT; end
+    if nnz(keep) < 10, continue; end
+    chg(end+1).I = median(Ia(cc)); %#ok<AGROW>
+    chg(end).V = binMean(soc(idx(keep)), d.V(idx(keep)), sf);
+end
+mr.ocvC = nan(numel(sf),1);
+if ~isempty(chg)
+    Ic = [chg.I]; Vc = vertcat(chg.V);
+    lev = round(Ic/(0.02*AH));                          % same rate = within 0.02C
+    [ul, ~, id] = unique(lev);
+    Vl = nan(numel(ul), numel(sf)); Il = nan(1, numel(ul));
+    for q = 1:numel(ul)
+        Vl(q,:) = median(Vc(id == q,:), 1, 'omitnan'); Il(q) = median(Ic(id == q));
+    end
+    mr.Ic = Il; mr.Vc = Vl;
+    if numel(ul) >= 2
+        for j = 1:numel(sf)
+            u = find(isfinite(Vl(:,j)));
+            if numel(u) < 2, continue; end
+            c = [ones(numel(u),1), Il(u)'] \ Vl(u,j);
+            mr.ocvC(j) = c(1);
+        end
+        mr.chargeHow = sprintf('%d-rate charge fit', numel(ul));
+    else
+        mr.ocvC = Vl(1,:)' - Il(1)*mr.Rdc;
+        mr.chargeHow = sprintf('%.2gC charge (V - I*R_dc)', Il(1)/AH);
+    end
+end
+both = isfinite(mr.ocvD) & isfinite(mr.ocvC);
+if nnz(both) >= 3
+    mr.hyst = mean(mr.ocvC(both) - mr.ocvD(both))/2;    % half the charge-discharge gap
+    ocv = (mr.ocvD + mr.ocvC)/2;
+    onlyD = isfinite(mr.ocvD) & ~both; ocv(onlyD) = mr.ocvD(onlyD) + mr.hyst;
+    onlyC = isfinite(mr.ocvC) & ~both; ocv(onlyC) = mr.ocvC(onlyC) - mr.hyst;
+else
+    ocv = mr.ocvD;
+    mr.chargeHow = 'no charge data (discharge side only)';
+end
+f = isfinite(ocv);
+mr.dense = [sf(f), ocv(f)];
+mr.ocv = ocv;
+f = isfinite(mr.Rdc);
+mr.RdcPts = [sf(f), mr.Rdc(f)];
+mr.ok = true;
+end
+
+function y = binMean(x, v, centres)
+% mean of v over the samples with x within +-0.005 of each centre (1 % SOC bins)
+y = nan(1, numel(centres));
+if isempty(x), return; end
+b = round(x*100) + 1;                                   % centres are 0:0.01:1
+ok = b >= 1 & b <= numel(centres) & isfinite(v);
+if ~any(ok), return; end
+s = accumarray(b(ok), v(ok), [numel(centres) 1]);
+n = accumarray(b(ok), 1, [numel(centres) 1]);
+lo = accumarray(b(ok), x(ok), [numel(centres) 1], @min, NaN);
+hi = accumarray(b(ok), x(ok), [numel(centres) 1], @max, NaN);
+y = (s./max(n,1))';
+% at least 3 samples, spread over the whole bin (a bin the data only enters,
+% e.g. the last 0.2 % before the cut-off, would be biased)
+y((n < 3 | (hi - lo) < 0.008)') = NaN;
+end
+
+function [ocv, prov] = ocvFromMultiRate(restPts, dense, g)
+% The multi-rate curve IS the OCV (zero-current voltage), so it is used as it
+% is ('M'). Only above / below it (the first minutes of a discharge are never
+% settled) are the relaxed rest voltages used: a smooth (pchip) curve through
+% the multi-rate points and the rest points fills the gap ('I'), for gaps of
+% at most 0.25 SOC. Rest points inside the multi-rate range are not used
+% (they are a check only).
+n = numel(g);
+ocv = nan(1,n); prov = repmat('-', 1, n);
+lo = dense(1,1); hi = dense(end,1);
+P = dense;
+if ~isempty(restPts)
+    rp = sortrows(restPts(all(isfinite(restPts),2),:));
+    rp = rp(rp(:,1) < lo - 0.005 | rp(:,1) > hi + 0.005, :);
+    if ~isempty(rp)
+        cl = cumsum([true; diff(rp(:,1)) > 0.0005]);   % same rest SOC (repeated cycles)
+        rp = [accumarray(cl, rp(:,1), [], @mean), accumarray(cl, rp(:,2), [], @mean)];
+        P = sortrows([P; rp]);
+    end
+end
+[~, iu] = unique(P(:,1)); P = P(iu,:);
+for j = 1:n
+    if g(j) >= lo && g(j) <= hi
+        ocv(j) = interp1(dense(:,1), dense(:,2), g(j)); prov(j) = 'M';
+    elseif g(j) >= P(1,1) - 1e-9 && g(j) <= P(end,1) + 1e-9
+        a = find(P(:,1) <= g(j), 1, 'last'); b = find(P(:,1) >= g(j), 1);
+        if P(b,1) - P(a,1) > 0.25, continue; end
+        ocv(j) = interp1(P(:,1), P(:,2), g(j), 'pchip');
+        if min(abs(P(:,1) - g(j))) <= 0.005, prov(j) = 'M'; else, prov(j) = 'I'; end
+    elseif size(P,1) >= 2 && (P(1,1) - g(j) <= 0.01 || g(j) - P(end,1) <= 0.01)
+        % within 1 % SOC past the last point: carry on along the end slope
+        if g(j) < P(1,1), a = 1; b = 2; else, a = size(P,1) - 1; b = size(P,1); end
+        ocv(j) = P(a,2) + (P(b,2) - P(a,2))/(P(b,1) - P(a,1))*(g(j) - P(a,1));
+        prov(j) = 'E';
+    end
+end
+fin = find(isfinite(ocv));            % OCV must rise with SOC
+for j = 2:numel(fin)
+    if ocv(fin(j)) <= ocv(fin(j-1)), ocv(fin(j)) = ocv(fin(j-1)) + 1e-4; end
+end
+end
+
+
+function [R, prov, chk] = scaleToRdc(R, prov, mr, g, nRC)
+% Breakpoints whose R0 was NOT measured there (interpolated 'I' / held 'E')
+% but where the multi-rate fit measured R_dc: scale R0 and R1..Rn together
+% so R0 + sum Rk = R_dc ('S'). Measured breakpoints ('M') are left alone and
+% only compared (chk = [soc, R0+sumRk, R_dc]).
+chk = zeros(0,3);
+keysR = {'R0_vec'};
+for q = 1:nRC
+    if R.found.(sprintf('R%d_vec',q)), keysR{end+1} = sprintf('R%d_vec',q); end %#ok<AGROW>
+end
+rdc = interp1(mr.RdcPts(:,1), mr.RdcPts(:,2), g, 'linear', NaN);
+for j = 1:numel(g)
+    if ~isfinite(rdc(j)), continue; end
+    tot = 0;
+    for q = 1:numel(keysR), tot = tot + R.value.(keysR{q})(j); end
+    if prov.R0_vec(j) == 'M'
+        chk(end+1,:) = [g(j), tot, rdc(j)]; %#ok<AGROW>
+        continue
+    end
+    k = rdc(j)/tot;
+    for q = 1:numel(keysR)
+        R.value.(keysR{q})(j) = R.value.(keysR{q})(j)*k;
+        prov.(keysR{q})(j) = 'S';
+    end
+end
 end
