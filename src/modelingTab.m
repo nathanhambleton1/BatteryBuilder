@@ -131,6 +131,7 @@ api.getState = @getState;
         lblStatus.Text = sprintf('%s loaded. Press "Extract data from test".', d.name);
         refreshRows();
         drawOverview();
+        notifyCapacity();                    % a typed AH still applies to the new file
     end
 
     function onExtract()
@@ -168,7 +169,17 @@ api.getState = @getState;
         nCalc = sum(cellfun(@(k) strcmp(src.(k),'calc'), {rows.key}));
         lblStatus.Text = sprintf(['%d boxes calculated from %s. Fill in any empty REQUIRED boxes ' ...
             'from the datasheet, then Save.'], nCalc, d.name);
-        if ~isempty(onDataChanged), onDataChanged(d); end
+        if ~isempty(onDataChanged), onDataChanged(d, 'soc'); end
+        notifyCapacity();
+    end
+
+    function notifyCapacity()
+        % tell the main window the capacity (calculated or typed) for the
+        % Load profile tab's C-rate labels
+        if isempty(onDataChanged) || isempty(d), return; end
+        ah = vals.AH;
+        if ~(isnumeric(ah) && isscalar(ah) && isfinite(ah) && ah > 0), ah = NaN; end
+        onDataChanged(ah, 'capacity');
     end
 
     function onEdit(k, s)
@@ -186,12 +197,14 @@ api.getState = @getState;
             vals.(key) = double(v(:)'); src.(key) = 'user';
         end
         refreshRows();
+        if strcmp(key, 'AH'), notifyCapacity(); end
     end
 
     function setValue(key, v)        % scripting / test helper
         vals.(key) = v; src.(key) = 'user';
         if isempty(v), src.(key) = ''; end
         refreshRows();
+        if strcmp(key, 'AH'), notifyCapacity(); end
     end
 
     function setRC(n)

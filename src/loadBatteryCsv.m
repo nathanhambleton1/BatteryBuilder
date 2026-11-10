@@ -85,6 +85,8 @@ if ~isempty(c.stepTime), d.stepTime = toSeconds(T.(c.stepTime)); end
 d.Tcell = nan(size(t)); d.Tch = nan(size(t));
 if ~isempty(c.tcell), d.Tcell = toNum(T.(c.tcell)); end
 if ~isempty(c.tch),   d.Tch   = toNum(T.(c.tch));   end
+% names of the matched columns (the Plot tab pairs twin signals with these)
+d.colNames = struct('voltage',c.voltage, 'current',c.current, 'tcell',c.tcell, 'tch',c.tch);
 d.capFile = [];                           % cycler's own Ah column (cross-check only)
 if ~isempty(c.capacity), d.capFile = toNum(T.(c.capacity)); end
 d.dtMedian = median(diff(t));

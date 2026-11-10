@@ -98,7 +98,8 @@ The top bar of the app shows which case was found (e.g. *"magnitude in file, sig
 
 | Control | Action |
 |---|---|
-| X axis / Left Y / Right Y | Pick columns. Ctrl+click picks several. A right axis is shown when something is selected there. Changing any of them redraws and fits the view to every curve straight away. |
+| X axis / Left Y / Right Y | Pick columns. Ctrl+click picks several. A right axis is shown when something is selected there. Changing any of them redraws and fits the view to every curve straight away. **(none)** at the top of a Y list leaves that axis empty. |
+| **Load twin from workspace** | Adds the digital-twin signals at the bottom of both Y lists, under a separator (see below). Press again after a new simulation run. |
 | **Fit all** | Show all the data. |
 | **Fit horizontal** | Full X range, keep the Y zoom. |
 | **Fit vertical** | Fit Y to the data inside the X range you are looking at. |
@@ -111,6 +112,12 @@ The top bar of the app shows which case was found (e.g. *"magnitude in file, sig
 | **Cursor** | A vertical line follows the mouse. Every curve gets a marker where the line crosses it, with its value in a label right next to the crossing. Labels move up and down with the curves, are pushed apart when they would overlap, and flip to the left side near the right edge. If the X column goes back and forth (e.g. Voltage vs SOC), the nearest point on screen is used instead. |
 | **Copy plot to a figure** | A normal MATLAB figure of the current view, for saving or printing (legend bottom-left). |
 | Keys | `f` = fit all, `Backspace` = zoom back, `Esc` = cancel a drag. |
+
+### Twin vs measured
+
+Log the twin with To Workspace blocks named `twin_soc`, `twin_current`, `twin_voltage` and `twin_temp` (format **Timeseries** or **Structure With Time**; *Array* also works together with `tout`). They are read from the base workspace, or from `out` when the model uses "Single simulation output". They show up as `Twin: SOC (-)`, `Twin: Current (A)`, `Twin: Voltage (V)`, `Twin: Temp (°C)`, drawn dashed. The twin's time starts at 0 like `batt_load`, so it lines up with the test on any X column (time columns are extended past the end of the test). A temperature above 150 is taken to be kelvin and converted to °C; an SOC above 1.5 is taken to be percent.
+
+Each twin signal has a measured partner: SOC ↔ `SOC (-)` (after Extract), current ↔ `Current, +charge (A)`, voltage ↔ the file's voltage column, temperature ↔ the cell temperature column (`Temp 1`). With both shown and the **Cursor** on, a yellow label on the other side of the cursor line shows `Δ = twin − measured` at the cursor position.
 
 Extra columns added for plotting: `Test Time (h)`, `Current, +charge (A)`, `Power, +charge (W)`, `Net Ah in (Ah)`, and after an extraction `SOC (-)`.
 
@@ -130,7 +137,19 @@ The plot shows the current over the whole test: green = charge (+), orange = dis
 |---|---|
 | `batt_load` | `[t I]`, N×2. Time in seconds from 0, current in A, **+ = charge**. |
 | `batt_load_ts` | the same data as a `timeseries` |
-| `batt_load_tEnd` | last time (s); use it as the model Stop time |
+| `batt_stopTime` | length of the test (s): set the model **Stop time** to `batt_stopTime` |
+| `batt_Ts` | the test's sampling interval (s, the median spacing of the time stamps): use it as the To Workspace **Sample time** (or a fixed-step solver's step size) so the twin is logged like the real test |
+
+The list under the button shows these values, plus the test's shortest and longest logging interval (cyclers often log faster during pulses than during rests, which is why the median is used).
+
+### Pulse labels
+
+Every charge and discharge pulse (a run of current with one sign) is labelled with:
+
+* its **C-rate**, `|I| / AH`: the level it spends most of its time at (`CC`), the CC current of a tapering charge (`CC-CV`), or the average and peak for a varying load (`avg …C, max …C`);
+* the **Ah** that went in (`+`) or came out (`−`) during that pulse: `Σ I·Δt / 3600`.
+
+The C-rate needs the capacity: press **Extract** on the Modeling tab (or type an AH there) and the labels update. Until then the labels show amps. Labels that would overlap are hidden, biggest pulses first; zoom in to see the rest (`findPulses`, `layoutLabels` in `loadProfileTab.m`).
 
 ### Using it in Simulink
 
@@ -310,7 +329,7 @@ All state (`series`, zoom stack, drag/pan state, cursor handles) lives in variab
 The figure-level mouse callbacks only act while the Plot tab is the visible tab (`tabVisible`).
 
 ### `src/loadProfileTab.m`
-`setData` draws the profile and the summary. `buildProfile` adds the step points. `onSave` writes `batt_load`, `batt_load_ts` and `batt_load_tEnd`.
+`setData` draws the profile and the summary. `buildProfile` adds the step points. `findPulses` splits the current into charge / discharge pulses and `makeLabels` / `layoutLabels` put their C-rate and Ah labels on the plot. `onSave` writes `batt_load`, `batt_load_ts`, `batt_stopTime` and `batt_Ts`.
 
 ### `src/blockParameterList.m`
 One entry per box: key, label, variable, block location, unit, group, required / optional, datasheet hint, RC pair number, and whether it is a per-SOC vector. **To add a box, add a row here** (and, if the data can give it, a key in `extractCellParameters`).

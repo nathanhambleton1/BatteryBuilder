@@ -13,12 +13,23 @@ function api = plotTab(tab, fig)
 %   Keys: f = fit all, backspace = zoom back, esc = cancel a drag
 %
 %   Cursor: shows each curve's value where it crosses the mouse X position,
-%   with a label next to every crossing point.
+%   with a label next to every crossing point. When a twin signal and its
+%   measured partner are both shown, a "Δ = twin - measured" label is added.
+%
+%   Y lists: "(none)" at the top shows nothing on that axis. Below the file's
+%   columns come the digital-twin signals read from the MATLAB workspace
+%   (twin_soc, twin_current, twin_voltage, twin_temp - see loadTwin).
+
+NONE = '(none)';
+SEP  = char([9472 9472 32 'Twin (from workspace)' 32 9472 9472]);   % list separator, not selectable
+TWIN = struct('var',  {'twin_soc','twin_current','twin_voltage','twin_temp'}, ...
+              'label',{'Twin: SOC (-)','Twin: Current (A)','Twin: Voltage (V)','Twin: Temp (°C)'});
 
 % ---------------- state shared by the nested functions ----------------------
 d          = [];          % current dataset
+twin       = struct('name',{},'t',{},'y',{},'pair',{},'note',{});   % loaded twin signals
 series     = struct('h',{},'side',{},'x',{},'y',{},'mono',{},'name',{}, ...
-                    'color',{},'marker',{},'label',{});
+                    'color',{},'marker',{},'label',{},'pair',{},'dlabel',{});
 cursorOn   = false;
 cursorX    = [];          % xline handle
 zoomStack  = {};
@@ -29,8 +40,8 @@ ax         = [];
 
 % ---------------- layout -----------------------------------------------------
 g = uigridlayout(tab,[1 2],'ColumnWidth',{240,'1x'},'Padding',[6 6 6 6]);
-gCtl = uigridlayout(g,[14 2],'Padding',[0 0 0 0],'RowSpacing',4,'ColumnSpacing',4, ...
-    'RowHeight',{'fit',24,'fit','1x','fit','1x',8,26,26,24,26,26,8,'fit'});
+gCtl = uigridlayout(g,[15 2],'Padding',[0 0 0 0],'RowSpacing',4,'ColumnSpacing',4, ...
+    'RowHeight',{'fit',24,'fit','1x','fit','1x',26,8,26,26,24,26,26,8,'fit'});
 gCtl.Layout.Column = 1;
 axHolder = uipanel(g,'BorderType','none','BackgroundColor','white');
 axHolder.Layout.Column = 2;
@@ -41,11 +52,16 @@ lbl('X axis',r); r = r+1;
 ddX = uidropdown(gCtl,'Items',{'(open a file)'},'ValueChangedFcn',@(~,~) refreshPlot(false));
 place(ddX,r,[1 2]); r = r+1;
 lbl('Left Y axis (Ctrl+click = several)',r); r = r+1;
-lbLeft = uilistbox(gCtl,'Multiselect','on','Items',{},'ValueChangedFcn',@(~,~) refreshPlot(false));
+lbLeft = uilistbox(gCtl,'Multiselect','on','Items',{},'ValueChangedFcn',@onListChanged);
 place(lbLeft,r,[1 2]); r = r+1;
 lbl('Right Y axis',r); r = r+1;
-lbRight = uilistbox(gCtl,'Multiselect','on','Items',{},'ValueChangedFcn',@(~,~) refreshPlot(false));
-place(lbRight,r,[1 2]); r = r+2;
+lbRight = uilistbox(gCtl,'Multiselect','on','Items',{},'ValueChangedFcn',@onListChanged);
+place(lbRight,r,[1 2]); r = r+1;
+btnTwin = uibutton(gCtl,'Text','Load twin from workspace','ButtonPushedFcn',@(~,~) loadTwin(false), ...
+    'Tooltip',sprintf(['Reads twin_soc, twin_current, twin_voltage and twin_temp from the MATLAB\n' ...
+    'workspace (or from "out" if the model saves a single simulation output)\n' ...
+    'and adds them at the bottom of the Y lists. Press again after a new run.']));
+place(btnTwin,r,[1 2]); r = r+2;
 btnFitAll = uibutton(gCtl,'Text','Fit all','FontWeight','bold','ButtonPushedFcn',@(~,~) fitView('all'));
 place(btnFitAll,r,[1 2]); r = r+1;
 btnFitX = uibutton(gCtl,'Text','Fit horizontal','ButtonPushedFcn',@(~,~) fitView('x'));
@@ -85,9 +101,11 @@ api.fit        = @fitView;
 api.zoomBack   = @zoomBack;
 api.panBy      = @panBy;
 api.getState   = @getState;
+api.loadTwin   = @loadTwin;
 
     function st = getState()     % nested (not anonymous) so it sees the live values
-        st = struct('series',series,'ax',ax,'zoomDepth',numel(zoomStack));
+        st = struct('series',series,'ax',ax,'zoomDepth',numel(zoomStack),'twin',twin, ...
+            'leftItems',{lbLeft.Items},'rightItems',{lbRight.Items});
     end
 
 % =========================================================================
@@ -96,6 +114,7 @@ api.getState   = @getState;
     function setData(newD)
         firstTime = isempty(d) || ~isequal(d.file, newD.file);
         d = newD;
+        if firstTime, loadTwin(true); end      % pick up twin_* if they already exist
         refreshColumnLists(firstTime);
         refreshPlot(~firstTime);
         if firstTime, zoomStack = {}; fitView('all', false); end
@@ -103,26 +122,102 @@ api.getState   = @getState;
 
     function refreshColumnLists(setDefaults)
         cols = numericColumns(d.tbl);
+        items = [{NONE}, cols];
+        if ~isempty(twin), items = [items, {SEP}, {twin.name}]; end
         oldX = ddX.Value; oldL = lbLeft.Value; oldR = lbRight.Value;
-        ddX.Items = cols; lbLeft.Items = cols; lbRight.Items = cols;
+        ddX.Items = cols; lbLeft.Items = items; lbRight.Items = items;
         if setDefaults || ~any(strcmp(cols, oldX))
             ddX.Value = pickCol(cols, {'Test Time (h)','TestTime'});
         else
             ddX.Value = oldX;
         end
-        keepL = intersect(oldL, cols, 'stable'); keepR = intersect(oldR, cols, 'stable');
+        keepL = intersect(oldL, items, 'stable'); keepR = intersect(oldR, items, 'stable');
         if setDefaults || isempty(keepL)
             keepL = {pickCol(cols, {'Voltage'})};
             keepR = {pickCol(cols, {'Current, +charge','Current'})};
         end
+        if isempty(keepR), keepR = {NONE}; end
         lbLeft.Value = keepL; lbRight.Value = keepR;
+    end
+
+    function onListChanged(lb, evt)
+        % "(none)" clears that axis; picking anything else drops "(none)".
+        % The separator line is not a signal and is ignored.
+        v = lb.Value; prev = {};
+        if isobject(evt) || isstruct(evt), prev = evt.PreviousValue; end
+        v(strcmp(v, SEP)) = [];
+        if any(strcmp(v, NONE))
+            if ~any(strcmp(prev, NONE)) || numel(v) == 1
+                v = {NONE};
+            else
+                v(strcmp(v, NONE)) = [];
+            end
+        end
+        if isempty(v), v = {NONE}; end
+        lb.Value = v;
+        refreshPlot(false);
     end
 
     function setColumns(xName, leftNames, rightNames)
         ddX.Value = xName;
-        lbLeft.Value = cellstr(leftNames);
-        if isempty(rightNames), lbRight.Value = {}; else, lbRight.Value = cellstr(rightNames); end
+        if isempty(leftNames), lbLeft.Value = {NONE}; else, lbLeft.Value = cellstr(leftNames); end
+        if isempty(rightNames), lbRight.Value = {NONE}; else, lbRight.Value = cellstr(rightNames); end
         refreshPlot(false); fitView('all');
+    end
+
+% =========================================================================
+%  Digital twin signals from the workspace
+% =========================================================================
+    function loadTwin(silent)
+        % Reads twin_soc / twin_current / twin_voltage / twin_temp from the base
+        % workspace, or from a Simulink.SimulationOutput called "out" (what a
+        % model saves when "Single simulation output" is on). Accepted To
+        % Workspace formats: Timeseries, Structure With Time, or Array /
+        % Structure together with "tout".
+        if nargin < 1, silent = false; end
+        old = {twin.name};
+        twin = twin([]);
+        notes = {};
+        for k = 1:numel(TWIN)
+            [t, y, how] = readTwinVar(TWIN(k).var);
+            if isempty(t)
+                if ~isempty(how), notes{end+1} = sprintf('%s: %s', TWIN(k).var, how); end %#ok<AGROW>
+                continue
+            end
+            s.name = TWIN(k).label; s.t = t; s.y = y; s.note = how;
+            s.pair = '';
+            switch TWIN(k).var
+                case 'twin_soc'
+                    if max(y) > 1.5 && max(y) <= 100.5, s.y = y/100; s.note = [how ', % -> fraction']; end
+                    s.pair = 'SOC (-)';
+                case 'twin_current'
+                    s.pair = 'Current, +charge (A)';
+                case 'twin_voltage'
+                    if ~isempty(d), s.pair = d.colNames.voltage; end
+                case 'twin_temp'
+                    if median(y, 'omitnan') > 150, s.y = y - 273.15; s.note = [how ', K -> °C']; end
+                    if ~isempty(d), s.pair = d.colNames.tcell; end
+            end
+            twin(end+1) = s; %#ok<AGROW>
+        end
+        if ~isempty(d) && ~isequal(old, {twin.name})
+            refreshColumnLists(false);
+            refreshPlot(true);
+        elseif ~isempty(d) && ~silent
+            refreshPlot(true);              % same names, new data from a new run
+        end
+        btnTwin.Text = sprintf('Load twin from workspace (%d found)', numel(twin));
+        if silent, return; end
+        if isempty(twin)
+            msg = ['No twin signals found. The plot looks for these variables in the ' ...
+                   'base workspace (or inside "out"):' newline newline ...
+                   '  twin_soc, twin_current, twin_voltage, twin_temp' newline newline ...
+                   'Save them with To Workspace blocks (format Timeseries or Structure With Time).'];
+            if ~isempty(notes), msg = [msg newline newline strjoin(notes, newline)]; end
+            uialert(fig, msg, 'Twin signals', 'Icon','warning');
+        elseif isempty(d)
+            uialert(fig, 'Twin signals loaded. Open the test CSV to plot them against it.', 'Twin signals', 'Icon','info');
+        end
     end
 
 % =========================================================================
@@ -153,8 +248,8 @@ api.getState   = @getState;
         clearPlot();
         if isempty(d), title(ax,'Open a CSV file to start'); return; end
         xName = ddX.Value;
-        leftNames  = lbLeft.Value;
-        rightNames = setdiff(lbRight.Value, leftNames, 'stable');
+        leftNames  = setdiff(lbLeft.Value, {NONE, SEP}, 'stable');
+        rightNames = setdiff(lbRight.Value, [leftNames, {NONE, SEP}], 'stable');
         hasRight = ~isempty(rightNames);
         pal = seriesColors(numel(leftNames) + numel(rightNames));
 
@@ -227,15 +322,43 @@ api.getState   = @getState;
 
     function addSeries(xName, yName, side, color)
         T = d.tbl;
-        if ~all(ismember({xName, yName}, T.Properties.VariableNames)), return; end
-        x = double(T.(xName)); y = double(T.(yName));
-        h = plot(ax, x, y, '-', 'Color', color, 'LineWidth', 1.3, 'DisplayName', yName);
+        if ~ismember(xName, T.Properties.VariableNames), return; end
+        pair = ''; style = '-';
+        k = find(strcmp({twin.name}, yName), 1);
+        if ~isempty(k)
+            % twin signal: its own time base (s from 0, like batt_load) is put
+            % on the chosen X column through the test's time
+            x = twinX(xName, twin(k).t);
+            y = twin(k).y;
+            style = '--';
+            if ismember(twin(k).pair, T.Properties.VariableNames), pair = twin(k).pair; end
+        elseif ismember(yName, T.Properties.VariableNames)
+            x = double(T.(xName)); y = double(T.(yName));
+        else
+            return
+        end
+        h = plot(ax, x, y, style, 'Color', color, 'LineWidth', 1.3, 'DisplayName', yName);
         h.PickableParts = 'none';
         xv = x(~isnan(x));
         s.h = h; s.side = side; s.x = x; s.y = y;
         s.mono = all(diff(xv) >= 0);           % X never goes back (e.g. time)
         s.name = yName; s.color = color; s.marker = []; s.label = [];
+        s.pair = pair; s.dlabel = [];
         series(end+1) = s;
+    end
+
+    function x = twinX(xName, tq)
+        % value of X column xName at test times tq (s). Time-like columns
+        % (rising) are extended past the end; others are NaN outside the test.
+        [tu, iu] = unique(d.t, 'last');
+        xc = double(d.tbl.(xName)); xc = xc(iu);
+        ok = isfinite(xc);
+        if nnz(ok) < 2, x = nan(size(tq)); return; end
+        if all(diff(xc(ok)) >= 0)
+            x = interp1(tu(ok), xc(ok), tq, 'linear', 'extrap');
+        else
+            x = interp1(tu(ok), xc(ok), tq, 'linear', NaN);
+        end
     end
 
     function lims = currentLimits()
@@ -286,9 +409,10 @@ api.getState   = @getState;
         lims = currentLimits();
         xl = lims{1}; yl = lims{2}; yr = lims{3};
         if any(strcmp(mode, {'all','x'}))
-            xs = cellfun(@(v) [min(v(isfinite(v))) max(v(isfinite(v)))], {series.x}, 'UniformOutput', false);
+            xs = cellfun(@finiteRange, {series.x}, 'UniformOutput', false);
             xs = vertcat(xs{:});
-            xl = [min(xs(:,1)) max(xs(:,2))];
+            xl = [min(xs(:,1),[],'omitnan') max(xs(:,2),[],'omitnan')];
+            if ~all(isfinite(xl)), xl = lims{1}; end
         end
         if any(strcmp(mode, {'all','y'}))
             if strcmp(mode,'all'), xr = []; else, xr = xl; end
@@ -348,14 +472,14 @@ api.getState   = @getState;
         if hasRight
             yyaxis(a2,'right'); hold(a2,'on');
             for k = find(strcmp({series.side},'right'))
-                plot(a2, series(k).x, series(k).y, 'Color', series(k).color, 'DisplayName', series(k).name);
+                plot(a2, series(k).x, series(k).y, 'Color', series(k).color, 'LineStyle', series(k).h.LineStyle, 'DisplayName', series(k).name);
             end
             ylim(a2, lims{3}); ylabel(a2, ax.YAxis(2).Label.String, 'Interpreter','none');
             yyaxis(a2,'left');
         end
         hold(a2,'on');
         for k = find(strcmp({series.side},'left'))
-            plot(a2, series(k).x, series(k).y, 'Color', series(k).color, 'DisplayName', series(k).name);
+            plot(a2, series(k).x, series(k).y, 'Color', series(k).color, 'LineStyle', series(k).h.LineStyle, 'DisplayName', series(k).name);
         end
         xlim(a2, lims{1}); ylim(a2, lims{2});
         xlabel(a2, ax.XLabel.String, 'Interpreter','none');
@@ -521,6 +645,13 @@ api.getState   = @getState;
                 'FontSize',11,'FontWeight','bold','BackgroundColor',[1 1 1 0.85], ...
                 'EdgeColor', series(k).color, 'Margin',2, 'Interpreter','none', ...
                 'Clipping','on','PickableParts','none','VerticalAlignment','middle');
+            if partnerOf(k) > 0            % twin + measured both shown -> a delta label
+                series(k).dlabel = text(ax, NaN, NaN, '', 'Color',[0.1 0.1 0.1], ...
+                    'FontSize',11,'FontWeight','bold','FontAngle','italic', ...
+                    'BackgroundColor',[1 0.97 0.80 0.92],'EdgeColor',[0.45 0.45 0.45], ...
+                    'LineStyle','--','Margin',2,'Interpreter','none','Clipping','on', ...
+                    'PickableParts','none','VerticalAlignment','middle');
+            end
         end
         if hasRight, yyaxis(ax,'left'); end
         cursorX = xline(ax, mean(ax.XLim), '-', '', 'Color',[0.15 0.15 0.15], ...
@@ -534,7 +665,8 @@ api.getState   = @getState;
         for k = 1:numel(series)
             if ~isempty(series(k).marker) && isvalid(series(k).marker), delete(series(k).marker); end
             if ~isempty(series(k).label) && isvalid(series(k).label), delete(series(k).label); end
-            series(k).marker = []; series(k).label = [];
+            if ~isempty(series(k).dlabel) && isvalid(series(k).dlabel), delete(series(k).dlabel); end
+            series(k).marker = []; series(k).label = []; series(k).dlabel = [];
         end
         if ~isempty(cursorX) && isvalid(cursorX), delete(cursorX); end
         cursorX = [];
@@ -607,6 +739,44 @@ api.getState   = @getState;
                 set(s.label,'Position',[xVal(k)+dx ly 0],'HorizontalAlignment','left','String',str);
             end
         end
+
+        % ---- delta labels: twin - measured, on the OTHER side of the cursor
+        dk = find(arrayfun(@(s) ~isempty(s.dlabel) && isvalid(s.dlabel), series));
+        dFrac = nan(numel(dk),1);
+        for j = 1:numel(dk)
+            k = dk(j); m = partnerOf(k);
+            if m > 0 && isfinite(yVal(k)) && isfinite(yVal(m)), dFrac(j) = yFrac(k); end
+        end
+        [~, order] = sort(dFrac); order = order(isfinite(dFrac(order)));
+        for j = 2:numel(order)
+            if dFrac(order(j)) - dFrac(order(j-1)) < 0.055
+                dFrac(order(j)) = dFrac(order(j-1)) + 0.055;
+            end
+        end
+        for j = 1:numel(dk)
+            k = dk(j); s = series(k);
+            if ~isfinite(dFrac(j)) || yFrac(k) < 0 || yFrac(k) > 1
+                set(s.dlabel,'Position',[NaN NaN 0],'String',''); continue
+            end
+            m = partnerOf(k);
+            yl = lims{2}; if strcmp(s.side,'right'), yl = lims{3}; end
+            ly = yl(1) + min(max(dFrac(j),0.03),0.97)*diff(yl);
+            str = sprintf('%s = %s (twin - measured)', ...
+                deltaName(s.name), fmtDelta(yVal(k) - yVal(m)));
+            if rightSide
+                set(s.dlabel,'Position',[xc+dx ly 0],'HorizontalAlignment','left','String',str);
+            else
+                set(s.dlabel,'Position',[xc-dx ly 0],'HorizontalAlignment','right','String',str);
+            end
+        end
+    end
+
+    function m = partnerOf(k)
+        % index of the measured series a twin series is paired with (0 = none shown)
+        m = 0;
+        if isempty(series(k).pair), return; end
+        j = find(strcmp({series.name}, series(k).pair), 1);
+        if ~isempty(j), m = j; end
     end
 
 % ---------------- layout helpers -------------------------------------------------
@@ -627,6 +797,70 @@ function styleAxes(a)
 a.FontName = 'Segoe UI'; a.FontSize = 11; a.Box = 'on';
 grid(a,'on'); a.GridAlpha = 0.12;
 a.Title.FontWeight = 'bold';
+end
+
+function s = deltaName(twinName)
+% 'Twin: Voltage (V)' -> 'ΔVoltage (V)'
+s = [char(916) strtrim(regexprep(twinName, '^Twin:\s*', ''))];
+end
+
+function s = fmtDelta(v)
+s = fmtNum(v);
+if isfinite(v) && v > 0, s = ['+' s]; end
+end
+
+function r = finiteRange(v)
+v = v(isfinite(v));
+if isempty(v), r = [NaN NaN]; else, r = [min(v) max(v)]; end
+end
+
+function [t, y, how] = readTwinVar(name)
+% One twin signal from the base workspace (or from "out"). Returns [] if absent.
+t = []; y = []; how = '';
+[v, src] = fetchBase(name);
+if isempty(src), return; end
+how = ['read from ' src];
+try
+    if isa(v, 'Simulink.SimulationData.Dataset'), v = v{1}; end
+    if isa(v, 'Simulink.SimulationData.Signal'),  v = v.Values; end
+    if isa(v, 'timeseries')
+        t = double(v.Time(:)); y = double(squeeze(v.Data));
+    elseif istimetable(v)
+        t = seconds(v.Properties.RowTimes - v.Properties.RowTimes(1)); y = double(v{:,1});
+    elseif isstruct(v) && isfield(v, 'signals')
+        y = double(v.signals(1).values);
+        if isfield(v, 'time') && ~isempty(v.time)
+            t = double(v.time(:));
+        else
+            t = double(fetchBase('tout')); t = t(:); how = [how ' + tout'];
+        end
+    elseif isnumeric(v)
+        tt = double(fetchBase('tout'));
+        if numel(tt) == size(v,1)
+            t = tt(:); y = double(v); how = [how ' + tout'];
+        elseif size(v,2) == 2
+            t = double(v(:,1)); y = double(v(:,2)); how = [how ' as [t y]'];
+        end
+    end
+catch ME
+    t = []; y = []; how = ['could not read (' ME.message ')']; return
+end
+if isempty(y), t = []; how = 'format not recognised (use Timeseries or Structure With Time)'; return; end
+if ~isvector(y), y = y(:,1); end
+y = y(:);
+if numel(t) ~= numel(y)
+    t = []; y = []; how = 'time and data lengths differ'; return
+end
+end
+
+function [v, src] = fetchBase(name)
+v = []; src = '';
+if evalin('base', sprintf('exist(''%s'',''var'')', name))
+    v = evalin('base', name); src = 'the workspace';
+elseif evalin('base', 'exist(''out'',''var'') && isa(out,''Simulink.SimulationOutput'')')
+    out = evalin('base', 'out');
+    if any(strcmp(out.who, name)), v = out.get(name); src = 'out'; end
+end
 end
 
 function s = onOff(tf)

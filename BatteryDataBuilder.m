@@ -80,8 +80,13 @@ if nargin > 0, openFile(file); end
         modelApi.setData(d);
     end
 
-    function onDataChanged(d)
-        % the Modeling tab adds a 'SOC (-)' column after an extraction
-        plotApi.setData(d);
+    function onDataChanged(x, what)
+        % messages from the Modeling tab
+        switch what
+            case 'soc'          % x = dataset with the new 'SOC (-)' column
+                plotApi.setData(x);
+            case 'capacity'     % x = AH (Ah, NaN if unknown) for the C-rate labels
+                profileApi.setCapacity(x);
+        end
     end
 end
