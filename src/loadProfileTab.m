@@ -166,6 +166,12 @@ api.getPulses = @getPulses;
         xlabel(a2, 'Discharged capacity (Ah)', 'FontName', fn);
         if isfinite(d.T_C), tt = sprintf('%.3g %cC', d.T_C, char(176)); else, tt = 'temperature unknown'; end
         title(a2, sprintf('Discharge curves at %s', tt), 'FontName', fn, 'Interpreter','none');
+        % line-style key: black dummy lines say what solid / dotted mean
+        if hasT
+            yyaxis(a2,'left');
+            hS(end+1) = plot(a2, NaN, NaN, '-', 'Color', [0.15 0.15 0.15], 'LineWidth', 1.6); lab{end+1} = 'Solid: voltage';
+            hS(end+1) = plot(a2, NaN, NaN, ':', 'Color', [0.15 0.15 0.15], 'LineWidth', 1.8); lab{end+1} = 'Dotted: cell temperature';
+        end
         lg = legend(a2, hS, lab, 'Interpreter','none', 'Location','eastoutside', 'FontName', fn);
         lg.Title.String = sprintf('Test temperature: %s', tt);
         grid(a2,'on');
