@@ -1,8 +1,10 @@
-function R = extractCellParameters(d, nRC, socGrid, userAH)
+function R = extractCellParameters(d, nRC, socGrid, userAH, capacityOnly)
 %EXTRACTCELLPARAMETERS  Battery (Table-Based) parameters from ONE test file.
 %
 %   R = extractCellParameters(d, nRC, socGrid)
 %   R = extractCellParameters(d, nRC, socGrid, userAH)
+%   R = extractCellParameters(d, [], [], NaN, true)   capacity only (fast): R.value.AH
+%   R = extractCellParameters(d, [], [], NaN, true)   capacity only (fast): R.value.AH
 %
 %   d        dataset from loadBatteryCsv (current: positive = charge)
 %   nRC      number of RC pairs to fit (1..3) = block "Charge dynamics"
@@ -25,6 +27,8 @@ function R = extractCellParameters(d, nRC, socGrid, userAH)
 %         R3_vec tau3_vec thermal_mass hA SOC0 T0
 
 if nargin < 4, userAH = NaN; end
+if nargin < 5, capacityOnly = false; end
+if capacityOnly, nRC = 1; socGrid = [0 0.5 1]; end
 C = constants();
 nRC = max(1, min(3, round(nRC)));
 g = unique(min(max(double(socGrid(:)'), 0), 1));
@@ -86,6 +90,8 @@ else
     end
 end
 rep{end+1} = sprintf('Capacity: %s', R.note.AH);
+if capacityOnly, R.report = strjoin(rep, newline); return; end
+if capacityOnly, R.report = strjoin(rep, newline); return; end
 
 % ======================================================================
 % 3. State of charge (coulomb counting)

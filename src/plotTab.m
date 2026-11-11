@@ -854,8 +854,8 @@ api.loadTwin   = @loadTwin;
         for q = 1:numel(series)
             sx = series(q).x;
             if isempty(sx), continue; end
-            [d, j] = min(abs(sx - x0));
-            if isfinite(d) && d < best, best = d; xs = sx(j); end
+            [dmin, j] = min(abs(sx - x0));
+            if isfinite(dmin) && dmin < best, best = dmin; xs = sx(j); end
         end
         xs = min(max(xs, xl(1)), xl(2));
     end

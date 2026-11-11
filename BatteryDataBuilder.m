@@ -40,6 +40,8 @@ t1 = uitab(tabs,'Title','   Plot   ');
 t2 = uitab(tabs,'Title','   Load profile   ');
 t3 = uitab(tabs,'Title','   Modeling   ');
 
+autoAH = NaN;          % capacity (Ah) found from the file as soon as it is loaded
+autoAH = NaN;          % capacity (Ah) found from the file as soon as it is loaded
 plotApi    = plotTab(t1, fig);
 profileApi = loadProfileTab(t2, fig);
 modelApi   = modelingTab(t3, fig, @onDataChanged);
@@ -78,6 +80,14 @@ if nargin > 0, openFile(file); end
         plotApi.setData(d);
         profileApi.setData(d);
         modelApi.setData(d);
+        autoAH = NaN;                      % C-rate labels straight away, no Extract needed
+        try
+            Rc = extractCellParameters(d, 1, [], NaN, true);
+            if Rc.found.AH, autoAH = Rc.value.AH; end
+        catch
+        end
+        profileApi.setCapacity(autoAH);    % (a typed AH on the Modeling tab still wins)
+        modelApi.setValue('AH_notify', []);
     end
 
     function onDataChanged(x, what)
@@ -86,6 +96,7 @@ if nargin > 0, openFile(file); end
             case 'soc'          % x = dataset with the new 'SOC (-)' column
                 plotApi.setData(x);
             case 'capacity'     % x = AH (Ah, NaN if unknown) for the C-rate labels
+                if ~isfinite(x), x = autoAH; end   % nothing typed / extracted: use the one found at load
                 profileApi.setCapacity(x);
         end
     end

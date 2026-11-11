@@ -48,7 +48,7 @@ hLab = gobjects(0);   % one text label per pulse
 labStr = {};          % ... and its text
 
 g = uigridlayout(tab,[1 2],'ColumnWidth',{350,'1x'},'Padding',[6 6 6 6]);
-gL = uigridlayout(g,[3 1],'RowHeight',{36,'fit','1x'},'Padding',[0 0 0 0]);
+gL = uigridlayout(g,[4 1],'RowHeight',{36,36,'fit','1x'},'Padding',[0 0 0 0]);
 gL.Layout.Column = 1;
 btnSave = uibutton(gL,'Text','Save load profile to workspace','FontWeight','bold','FontSize',13, ...
     'BackgroundColor',[0.20 0.45 0.80],'FontColor','white','Enable','off', ...
@@ -57,6 +57,11 @@ btnSave = uibutton(gL,'Text','Save load profile to workspace','FontWeight','bold
                        'batt_stopTime (model Stop time), batt_Ts (sampling interval) and\n' ...
                        'batt_ambient / batt_ambient_ts (chamber temperature, K, for the thermal port)\n' ...
                        'to the base workspace.']));
+btnCrate = uibutton(gL,'Text','Plot discharge C-rate curves','FontWeight','bold','FontSize',13, ...
+    'Enable','off','ButtonPushedFcn',@(~,~) onCratePlot(), ...
+    'Tooltip',sprintf(['Opens a figure: voltage vs discharged capacity (Ah), one colour per discharge\n' ...
+                       'C-rate (legend: C-rate and Amps), with the cell temperature of each\n' ...
+                       'discharge as a dotted line of the same colour on the right axis.']));
 lblInfo = uilabel(gL,'Text','Open a CSV file first.','WordWrap','on','VerticalAlignment','top', ...
     'FontName','Consolas','FontSize',12);
 
@@ -111,6 +116,7 @@ api.getPulses = @getPulses;
         updateInfo();
         layoutLabels();
         btnSave.Enable = 'on';
+        btnCrate.Enable = 'on';
     end
 
     function setCapacity(ah)
@@ -118,6 +124,82 @@ api.getPulses = @getPulses;
         capAh = ah;
         if isempty(prof), return; end
         makeLabels(); updateInfo(); layoutLabels();
+    end
+
+
+    function onCratePlot()
+        if isempty(prof), return; end
+        D = dischargeCurves();
+        if isempty(D)
+            uialert(fig, ['No constant-current discharge long enough to plot was found in this test ' ...
+                '(needs at least 5 minutes at one current).'], 'C-rate curves');
+            return
+        end
+        col = seriesColors(numel(D));
+        f2 = figure('Name','Discharge C-rate curves','Color','w');
+        a2 = axes(f2); %#ok<LAXES>
+        fn = 'Century Gothic';
+        a2.FontName = fn; a2.FontSize = 16;
+        hasT = any(arrayfun(@(q) any(isfinite(q.T)), D));
+        yyaxis(a2,'left'); hold(a2,'on');
+        hS = gobjects(numel(D),1); lab = cell(numel(D),1);
+        for k = 1:numel(D)
+            hS(k) = plot(a2, D(k).Ah, D(k).V, '-', 'Color', col(k,:), 'LineWidth', 1.6);
+            if isfinite(capAh)
+                lab{k} = sprintf('%sC  (%.3g A)', crStr(D(k).I/capAh), D(k).I);
+            else
+                lab{k} = sprintf('%.3g A', D(k).I);
+            end
+        end
+        ylabel(a2, 'Voltage (V)', 'FontName', fn);
+        a2.YAxis(1).Color = [0.15 0.15 0.15];
+        if hasT
+            yyaxis(a2,'right'); hold(a2,'on');
+            for k = 1:numel(D)
+                plot(a2, D(k).Ah, D(k).T, ':', 'Color', col(k,:), 'LineWidth', 1.8, 'HandleVisibility','off');
+            end
+            ylabel(a2, ['Cell temperature (' char(176) 'C)'], 'FontName', fn);
+            a2.YAxis(2).Color = [0.15 0.15 0.15];
+            yyaxis(a2,'left');
+        end
+        xlabel(a2, 'Discharged capacity (Ah)', 'FontName', fn);
+        if isfinite(d.T_C), tt = sprintf('%.3g %cC', d.T_C, char(176)); else, tt = 'temperature unknown'; end
+        title(a2, sprintf('Discharge curves at %s', tt), 'FontName', fn, 'Interpreter','none');
+        lg = legend(a2, hS, lab, 'Interpreter','none', 'Location','southwest', 'FontName', fn);
+        lg.Title.String = sprintf('Test temperature: %s', tt);
+        grid(a2,'on');
+        if ~hasT
+            text(a2, 0.98, 0.98, 'no cell temperature column in the file', 'Units','normalized', ...
+                'HorizontalAlignment','right', 'VerticalAlignment','top', 'FontName', fn, 'FontSize', 11);
+        end
+    end
+
+    function D = dischargeCurves()
+        % one curve per discharge C-rate: the biggest constant-current discharge
+        % at that rate (>= 5 min), as voltage / cell temperature vs Ah drawn out
+        D = struct('I',{},'Ah',{},'V',{},'T',{});
+        if isempty(pulses), return; end
+        t = prof.tData; I = prof.IData; V = d.V(prof.iu); Tc = d.Tcell(prof.iu);
+        cand = struct('I',{},'q',{},'v',{},'T',{},'tot',{});
+        for k = 1:numel(pulses)
+            p = pulses(k);
+            if p.sign >= 0 || ~strcmp(p.kind,'CC') || (p.t2 - p.t1) < 300, continue; end
+            idx = p.i1:p.i2;
+            if numel(idx) < 3, continue; end
+            q = [0; cumsum(abs(I(idx(1:end-1))).*diff(t(idx)))]/3600;
+            cand(end+1) = struct('I',p.Ilev,'q',q,'v',V(idx),'T',Tc(idx),'tot',q(end)); %#ok<AGROW>
+        end
+        if isempty(cand), return; end
+        if isfinite(capAh), unit = 0.02*capAh; else, unit = 0.02*max([cand.I]); end
+        lev = round([cand.I]/unit);
+        [u, ~, id] = unique(lev);
+        for r = 1:numel(u)
+            m = find(id == r);
+            [~, j] = max([cand(m).tot]);
+            c = cand(m(j));
+            D(end+1) = struct('I',c.I,'Ah',c.q,'V',c.v,'T',c.T); %#ok<AGROW>
+        end
+        [~, ord] = sort([D.I]); D = D(ord);
     end
 
 % -------------------------------------------------------------------------
@@ -182,10 +264,12 @@ api.getPulses = @getPulses;
         nC = nnz([pulses.sign] > 0); nD = nnz([pulses.sign] < 0);
         if isfinite(capAh)
             cr = sprintf(['C-rate labels  |I| / AH,\n' ...
-                          '               AH = %.4g Ah (Modeling tab)'], capAh);
+                          '               AH = %.4g Ah (from the test,\n' ...
+                          '               or typed on the Modeling tab)'], capAh);
         else
-            cr = sprintf(['C-rate labels  need AH: press Extract on\n' ...
-                          '               the Modeling tab (labels show A)']);
+            cr = sprintf(['C-rate labels  no full discharge found to\n' ...
+                          '               get AH: type AH on the Modeling\n' ...
+                          '               tab (labels show A)']);
         end
         lblInfo.Text = sprintf([ ...
             'File      %s\nDuration  %.2f h\nPoints    %d\n\n' ...
@@ -261,7 +345,7 @@ tb = t(k) - epsT; Ib = I(k-1);
 II = [I; Ib];
 prof.t = tt;
 prof.I = II(ord);
-prof.tData = t; prof.IData = I;
+prof.tData = t; prof.IData = I; prof.iu = iu;
 % chamber temperature = the ambient for the thermal port, in K on the same
 % time points (missing readings are bridged linearly between their neighbours)
 prof.Tamb = []; prof.TambWhy = '';
@@ -361,4 +445,11 @@ function styleAxes(a)
 a.FontName = 'Segoe UI'; a.FontSize = 11; a.Box = 'on';
 grid(a,'on'); a.GridAlpha = 0.12;
 a.Title.FontWeight = 'bold';
+end
+
+function c = seriesColors(n)
+% distinct, readable line colours (cycles if there are more curves than colours)
+base = [0.00 0.447 0.741; 0.850 0.325 0.098; 0.929 0.694 0.125; 0.494 0.184 0.556; ...
+        0.466 0.674 0.188; 0.301 0.745 0.933; 0.635 0.078 0.184; 0.10 0.10 0.10];
+c = base(mod((0:n-1), size(base,1)) + 1, :);
 end
