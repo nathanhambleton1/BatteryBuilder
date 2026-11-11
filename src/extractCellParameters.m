@@ -595,15 +595,18 @@ if ~any(fast)
     lim = C.maxEdgeDtLoose;
     fast = dtAfter(cand) <= lim & (fromRest(cand) | dtBefore(cand) <= lim);
 end
-why(dtAfter(cand) > lim) = {sprintf('first sample after the step > %g s', lim)};
+why(dtAfter(cand) > lim) = {sprintf('after > %g s', lim)};
 why(cellfun(@isempty, why) & ~(fromRest(cand) | dtBefore(cand) <= lim)) = ...
-    {sprintf('sample before was under current and > %g s before the step', lim)};
-why(cellfun(@isempty, why) & ~(Rv > 0 & Rv < 1)) = {'dV/dI not a plausible resistance'};
+    {sprintf('before: under current, > %g s', lim)};
+why(cellfun(@isempty, why) & ~(Rv > 0 & Rv < 1)) = {'dV/dI implausible'};
 nHot = 0;
 if isfinite(Tref) && any(isfinite(d.Tcell))
     hot = cellfun(@isempty, why) & abs(d.Tcell(cand+1) - Tref) > C.maxDT;
     nHot = nnz(hot);
-    why(hot) = {sprintf('cell more than %g K from %.3g °C', C.maxDT, Tref)};
+    ih = find(hot);
+    for i = ih(:)'
+        why{i} = sprintf('%.3g °C, not %.3g °C', d.Tcell(cand(i)+1), Tref);
+    end
 end
 used = cellfun(@isempty, why);
 k = cand(used);

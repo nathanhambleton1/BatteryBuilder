@@ -327,8 +327,23 @@ switch key
                     st.Ibefore(i), st.Iafter(i), st.dtBefore(i), st.dtAfter(i), 1000*st.R0(i), u); %#ok<AGROW>
             end
             M(L);
+            nT = nnz(contains(st.why, '°C'));
+            if nT > 0
+                P(sprintf(['%d step(s) were left out because of temperature: this file''s tables are ' ...
+                   'for %.3g °C (the chamber during the discharges), and those steps happened with the ' ...
+                   'cell at another temperature (in a rate test at a temperature other than 25 °C, the ' ...
+                   'charges run at 25 °C). R0 depends strongly on temperature, so those values belong ' ...
+                   'in the table of the file for THEIR temperature.'], nT, R.diag.Tref), warnIf(true));
+            end
         end
+        dischargeEnds();
         H('Step 3 - the table');
+        msoc = unique(round(p(:,1)*20)/20);
+        if numel(msoc) == 1
+            P(sprintf(['In this file R0 was measured at only ONE SOC (about %.2f), so the whole table ' ...
+               'is that one value held flat. A second measured SOC (near empty) would give the ' ...
+               'straight line - see "Discharge ends" above for why there is none.'], msoc), warnIf(true));
+        end
         P(['A rate test only steps the current at the two ends: at FULL (start of each discharge) ' ...
            'and near EMPTY (end of each discharge, start of each charge). So R0 is only measured ' ...
            'there. Each of those SOCs takes the MEDIAN of its steps, the table is a straight line ' ...
@@ -525,6 +540,35 @@ end
            'it) belongs to a different temperature and is left out - the resistances change with ' ...
            'temperature (the reason the block has R(SOC,T) tables). Left out here: %d step(s), %d rest(s).'], R.diag.Tref, R.constants.maxDT, ...
            h.edges, h.fits), warnIf(false));
+    end
+
+    function dischargeEnds()
+        % raw samples around every discharge -> rest switch (near EMPTY): shows
+        % whether the current really drops to 0 in ONE sample there
+        if ~isfield(R.diag,'phases') || isempty(R.diag.phases), return; end
+        ph = R.diag.phases; d = R.d;
+        L = {sprintf('   %9s  %9s  %8s  %9s  %8s  %6s', 'time (s)', 'dt (s)', 'I (A)', 'V (V)', 'SOC', 'T °C')};
+        n = 0;
+        for j = 1:numel(ph)-1
+            if ph(j).type ~= 'D' || ph(j+1).type ~= 'R', continue; end
+            n = n + 1;
+            a = max(ph(j).i2 - 2, 1); b = min(ph(j+1).i1 + 2, numel(d.t));
+            L{end+1} = sprintf('   -- discharge %d ends (%.3g A) --', n, ph(j).Iend); %#ok<AGROW>
+            for i = a:b
+                if i > 1, dti = d.t(i) - d.t(i-1); else, dti = NaN; end
+                sc = NaN; if isfield(d,'soc') && ~isempty(d.soc), sc = d.soc(i); end
+                tc = NaN; if ~isempty(d.Tcell), tc = d.Tcell(i); end
+                L{end+1} = sprintf('   %9.2f  %9.3g  %8.4g  %9.4f  %8.3f  %6.3g', d.t(i), dti, d.I(i), ...
+                    d.V(i), sc, tc); %#ok<AGROW>
+            end
+        end
+        if n == 0, return; end
+        H('Discharge ends (near EMPTY)');
+        P(['The end of each discharge (current -> rest) should be a second R0 point, near SOC 0 and ' ...
+           'at this file''s temperature. It only counts as a step when the current goes from the ' ...
+           'discharge value to rest in ONE sample, with both samples close to the switch. The ' ...
+           'samples around each discharge end:'], 'small');
+        M(L);
     end
 
     function rdcP()
