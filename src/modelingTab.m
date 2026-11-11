@@ -360,7 +360,7 @@ api.getState = @getState;
                 hs(end+1) = plot(axTest, th(c.emptyIdx), d.V(c.emptyIdx), 'v', 'MarkerFaceColor',[0.85 0.2 0.1], ...
                     'MarkerEdgeColor','none','MarkerSize',8); lg{end+1} = 'empty (cut-off)';
             end
-            if ~isempty(R.diag.fits)
+            if isfield(R.diag,'fits') && ~isempty(R.diag.fits)
                 t0 = [R.diag.fits.t0];
                 [~, i0] = min(abs(d.t(:) - t0), [], 1);
                 hs(end+1) = plot(axTest, th(i0), d.V(i0), 'o', 'Color',[0 0.45 0.74], ...
@@ -369,7 +369,7 @@ api.getState = @getState;
             if ~isempty(R.diag.edgeIdx)
                 k = R.diag.edgeIdx;
                 hs(end+1) = plot(axTest, th(k), d.V(k), '.', 'Color',[0.85 0.33 0.1], ...
-                    'MarkerSize',6); lg{end+1} = 'current step used for R0';
+                    'MarkerSize',6); lg{end+1} = 'step from rest (R0, RC pairs)';
             end
             hold(axTest,'off');
         end

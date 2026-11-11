@@ -245,14 +245,14 @@ switch key
            'Resistances change a lot with temperature, so each column is built only from the data ' ...
            'taken with the cell within %g K of that temperature:'], R.byT{3-R.iPrim}.T_C, ...
            R.byT{R.iPrim}.T_C, R.constants.maxDT));
-        P(sprintf(['%.3g °C (discharges): R0 at the start of each discharge (SOC 1) and at its end ' ...
-           '(near SOC 0), RC pairs from the rests after the discharges, OCV and R_dc from the ' ...
-           'multi-rate fit, capacity, thermal values.'], R.byT{R.iPrim}.T_C), 'small');
-        P(sprintf(['%.3g °C (charges): R0 at the start of each charge (near SOC 0) and RC pairs ' ...
-           'from the rests after the charges. There are no discharges at this temperature, so the ' ...
-           'OCV is taken from the other column (it changes only a few mV with temperature), and a ' ...
-           'table that cannot be measured here is copied from the other temperature (its note ' ...
-           'says COPIED).'], R.byT{3-R.iPrim}.T_C), 'small');
+        P(sprintf(['%.3g °C (discharges): R0 and the RC pairs from the start of each discharge ' ...
+           '(SOC 1, from a rest), OCV and R_dc from the discharges at several rates, capacity, thermal ' ...
+           'values.'], R.byT{R.iPrim}.T_C), 'small');
+        P(sprintf(['%.3g °C (charges): R0 and the RC pairs from the start of each charge (near SOC 0, ' ...
+           'from a rest), R_dc = (V - V0)/I from the CC part of the charges. There are no discharges at ' ...
+           'this temperature, so the OCV is taken from the other column (it changes only a few mV with ' ...
+           'temperature); a table that cannot be measured here is copied from the other temperature ' ...
+           '(its note says COPIED).'], R.byT{3-R.iPrim}.T_C), 'small');
         H('Value');
         M({sprintf('T_vec = %s K   (= %s °C)', mat2str(val, 5), mat2str(Tc, 3))});
         if any(isfinite(d.Tch)), plot(ax1, th, d.Tch, 'LineWidth',1.2, 'DisplayName','chamber'); hold(ax1,'on'); end
@@ -268,201 +268,134 @@ switch key
 
     % ------------------------------------------------------------------
     case 'V0_vec'
-      p = R.diag.points; ex = R.diag.ocvExample;
-      if isfield(R.diag, 'multiRate') && R.diag.multiRate.ok
-        explainOcvMultiRate();
-      else
-        H('What it is');
-        P(['The open-circuit voltage (OCV): the voltage the cell settles to with no current, ' ...
-           'as a function of SOC. It is the "fuel gauge" curve of the cell.']);
-        H('The model it belongs to');
-        P(['The block''s terminal voltage is the OCV plus the drop over R0 plus the voltage ' ...
-           'over each RC pair (x_k = current through the resistor of RC pair k):']);
-        EQ('V = V_0(\mathrm{SOC}) + I\,R_0 + \sum_k R_k\,x_k');
-        P('So the OCV can never be measured directly while current flows - two ways are used:');
-        H('Source 1 - relaxed rests (sets the LEVEL)');
-        P(['After a current pulse the voltage creeps towards the OCV. Each rest of at least ' ...
-           '5 min is fitted (see R1 / tau1) with']);
-        EQ('V(t) = V_\infty + \sum_k R_k\,x_k(0)\,e^{-t/\tau_k}');
-        P(sprintf(['V_inf, the voltage it would reach after infinite time, is one OCV point. ' ...
-           '%d rest(s) gave points (orange dots on the plot).'], size(p.ocv,1)));
-        H('Source 2 - slow charge / discharge (sets the SHAPE)');
-        P(sprintf(['During constant-current steps at or below %.2gC the model above is turned ' ...
-           'round to estimate the OCV at every sample:'], R.constants.ocvMaxCrate));
-        EQ('\hat V_0 = V - I\,R_0(\mathrm{SOC}) - \sum_k R_k(\mathrm{SOC})\,x_k');
-        P('with each RC current x_k following the real current history:');
-        EQ('x_k[n] = a_k\,x_k[n-1] + (1-a_k)\,I[n-1], \qquad a_k = e^{-\Delta t/\tau_k}');
-        if ~isempty(ex)
-            P(sprintf('Worked example (sample at %.2f h, SOC %.3f):', ex.t/3600, ex.soc), 'small');
-            rx = sum(ex.Rx);
-            EQ(sprintf('\\hat V_0 = %s - (%s)(%s) - %s = %s\\ \\mathrm{V}', n4(ex.V), n4(ex.I), ...
-                n5(ex.R0), n4(rx), n4(ex.est)));
-        end
-        P(['Charge and discharge estimates are averaged in 1 % SOC bins; that cancels most of ' ...
-           'the hysteresis and what is left of the model error:']);
-        EQ('\hat V_0 = \tfrac{1}{2}\left(\hat V_{0,\mathrm{chg}} + \hat V_{0,\mathrm{dis}}\right)');
-        H('Putting them together');
-        P(['The dense curve gives the shape between rests, the rest points fix its level: the ' ...
-           'offset c between the two is measured at each rest and interpolated in between.']);
-        EQ('V_0(s_j) = \hat V_0(s_j) - c(s_j), \qquad c = \hat V_0 - V_\infty \ \mathrm{at\ each\ rest}');
-        P(['Finally the table is forced to rise with SOC. Where neither source reaches the ' ...
-           'box is left empty rather than guessed.']);
-        H('Table');
-        P('M = measured near this SOC, I = interpolated between measurements, E = short extension past the data.', 'small');
-        M(tableLines(R.value.SOC_vec, val, R.diag.prov.V0_vec, '%.4f V'));
-        hold(ax1,'on');
-        if ~isempty(p.ocvDense)
-            plot(ax1, p.ocvDense(:,1), p.ocvDense(:,2), '.', 'Color',[0.6 0.6 0.6], 'DisplayName','corrected slow curve');
-        end
-        if ~isempty(p.ocv)
-            plot(ax1, p.ocv(:,1), p.ocv(:,2), 'o', 'MarkerFaceColor',[0.85 0.33 0.1], ...
-                'MarkerEdgeColor','none','DisplayName','relaxed rest voltage V_\infty');
-        end
-        plot(ax1, R.value.SOC_vec, val, '-s', 'Color',[0 0.45 0.74], 'LineWidth',1.6, 'DisplayName','V0 table');
-        hold(ax1,'off'); legend(ax1,'Location','southeast'); xlim(ax1, [-0.02 1.02]);
-        xlabel(ax1,'SOC (-)'); ylabel(ax1,'OCV (V)'); title(ax1,'Open-circuit voltage');
-        plotExampleRelaxation(ax2, R, 1, true);
-      end
+        explainOcv();
 
     % ------------------------------------------------------------------
     case 'R0_vec'
-        p = R.diag.points.R0;
-        e = exampleEdge(R);
-        st = []; if isfield(R.diag,'r0Steps'), st = R.diag.r0Steps; end
-        lim = R.constants.maxEdgeDt; if ~isempty(st), lim = st.lim; end
+        dy = R.diag.dyn; on = dy.on;
+        u = find([on.used]);
         H('What it is');
         P(['The series (ohmic) resistance: the part of the voltage change that appears the ' ...
            'instant the current changes - electrolyte, contacts, tabs.']);
-        H('Step 1 - find the current steps');
-        P(['A current step is where the current jumps (rest -> charge, rest -> discharge, ' ...
-           'discharge -> rest ...) from one sample to the next. The voltage over an RC pair ' ...
-           'cannot jump (its capacitor needs time), so in that one sample only R0 responds:']);
-        EQ('R_0 = \frac{V_{after}-V_{before}}{I_{after}-I_{before}}');
-        H('Step 2 - check the two samples sit right at the step');
-        P(sprintf(['The cycler logs slowly while nothing changes (e.g. every 30 s) and fast right ' ...
-           'after a step (e.g. 0.05 s, then slower and slower). A step is used when the first ' ...
-           'sample AFTER it is within %g s, and the sample BEFORE it is either at rest (voltage ' ...
-           'steady, so its age does not matter) or also within %g s. Steps smaller than %.2gC ' ...
-           'are left out. %d step(s) used.'], lim, lim, R.constants.minStepC, size(p,1)));
-        hotP();
-        if ~isempty(e)
+        H('Where it is measured');
+        P(sprintf(['At every charge or discharge that starts after a rest of at least %g min. The cell ' ...
+           'was at rest, so its voltage V_rest is steady and every RC pair is empty. The cycler logs the ' ...
+           'first sample a few hundredths of a second after the switch; in that time only R0 can ' ...
+           'respond (an RC pair''s capacitor needs time to charge):'], R.constants.minRestS/60));
+        EQ('R_0 = \frac{V_{first} - V_{rest}}{I}');
+        P(sprintf(['I is the step''s constant current (the median of its first samples): a first ' ...
+           'reading can spike - e.g. 0.34 A logged for a 0.265 A step - while the voltage follows the ' ...
+           'real current. Used when the first sample is within %g s of the switch and the cell is ' ...
+           'within %g K of %.3g °C.'], R.constants.maxEdgeDt, R.constants.maxDT, R.T_C));
+        e = [];
+        if ~isempty(u)
+            [~, m] = min(abs([on(u).crate] - 0.5)); e = on(u(m));
             H('Worked example');
-            if e.rest, rt = ' (at rest)'; else, rt = ''; end
-            P(sprintf(['Step at %.2f h, SOC %.3f: current %.4g A -> %.4g A. Sample before: %.3g s ' ...
-               'before the step%s; sample after: %.3g s after it.'], e.t/3600, e.soc, e.Ib, e.Ia, ...
-               e.dtB, rt, e.dtA), 'small');
-            EQ(sprintf('R_0 = \\frac{%s\\ \\mathrm{V}}{%s\\ \\mathrm{A}} = %s\\ \\mathrm{m\\Omega}', ...
-                n4(e.dV), n4(e.dI), n3(1000*e.R0)));
+            P(sprintf('%.3g A step (%.2gC) at SOC %.3f, after a %.0f min rest; first sample %.3g s after the switch:', ...
+                abs(e.I), e.crate, e.soc, e.restDur/60, e.dt1), 'small');
+            EQ(sprintf('R_0 = \\frac{%s - %s}{%s} = %s\\ \\mathrm{m\\Omega}', n5(R.d.V(e.a)), n5(e.Vrest), ...
+                p4(e.I), n3(1000*e.R0)));
         end
-        if ~isempty(st) && ~isempty(st.k)
-            H('Every step found');
-            L = {sprintf('   %6s  %9s  %9s  %8s  %8s  %8s   %s', 'SOC', 'I bef (A)', 'I aft (A)', ...
-                'dt bef', 'dt aft', 'R0 mOhm', 'used?')};
-            for i = 1:numel(st.k)
-                if st.used(i), u = 'yes'; else, u = ['no: ' st.why{i}]; end
-                L{end+1} = sprintf('   %6.3f  %9.4g  %9.4g  %7.3gs  %7.3gs  %8.2f   %s', st.soc(i), ...
-                    st.Ibefore(i), st.Iafter(i), st.dtBefore(i), st.dtAfter(i), 1000*st.R0(i), u); %#ok<AGROW>
-            end
-            M(L);
-            nT = nnz(contains(st.why, '°C'));
-            if nT > 0
-                P(sprintf(['%d step(s) were left out because of temperature: this file''s tables are ' ...
-                   'for %.3g °C (the chamber during the discharges), and those steps happened with the ' ...
-                   'cell at another temperature (in a rate test at a temperature other than 25 °C, the ' ...
-                   'charges run at 25 °C). R0 depends strongly on temperature, so those values belong ' ...
-                   'in the table of the file for THEIR temperature.'], nT, R.diag.Tref), warnIf(true));
-            end
+        H('Every step from rest');
+        L = {sprintf('   %6s %8s %6s %8s %8s %6s %8s   %s', 'SOC', 'I (A)', 'C', 'rest', 'first', 'T °C', 'R0 mOhm', 'used?')};
+        for i = 1:numel(on)
+            if on(i).used, us = 'yes'; else, us = ['no: ' on(i).why]; end
+            L{end+1} = sprintf('   %6.3f %8.4g %6.2f %5.0fmin %7.3gs %6.3g %8.2f   %s', on(i).soc, on(i).I, ...
+                on(i).crate, on(i).restDur/60, on(i).dt1, on(i).T, 1000*on(i).R0, us); %#ok<AGROW>
         end
-        dischargeEnds();
-        H('Step 3 - the table');
-        msoc = unique(round(p(:,1)*20)/20);
+        M(L);
+        if numel(u) >= 2 && max([on(u).R0]) > 1.15*min([on(u).R0])
+            P(sprintf(['R0 is not the same at every current here (%.3g .. %.3g mOhm): at low ' ...
+               'temperature the cell''s resistance falls as the current rises. The block has one R0 per ' ...
+               'SOC, so the table takes the median.'], 1000*min([on(u).R0]), 1000*max([on(u).R0])), 'small');
+        end
+        H('The table');
+        msoc = unique(round([on(u).soc]*20)/20);
         if numel(msoc) == 1
-            P(sprintf(['In this file R0 was measured at only ONE SOC (about %.2f), so the whole table ' ...
-               'is that one value held flat. A second measured SOC (near empty) would give the ' ...
-               'straight line - see "Discharge ends" above for why there is none.'], msoc), warnIf(true));
+            P(sprintf(['A rate test only starts from rest at one SOC per temperature (here about %.2f), ' ...
+               'so R0 is measured there only and that value is held at every SOC. Nothing else in the test ' ...
+               'shows R0 on its own (the current never jumps in the middle of the SOC range); what a ' ...
+               'constant current feels beyond R0 is put in the RC pairs (see R1).'], msoc));
+        else
+            P('Median per measured SOC, straight line between them, end values held.');
         end
-        P(['A rate test only steps the current at the two ends: at FULL (start of each discharge) ' ...
-           'and near EMPTY (end of each discharge, start of each charge). So R0 is only measured ' ...
-           'there. Each of those SOCs takes the MEDIAN of its steps, the table is a straight line ' ...
-           'between them, and past the last measured SOC the end value is held.']);
-        P(['R0 is not changed anywhere else. The extra resistance a long constant current feels ' ...
-           '(the multi-rate R_dc, see the OCV window) belongs to the RC pairs, which are scaled ' ...
-           'to make up the difference (see R1 / R2).'], 'small');
         P('M = measured near this SOC, I = straight line between measured SOCs, E = end value held.', 'small');
         M(tableLines(R.value.SOC_vec, val*1000, R.diag.prov.R0_vec, '%.3f mOhm'));
-        scatter(ax1, p(:,1), p(:,2)*1000, 16, [0.6 0.6 0.6], 'filled', 'MarkerFaceAlpha',0.5); hold(ax1,'on');
-        plot(ax1, R.value.SOC_vec, val*1000, '-s', 'Color',[0 0.45 0.74], 'LineWidth',1.6);
-        lg = {'each current step','R0 table'};
-        if isfield(R.diag,'multiRate') && R.diag.multiRate.ok
-            [rs, rsLab] = rSum();
-            plot(ax1, R.diag.multiRate.RdcPts(:,1), R.diag.multiRate.RdcPts(:,2)*1000, '-', ...
-                'Color',[0.85 0.33 0.1], 'LineWidth',1.2);
-            plot(ax1, R.value.SOC_vec, rs*1000, '--', 'Color',[0.47 0.67 0.19], 'LineWidth',1.2);
-            lg = [lg, {'R_{dc} from the multi-rate fit', rsLab}];
+        if ~isempty(u)
+            scatter(ax1, [on(u).soc], 1000*[on(u).R0], 30, [0.85 0.33 0.1], 'filled'); hold(ax1,'on');
         end
-        hold(ax1,'off'); legend(ax1, lg, 'Location','best');
+        plot(ax1, R.value.SOC_vec, val*1000, '-s', 'Color',[0 0.45 0.74], 'LineWidth',1.6);
+        hold(ax1,'off'); legend(ax1, {'each step from rest','R0 table'}, 'Location','best');
         xlim(ax1,[-0.02 1.02]); xlabel(ax1,'SOC (-)'); ylabel(ax1,'R0 (m\Omega)'); title(ax1,'R0 vs SOC');
-        plotExampleEdge(ax2, R, e);
+        plotStep(ax2, R, e);
 
     % ------------------------------------------------------------------
     case {'R1_vec','R2_vec','R3_vec','tau1_vec','tau2_vec','tau3_vec'}
         q = str2double(key(regexp(key,'\d','once')));
         isTau = startsWith(key,'tau');
-        p = R.diag.points.(regexprep(key,'_vec',''));
-        fx = exampleFit(R);
+        cl = R.diag.dyn.clusters;
         H('What it is');
-        P(sprintf(['RC pair %d models a slow voltage change - diffusion and charge transfer ' ...
-           'inside the cell. R%d is how big the change is per amp, tau%d = R%d*C%d is how fast ' ...
-           'it happens (in seconds). Pairs are numbered fastest first: tau1 < tau2 < tau3.'], q, q, q, q, q));
-        H('The model');
-        P(sprintf('The current through the resistor of pair k, x_k, lags the cell current I with time constant tau_k:'));
-        EQ('\frac{dx_k}{dt} = \frac{I - x_k}{\tau_k}, \qquad v_k = R_k\,x_k');
-        H('Step 1 - pick the rests');
-        P(sprintf(['Every rest of at least %d min that follows a charge or discharge. During ' ...
-           'a rest I = 0, so each x_k decays and the voltage relaxes:'], round(R.constants.minRestS/60)));
-        EQ('V(t) = V_\infty + \sum_k R_k\,x_k(0)\,e^{-t/\tau_k}');
-        H('Step 2 - where the RC pairs start');
-        P(['x_k(0), the current in each pair when the current stopped, is worked out from the ' ...
-           'REAL current history (exact for a cycler''s piecewise-constant current):']);
-        EQ('x_k[n] = a_k\,x_k[n-1] + (1-a_k)\,I[n-1], \qquad a_k = e^{-\Delta t/\tau_k}');
-        P('So a 10 s pulse and a 2 h charge are both handled correctly.');
-        H('Step 3 - fit');
-        P(['For a given set of time constants the equation is LINEAR in V_inf and the R_k, so ' ...
-           'they come from least squares (with R_k >= 0):']);
-        EQ('\min_{V_\infty,\;R_k \ge 0}\ \sum_i \Big(V_i - V_\infty - \sum_k R_k\,x_k(0)\,e^{-t_i/\tau_k}\Big)^2');
-        P(sprintf(['The time constants are searched on a log grid between %g s and the rest ' ...
-           'length, then refined (Nelder-Mead). Fits with an rms error above %g mV are thrown ' ...
-           'away. %d rest(s) gave usable fits.'], R.constants.tauMin, 1000*R.constants.maxFitRmse, ...
-           numel(R.diag.fits)));
-        if ~isempty(fx) && numel(fx.R) >= q && isfinite(fx.R(q))
-            H('Worked example');
-            P(sprintf('The rest closest to SOC 0.5 (SOC %.3f, rms error %.2f mV):', fx.soc, 1000*fx.rmse), 'small');
-            EQ(sprintf('x_%d(0) = %s\\ \\mathrm{A},\\quad R_%d = %s\\ \\mathrm{m\\Omega},\\quad \\tau_%d = %s\\ \\mathrm{s}', ...
-                q, n4(fx.x0(q)), q, n3(1000*fx.R(q)), q, n3(fx.tau(q))));
-            EQ(sprintf('C_%d = \\frac{\\tau_%d}{R_%d} = %s\\ \\mathrm{F} \\quad (\\mathrm{if\\ you\\ need\\ a\\ capacitance})', ...
-                q, q, q, n3(fx.tau(q)/fx.R(q))));
+        P(sprintf(['RC pair %d models a voltage change that takes time - charge transfer and ' ...
+           'diffusion inside the cell. R%d is how big it is per amp, tau%d how fast it builds up (s). ' ...
+           'Pairs are numbered fastest first: tau1 < tau2 < tau3.'], q, q, q));
+        H('Where it is measured: right after a step from rest');
+        P(['After a rest every RC pair is empty. When a constant current I starts, R0 responds at once ' ...
+           '(see R0) and each pair then fills up with its own time constant. The OCV also moves a ' ...
+           'little as charge goes in or out (slope s, V per Ah). So the block''s voltage is']);
+        EQ('V(t) = V_{rest} + I\left[R_0 + \sum_k R_k\left(1 - e^{-t/\tau_k}\right)\right] + s\,\frac{I\,t}{3600}');
+        P(sprintf(['Dividing by I gives the resistance the cell shows t seconds after the step - the ' ...
+           'top plot, straight from the data. Used: the first %g s (at most %g %% of SOC) after each ' ...
+           'step from rest at %.3g °C, rates up to %gC.'], R.constants.onsetMaxS, 100*R.constants.onsetMaxDSOC, ...
+           R.T_C, R.constants.mrMaxCrate));
+        EQ('\frac{V(t) - V_{rest}}{I} = R_0 + \sum_k R_k\left(1 - e^{-t/\tau_k}\right) + s\,\frac{t}{3600}');
+        H('The fit');
+        P(['All steps at the same SOC are fitted together. They share the time constants tau_k and the ' ...
+           'OCV slope s (same cell, same SOC); each step gets its own R_k, because the cell''s resistance ' ...
+           'can depend on the current and the block''s cannot. For given tau_k the equation is linear in ' ...
+           'R_k and s (all >= 0), so those come from least squares; the tau_k are searched on a log grid ' ...
+           'and refined.']);
+        if isempty(cl)
+            P(R.note.(key), 'warn');
+        else
+            c = cl(end);
+            H('How many RC pairs?');
+            P('The same steps fitted with 1, 2 and 3 pairs (rms voltage error over all of them):', 'small');
+            L = {sprintf('   %6s  %10s  %s', 'pairs', 'rms (mV)', 'tau (s)')};
+            for n = 1:3
+                L{end+1} = sprintf('   %6d  %10.2f  %s', n, 1000*c.rmsN(n), mat2str(round(c.fitsN{n}.tau, 3, 'significant'))); %#ok<AGROW>
+            end
+            M(L);
+            P(['Each extra pair should cut the error clearly; when it hardly does, the data cannot ' ...
+               'separate it from the others and fewer pairs is the better choice.'], 'small');
+            H(sprintf('Result with %d pair(s), SOC %.2f', R.nRC, c.soc));
+            L = {sprintf('   %8s %6s %8s', 'I (A)', 'C', 'R0')};
+            for k2 = 1:R.nRC, L{1} = [L{1} sprintf(' %8s', sprintf('R%d', k2))]; end
+            L{1} = [L{1} '  (mOhm)  rms mV'];
+            for i = 1:numel(c.tr)
+                Li = sprintf('   %8.4g %6.2f %8.2f', c.tr(i).I, abs(c.tr(i).I)/R.diag.soc.cap, 1000*c.tr(i).R0);
+                for k2 = 1:R.nRC, Li = [Li sprintf(' %8.2f', 1000*c.tr(i).R(k2))]; end %#ok<AGROW>
+                L{end+1} = [Li sprintf('          %6.2f', 1000*c.tr(i).rms)]; %#ok<AGROW>
+            end
+            M(L);
+            EQ(sprintf('\\tau = %s\\ \\mathrm{s}, \\qquad s = %s\\ \\mathrm{V/Ah}', mat2str(round(c.tau, 3, 'significant')), n3(c.s)));
+            P(sprintf('The table takes the median R_k of these steps: R%d = %.3g mOhm at SOC %.2f.', ...
+                q, 1000*c.R(q), c.soc));
+            tot = [c.tr.R0] + sum(vertcat(c.tr.R), 2)';
+            if numel(c.tr) >= 2 && max(tot) > 1.3*min(tot)
+                P(['The steps do not agree on R_k: the higher the current, the lower the resistance. ' ...
+                   'That is the cell (strongest at low temperature), not the fit - a linear model such as ' ...
+                   'this block can only match one current exactly, and the median sits in the middle.'], 'small');
+            end
         end
-        hotP();
-        H('From fits to the table');
-        P(['Each breakpoint takes the median of the fits nearest to it. A rest only happens ' ...
-           'where the current stops, so in a rate test (full charge -> discharge to cut-off) ' ...
-           'the fits sit near SOC 1 and near the end of each discharge.']);
-        if ~isTau, rdcP(); else
-            P(['Time constants cannot be seen at SOCs where the current never stops, so they are ' ...
-               'interpolated there (I) and held past the ends (E).']);
-        end
+        H('From one SOC to the whole table');
+        rdcP();
         if isTau
             M(tableLines(R.value.SOC_vec, val, R.diag.prov.(key), '%.1f s'));
-            scale = 1; unit = sprintf('\\tau_%d (s)', q);
         else
             M(tableLines(R.value.SOC_vec, val*1000, R.diag.prov.(key), '%.3f mOhm'));
-            scale = 1000; unit = sprintf('R_%d (m\\Omega)', q);
         end
-        scatter(ax1, p(:,1), p(:,2)*scale, 22, [0.6 0.6 0.6], 'filled'); hold(ax1,'on');
-        plot(ax1, R.value.SOC_vec, val*scale, '-s', 'Color',[0 0.45 0.74], 'LineWidth',1.6);
-        hold(ax1,'off'); legend(ax1, {'each relaxation fit','table'}, 'Location','best');
-        xlim(ax1,[-0.02 1.02]); xlabel(ax1,'SOC (-)'); ylabel(ax1,unit); title(ax1,[unit ' vs SOC']);
-        plotExampleRelaxation(ax2, R, q, false);
+        plotOnsets(ax1, R);
+        plotRdc(ax2, R, key);
 
     % ------------------------------------------------------------------
     case {'thermal_mass','hA'}
@@ -569,70 +502,36 @@ end
         end
     end
 
-    function hotP()
-        h = R.diag.hot;
-        if ~isfield(R.diag,'Tref') || ~isfinite(R.diag.Tref), return; end
-        P(sprintf(['Temperature: these tables are for %.3g °C (the chamber). A step or rest where ' ...
-           'the cell was more than %g K away from that (e.g. right after the fast discharge heated ' ...
-           'it) belongs to a different temperature and is left out - the resistances change with ' ...
-           'temperature (the reason the block has R(SOC,T) tables). Left out here: %d step(s), %d rest(s).'], R.diag.Tref, R.constants.maxDT, ...
-           h.edges, h.fits), warnIf(false));
-    end
-
-    function dischargeEnds()
-        % raw samples around every discharge -> rest switch (near EMPTY): shows
-        % whether the current really drops to 0 in ONE sample there
-        if ~isfield(R.diag,'phases') || isempty(R.diag.phases), return; end
-        ph = R.diag.phases; d = R.d;
-        L = {sprintf('   %9s  %9s  %8s  %9s  %8s  %6s', 'time (s)', 'dt (s)', 'I (A)', 'V (V)', 'SOC', 'T °C')};
-        n = 0;
-        for j = 1:numel(ph)-1
-            if ph(j).type ~= 'D' || ph(j+1).type ~= 'R', continue; end
-            n = n + 1;
-            a = max(ph(j).i2 - 2, 1); b = min(ph(j+1).i1 + 2, numel(d.t));
-            L{end+1} = sprintf('   -- discharge %d ends (%.3g A) --', n, ph(j).Iend); %#ok<AGROW>
-            for i = a:b
-                if i > 1, dti = d.t(i) - d.t(i-1); else, dti = NaN; end
-                sc = NaN; if isfield(d,'soc') && ~isempty(d.soc), sc = d.soc(i); end
-                tc = NaN; if ~isempty(d.Tcell), tc = d.Tcell(i); end
-                L{end+1} = sprintf('   %9.2f  %9.3g  %8.4g  %9.4f  %8.3f  %6.3g', d.t(i), dti, d.I(i), ...
-                    d.V(i), sc, tc); %#ok<AGROW>
-            end
-        end
-        if n == 0, return; end
-        H('Discharge ends (near EMPTY)');
-        P(['The end of each discharge (current -> rest) should be a second R0 point, near SOC 0 and ' ...
-           'at this file''s temperature. It only counts as a step when the current goes from the ' ...
-           'discharge value to rest in ONE sample, with both samples close to the switch. The ' ...
-           'samples around each discharge end:'], 'small');
-        M(L);
-    end
-
     function rdcP()
-        % how the SOC range between the measured points is filled (R1..Rn)
+        % how the RC tables get from the step SOC to every SOC
+        rd = R.diag.rdc;
         pr = R.diag.prov.(key);
         if any(pr == 'S')
-            mr = R.diag.multiRate;
-            P(['Between the measured SOC points (where the current never steps or stops) the RC ' ...
-               'pairs cannot be fitted - but the TOTAL resistance a constant current feels can be ' ...
-               'measured: once the RC pairs have settled, a constant-current discharge sits at']);
-            EQ('V = V_0(\mathrm{SOC}) - |I|\,R_{dc}(\mathrm{SOC}), \qquad R_{dc} = R_0 + \sum_k R_k');
-            P(sprintf(['and the multi-rate fit (see the OCV window) measures R_dc at every SOC from ' ...
-               'the %d discharge rates. R0 is kept as measured at the current steps. At the ' ...
-               'breakpoints marked S the interpolated R1, R2 ... are scaled by ONE common factor ' ...
-               'so that they make up the rest:'], numel(mr.use)));
-            EQ('R_k(s_j) \leftarrow R_k(s_j)\cdot\frac{R_{dc}(s_j) - R_0(s_j)}{\sum_k R_k(s_j)}');
-            ck = R.diag.rdcCheck;
-            if ~isempty(ck)
-                P(sprintf(['Cross-check where both exist (measured breakpoints): R0 + sum R_k = %s mOhm ' ...
-                    'vs R_dc = %s mOhm.'], strjoin(compose('%.3g', 1000*ck(:,2)), ' / '), ...
-                    strjoin(compose('%.3g', 1000*ck(:,3)), ' / ')), 'small');
+            P(['A step from rest only happens at one SOC, but the TOTAL resistance a constant current ' ...
+               'feels once the RC pairs have filled up is measured at almost every SOC:']);
+            EQ('R_{dc}(\mathrm{SOC}) = R_0 + \sum_k R_k');
+            P(sprintf('Here it comes from %s (median of the 1 %% SOC points nearest each breakpoint).', rd.src));
+            if ~isempty(rd.charge)
+                P(['At this temperature there are only charges, so R_dc = (V_charge - V0)/I. This R_dc ' ...
+                   'also holds the gap between the charge and the discharge OCV (hysteresis), which the ' ...
+                   'block does not have - with it the model charges at the measured voltage.'], 'small');
+            end
+            P(['At every breakpoint where R_dc is measured (S), all R_k are scaled by ONE factor f so the ' ...
+               'sum comes out right; the time constants and the split between the pairs stay as the step fit ' ...
+               'found them. Between the step SOC (f = 1) and the R_dc points f goes in a straight line.']);
+            EQ('R_k(s_j) = f_j\,R_{k,\mathrm{step}}, \qquad f_j = \frac{R_{dc}(s_j) - R_0(s_j)}{\sum_k R_{k,\mathrm{step}}}');
+            if isfield(rd, 'f')
+                L = {sprintf('   %6s  %10s  %10s  %6s', 'SOC', 'R_dc mOhm', 'R0 mOhm', 'f')};
+                for j = 1:numel(R.value.SOC_vec)
+                    L{end+1} = sprintf('   %6.3f  %10.2f  %10.2f  %6.3f', R.value.SOC_vec(j), 1000*rd.grid(j), ...
+                        1000*R.value.R0_vec(j), rd.f(j)); %#ok<AGROW>
+                end
+                M(L);
             end
         else
-            P(['Breakpoints with no measurement are interpolated (I); past the last measured ' ...
-               'point the end value is held (E).']);
+            P('No R_dc at this temperature: the step values are held at every SOC (E).');
         end
-        P('M = measured near this SOC, I = interpolated, E = end value held, S = scaled so R0 + sum R_k = measured R_dc.', 'small');
+        P('M = measured at a step, S = scaled to R_dc, I = interpolated, E = end value held.', 'small');
     end
 
     function [rs, lab] = rSum()
@@ -641,104 +540,104 @@ end
             k2 = sprintf('R%d_vec', q2);
             if R.found.(k2), rs = rs + R.value.(k2); lab = sprintf('%s+R%d', lab, q2); end
         end
-        lab = [lab ' (table sum)'];
+        lab = [lab ' (tables)'];
     end
 
-    function explainOcvMultiRate()
+    function plotRdc(ax, R, key)
+        if startsWith(key, 'tau')
+            plot(ax, R.value.SOC_vec, R.value.(key), '-s', 'Color',[0 0.45 0.74], 'LineWidth',1.6);
+            xlim(ax,[-0.02 1.02]); xlabel(ax,'SOC (-)'); ylabel(ax,'\tau (s)'); title(ax, [strrep(key,'_vec','') ' table']);
+            return
+        end
+        rd = R.diag.rdc; hs = []; lg = {};
+        if ~isempty(rd.pts)
+            hs(end+1) = plot(ax, rd.pts(:,1), 1000*rd.pts(:,2), '.', 'Color',[0.6 0.6 0.6]); hold(ax,'on');
+            lg{end+1} = 'R_{dc} measured (1 % SOC)';
+        end
+        [rs, lab] = rSum();
+        hs(end+1) = plot(ax, R.value.SOC_vec, 1000*rs, '-o', 'Color',[0.85 0.33 0.1], 'LineWidth',1.4); hold(ax,'on');
+        lg{end+1} = lab;
+        hs(end+1) = plot(ax, R.value.SOC_vec, 1000*R.value.(key), '-s', 'Color',[0 0.45 0.74], 'LineWidth',1.6);
+        lg{end+1} = [strrep(key,'_vec','') ' table'];
+        hold(ax,'off'); legend(ax, hs, lg, 'Location','best');
+        xlim(ax,[-0.02 1.02]); xlabel(ax,'SOC (-)'); ylabel(ax,'Resistance (m\Omega)');
+        title(ax, 'Tables vs the measured total R_{dc}');
+    end
+
+    function explainOcv()
         mr = R.diag.multiRate;
         H('What it is');
         P(['The open-circuit voltage (OCV): the voltage the cell settles to with no current, ' ...
            'as a function of SOC. It is the "fuel gauge" curve of the cell.']);
-        H('The model it belongs to');
-        P(['The block''s terminal voltage is the OCV minus the drop over R0 minus the voltage ' ...
-           'over each RC pair (written here with i = discharge current, positive):']);
-        EQ('V = V_0(\mathrm{SOC}) - i\,R_0 - \sum_k R_k\,x_k');
-        P(['So the OCV can never be read directly while current flows. This test discharges the ' ...
-           'cell from FULL to the cut-off at several rates - which is exactly what is needed to ' ...
-           'take the current out of the equation:']);
-        H('Step 1 - wait until the RC pairs have settled');
-        P(['Right after the current starts, the RC voltages are still building up. Each one ' ...
-           'reaches R_k*i with time constant tau_k (from the rest fits), so a sample is used ' ...
-           'once what is left of every transient is below 1 mV:']);
-        EQ('t \;\ge\; \max_k\ \tau_k\,\ln\!\frac{R_k\,i}{1\ \mathrm{mV}}');
-        P(sprintf('Here: %s s for the %s C discharges.', strjoin(compose('%.0f', mr.settle(mr.use)), ' / '), ...
-            strjoin(compose('%.2g', mr.crate(mr.use)), ' / ')), 'small');
-        if isfield(mr.rc, 'from') && ~isempty(mr.rc.from)
-            P(sprintf(['R_k and tau_k for this wait come from the %s only. A rest after a CC-CV ' ...
-               'charge starts with almost no current in the RC branches (the CV step tapered it ' ...
-               'away), so its R_k / tau_k are poorly defined; using them could make the wait ' ...
-               'longer than the 0.5C and 1C discharges, which left the OCV empty in 25 °C files.'], mr.rc.from), 'small');
+        if ~isfield(mr, 'rates') || isempty(mr.rates)
+            P(R.note.V0_vec, 'warn'); one = true; return
         end
-        if ~isempty(mr.unsettled)
-            P(sprintf('Left out, never settled: %s C (wait %s s, longer than the discharge).', ...
-                strjoin(compose('%.2g', mr.crate(mr.unsettled)), ' / '), ...
-                strjoin(compose('%.0f', mr.settle(mr.unsettled)), ' / ')), warnIf(true));
-        end
-        P(sprintf(['Chamber schedule: the chamber is at 25 °C while charging and moves to the test ' ...
-           'temperature (%.3g °C) right after each charge, holding it through the rest and the ' ...
-           'discharge. So the discharges are at the test temperature, and in a file that is not ' ...
-           'at 25 °C the charges are more than %g K away and are left out (the charge side below ' ...
-           'is then empty and the OCV is the discharge side only).'], mr.Tref, mr.maxDT), 'small');
-        P('From then on every branch current equals i, and the model becomes a straight line in i:');
+        H('The idea: the same discharge at several currents');
+        P('Once the RC pairs have filled up after the step, a constant discharge current i sits at');
         EQ('V(\mathrm{SOC}, i) = V_0(\mathrm{SOC}) - i\,R_{dc}(\mathrm{SOC}), \qquad R_{dc} = R_0 + \sum_k R_k');
-        H('Step 2 - one straight-line fit per 1 % of SOC');
-        P(sprintf(['SOC comes from coulomb counting from FULL (see AH), so every discharge can be ' ...
-           'lined up on the same SOC axis. At each SOC the average voltage of each discharge ' ...
-           '(1 %% SOC bin) is plotted against its current and a straight line is fitted ' ...
-           '(least squares). Used: discharges at or below %gC, with the cell within %g K of ' ...
-           '%.3g °C (faster ones heat the cell and stop being linear).'], mr.maxCrate, mr.maxDT, mr.Tref));
-        EQ('\mathrm{intercept}\ (i = 0) = V_{0,\mathrm{dis}}(\mathrm{SOC}), \qquad \mathrm{slope} = -R_{dc}(\mathrm{SOC})');
+        P(['- a straight line in i. Every discharge starts from FULL, so SOC is known exactly and the ' ...
+           'discharges can be lined up on one SOC axis. At each SOC the line through them gives']);
+        EQ('\mathrm{intercept}\ (i = 0) = V_0(\mathrm{SOC}), \qquad \mathrm{slope} = -R_{dc}(\mathrm{SOC})');
+        H('Step 1 - wait until the RC pairs have filled up');
+        P(['The first minutes of each discharge are left out, until what is left of each pair''s ' ...
+           'transient is below 1 mV (R_k, tau_k from the 3-pair fit of the steps at SOC 1 - always 3, ' ...
+           'so the OCV does not change with the number of pairs you pick):']);
+        EQ('t \;\ge\; \max_k\ \tau_k\,\ln\!\frac{R_k\,i}{1\ \mathrm{mV}}');
+        L = {sprintf('   %8s %6s %10s %10s   %s', 'current', 'C', 'wait (s)', 'dur (s)', 'used?')};
+        for r = 1:numel(mr.rates)
+            if ismember(r, mr.use)
+                us = 'yes';
+                if r <= numel(mr.hot) && mr.hot(r) > 0
+                    us = sprintf('yes, %.0f %% of it left out (cell > %g K from %.3g °C)', 100*mr.hot(r), mr.maxDT, mr.Tref);
+                end
+            elseif mr.crate(r) > mr.maxCrate
+                us = sprintf('no: faster than %gC (V no longer linear in i, cell heats up)', mr.maxCrate);
+            else
+                us = 'no: never settled within the temperature window';
+            end
+            L{end+1} = sprintf('   %7.4g A %6.2f %10.0f %10.0f   %s', mr.rates(r), mr.crate(r), mr.settle(r), mr.dur(r), us); %#ok<AGROW>
+        end
+        M(L);
+        H('Step 2 - a straight line per 1 % of SOC');
+        if ~mr.ok
+            P(R.note.V0_vec, 'warn'); one = true; return
+        end
         [~, j] = min(abs(mr.sf - 0.5) + 10*~isfinite(mr.ocvD));
         u = mr.use(isfinite(mr.Vd(mr.use, j)));
-        if numel(u) >= 2
-            P(sprintf('Worked example at SOC %.2f:', mr.sf(j)), 'small');
-            L = {sprintf('   %8s  %10s', 'current', 'voltage')};
-            for r = u, L{end+1,1} = sprintf('   %7.3g A  %9.4f V', mr.rates(r), mr.Vd(r,j)); end %#ok<AGROW>
+        P(sprintf('Worked example at SOC %.2f (lower plot):', mr.sf(j)), 'small');
+        L = {sprintf('   %8s  %10s', 'current', 'voltage')};
+        for r = u, L{end+1,1} = sprintf('   %7.4g A  %9.4f V', mr.rates(r), mr.Vd(r,j)); end %#ok<AGROW>
+        M(L);
+        EQ(sprintf('V_0 = %s\\ \\mathrm{V}, \\qquad R_{dc} = %s\\ \\mathrm{m\\Omega}', n4(mr.ocvD(j)), n3(1000*mr.Rdc(j))));
+        P(['This is the discharge-side OCV. A cell rests a little higher after a charge (hysteresis); ' ...
+           'the block has one OCV, and this one makes the discharges come out right.'], 'small');
+        H('Step 3 - the two ends');
+        P(sprintf(['The very top (still settling) and the very bottom have no line. There the voltage at ' ...
+           'the end of every rest of at least %g h is used - by then the cell has relaxed to its OCV ' ...
+           '(orange dots: after a full charge at SOC 1, after a discharge near SOC 0). A smooth ' ...
+           '(pchip) curve joins them to the line. The table is forced to rise with SOC.'], R.constants.ocvRestS/3600));
+        rp = R.diag.ocvRest;
+        if ~isempty(rp)
+            L = {sprintf('   %6s  %9s  %7s', 'SOC', 'V (V)', 'T °C')};
+            for i = 1:size(rp,1), L{end+1} = sprintf('   %6.3f  %9.4f  %7.3g', rp(i,1), rp(i,2), rp(i,3)); end %#ok<AGROW>
             M(L);
-            EQ(sprintf('V_{0,\\mathrm{dis}} = %s\\ \\mathrm{V}, \\qquad R_{dc} = %s\\ \\mathrm{m\\Omega}', ...
-                n4(mr.ocvD(j)), n3(1000*mr.Rdc(j))));
-            if isfinite(mr.rms(j))
-                P(sprintf(['The points sit %.2f mV (rms) from the straight line - the linear model ' ...
-                   'holds.'], 1000*mr.rms(j)), warnIf(mr.rms(j) > 0.005));
-            end
+            P(['The rests after a discharge end at 25 °C (the chamber goes back for the next charge); the ' ...
+               'OCV changes only a few mV with temperature.'], 'small');
         end
-        H('Step 3 - the charge side, then average');
-        P(sprintf(['The discharge-side value still carries hysteresis (a cell rests slightly lower ' ...
-           'after a discharge than after a charge). The charges give the other side: %s. The ' ...
-           'block uses one resistance for both directions, so the same R_dc is used:'], mr.chargeHow));
-        EQ('V_{0,\mathrm{chg}} = V_{chg} - i_{chg}\,R_{dc}, \qquad V_0 = \tfrac{1}{2}\left(V_{0,\mathrm{chg}} + V_{0,\mathrm{dis}}\right)');
-        if isfinite(mr.hyst)
-            P(sprintf(['Half the charge-discharge gap is %.1f mV here. Where only one side exists it ' ...
-               'is shifted by that amount.'], 1000*mr.hyst), 'small');
-        end
-        H('Step 4 - the two ends');
-        P(['The first minutes of every discharge are not settled yet, so the very top of the ' ...
-           'curve has no multi-rate point; neither does the end of the discharge. There the ' ...
-           'relaxed rest voltages are used: after a full charge the cell rests at its SOC 1 ' ...
-           'OCV, after the discharge to cut-off at its SOC 0 OCV (see the RC fits). A smooth ' ...
-           '(pchip) curve joins them to the multi-rate curve.']);
-        P(sprintf('%d rest point(s) were available; inside the multi-rate range they are a check only.', size(p.ocv,1)), 'small');
         H('Table');
-        P('M = measured (multi-rate fit or a rest), I = joined between them, E = short extension past the data.', 'small');
+        P('M = measured (line or rest), I = joined between them, E = short extension past the data.', 'small');
         M(tableLines(R.value.SOC_vec, val, R.diag.prov.V0_vec, '%.4f V'));
         % plots
-        hold(ax1,'on');
-        cols = lines(numel(mr.rates));
-        lg = {};
+        hold(ax1,'on'); cols = lines(numel(mr.rates)); lg = {};
         for r = mr.use
             fm = isfinite(mr.Vd(r,:));
-            plot(ax1, mr.sf(fm), mr.Vd(r,fm), '-', 'Color',[cols(r,:) 0.8], 'LineWidth',1);
-            lg{end+1} = sprintf('discharge %.2gC (settled)', mr.crate(r)); %#ok<AGROW>
+            plot(ax1, mr.sf(fm), mr.Vd(r,fm), '-', 'Color',cols(r,:), 'LineWidth',1);
+            lg{end+1} = sprintf('%.2gC discharge (settled)', mr.crate(r)); %#ok<AGROW>
         end
-        for q2 = 1:size(mr.Vc,1)
-            fm = isfinite(mr.Vc(q2,:));
-            plot(ax1, mr.sf(fm), mr.Vc(q2,fm), '-', 'Color',[0.47 0.67 0.19], 'LineWidth',1);
-            lg{end+1} = sprintf('charge %.2gC', mr.Ic(q2)/R.diag.soc.cap); %#ok<AGROW>  % AH may be typed in
-        end
-        plot(ax1, mr.sf, mr.ocvD, ':', 'Color',[0.3 0.3 0.3], 'LineWidth',1.4); lg{end+1} = 'V_{0,dis} (i = 0)';
-        if ~isempty(p.ocv)
-            plot(ax1, p.ocv(:,1), p.ocv(:,2), 'o', 'MarkerFaceColor',[0.85 0.33 0.1], 'MarkerEdgeColor','none');
-            lg{end+1} = 'relaxed rest voltage';
+        plot(ax1, mr.sf, mr.ocvD, ':', 'Color',[0.3 0.3 0.3], 'LineWidth',1.4); lg{end+1} = 'line at i = 0';
+        if ~isempty(rp)
+            plot(ax1, rp(:,1), rp(:,2), 'o', 'MarkerFaceColor',[0.85 0.33 0.1], 'MarkerEdgeColor','none');
+            lg{end+1} = 'end of a long rest';
         end
         plot(ax1, R.value.SOC_vec, val, '-s', 'Color',[0 0.45 0.74], 'LineWidth',1.6); lg{end+1} = 'V0 table';
         hold(ax1,'off'); legend(ax1, lg, 'Location','southeast'); xlim(ax1, [-0.02 1.02]);
@@ -749,10 +648,12 @@ end
             plot(ax2, ii, mr.ocvD(j) - mr.Rdc(j)*ii, '--', 'Color',[0.85 0.33 0.1], 'LineWidth',1.3);
             plot(ax2, 0, mr.ocvD(j), 'p', 'MarkerFaceColor',[0.85 0.33 0.1], 'MarkerSize',14, 'MarkerEdgeColor','none');
             hold(ax2,'off');
-            legend(ax2, {'each discharge at this SOC','straight-line fit','V_{0,dis}: zero current'}, 'Location','northeast');
+            legend(ax2, {'each discharge at this SOC','straight line','V_0: zero current'}, 'Location','northeast');
             xlabel(ax2,'Discharge current (A)'); ylabel(ax2,'Voltage (V)');
             title(ax2, {sprintf('At SOC %.2f: V against current', mr.sf(j)), ...
                 sprintf('intercept %.4f V, slope R_{dc} = %.2f m\\Omega', mr.ocvD(j), 1000*mr.Rdc(j))});
+        else
+            one = true;
         end
     end
 
@@ -794,71 +695,44 @@ end
 end
 
 % =========================================================================
-function e = exampleEdge(R)
-% a used current step: one that starts from rest if there is one (the
-% cleanest case), then the one whose first sample after it came soonest
-e = [];
-d = R.d; k = R.diag.edgeIdx;
-if isempty(k), return; end
-st = []; if isfield(R.diag,'r0Steps'), st = R.diag.r0Steps; end
-j = 1;
-if ~isempty(st) && any(st.used)
-    iu = find(st.used);
-    score = st.dtAfter(iu) + 1e6*~st.fromRest(iu);
-    [~, m] = min(score); j = find(k == st.k(iu(m)), 1);
-    if isempty(j), j = 1; end
-end
-k = k(j);
-e.k = k; e.t = d.t(k+1); e.soc = d.soc(k);
-e.Ib = d.I(k); e.Ia = d.I(k+1);
-e.dV = d.V(k+1) - d.V(k); e.dI = d.I(k+1) - d.I(k); e.R0 = e.dV/e.dI;
-e.dtA = d.t(k+1) - d.t(k); e.dtB = 0; e.rest = abs(d.I(k)) <= d.restThr;
-if ~isempty(st)
-    i = find(st.k == k, 1);
-    if ~isempty(i), e.dtA = st.dtAfter(i); e.dtB = st.dtBefore(i); end
-end
-end
-
-function f = exampleFit(R)
-% the relaxation fit closest to SOC 0.5
-f = [];
-fits = R.diag.fits;
-if isempty(fits), return; end
-[~, k] = min(abs([fits.soc] - 0.5));
-f = fits(k);
-end
-
-function plotExampleRelaxation(ax, R, q, showVinf)
-f = exampleFit(R);
-if isempty(f), title(ax,'No relaxation fits'); return; end
-plot(ax, f.tr/60, f.v, '.', 'Color',[0.4 0.4 0.4]); hold(ax,'on');
-plot(ax, f.tr/60, f.vfit, '-', 'Color',[0.85 0.33 0.1], 'LineWidth',1.5);
-yline(ax, f.Vinf, '--', sprintf('V_\\infty = %.4f V', f.Vinf));
-hold(ax,'off');
-legend(ax, {'measured','fit'}, 'Location','best');
-xlabel(ax,'Time since current stopped (min)'); ylabel(ax,'Voltage (V)');
-if showVinf
-    title(ax, sprintf('Example rest at SOC %.2f: it settles to V_\\infty (an OCV point)', f.soc));
-else
-    s = sprintf('R_%d = %.3f m\\Omega, \\tau_%d = %.1f s', q, 1000*f.R(min(q,end)), q, f.tau(min(q,end)));
-    title(ax, {sprintf('Example relaxation at SOC %.2f', f.soc), ...
-        sprintf('%s, fit rms %.2f mV', s, 1000*f.rmse)});
-end
-end
-
-function plotExampleEdge(ax, R, e)
+function plotStep(ax, R, e)
+% the raw samples around one step from rest: the jump is R0*I
 d = R.d;
-if isempty(e), title(ax,'No current steps'); return; end
-k = e.k;
-w = abs(d.t - d.t(k+1)) <= 30;
-tt = d.t(w) - d.t(k+1);
-yyaxis(ax,'left');
-plot(ax, tt, d.V(w), '.-'); ylabel(ax,'Voltage (V)');
-yyaxis(ax,'right');
-stairs(ax, tt, d.I(w)); ylabel(ax,'Current (A, + = charge)');
-xlabel(ax,'Time from the first sample after the step (s)');
-title(ax, sprintf('Example step: \\DeltaV = %.1f mV, \\DeltaI = %.3f A  \\rightarrow  R_0 = %.3f m\\Omega', ...
-    1000*e.dV, e.dI, 1000*e.R0));
+if isempty(e), title(ax,'No usable step from rest'); return; end
+w = d.t >= e.tsw - 65 & d.t <= e.tsw + 3;
+tt = d.t(w) - e.tsw;
+plot(ax, tt, d.V(w), '.-', 'Color',[0.3 0.3 0.3], 'MarkerSize',12); hold(ax,'on');
+plot(ax, d.t(e.a) - e.tsw, d.V(e.a), 'o', 'MarkerFaceColor',[0.85 0.33 0.1], 'MarkerEdgeColor','none', 'MarkerSize',9);
+plot(ax, d.t(e.a-1) - e.tsw, e.Vrest, 's', 'MarkerFaceColor',[0 0.45 0.74], 'MarkerEdgeColor','none', 'MarkerSize',9);
+xline(ax, 0, ':', 'switch', 'HandleVisibility','off');
+hold(ax,'off');
+legend(ax, {'measured','first sample','last rest sample'}, 'Location','best');
+xlabel(ax,'Time from the switch (s)'); ylabel(ax,'Voltage (V)');
+title(ax, sprintf('Example step: %.1f mV at %.4g A  \\rightarrow  R_0 = %.2f m\\Omega', ...
+    1000*(d.V(e.a) - e.Vrest), e.I, 1000*e.R0));
+end
+
+function plotOnsets(ax, R)
+% (V - V_rest)/I after every step from rest: the resistance the cell shows
+% t seconds after the step (dots) and the fit (lines)
+cl = R.diag.dyn.clusters;
+if isempty(cl), title(ax,'No usable step from rest'); return; end
+c = cl(end);
+cols = lines(numel(c.tr)); lg = {};
+for i = 1:numel(c.tr)
+    tr = c.tr(i);
+    plot(ax, tr.t, 1000*tr.rMeas, '.', 'Color',cols(i,:), 'MarkerSize',10); hold(ax,'on');
+    lg{end+1} = sprintf('%.3g A measured', tr.I); %#ok<AGROW>
+end
+for i = 1:numel(c.tr)
+    tr = c.tr(i);
+    plot(ax, tr.t, 1000*tr.rFit, '-', 'Color',cols(i,:), 'LineWidth',1.2, 'HandleVisibility','off');
+end
+hold(ax,'off'); ax.XScale = 'log';
+legend(ax, lg, 'Location','northwest');
+xlabel(ax,'Time after the step (s, log scale)'); ylabel(ax,'(V - V_{rest}) / I  (m\Omega)');
+title(ax, {sprintf('Steps from rest at SOC %.2f: dots measured, lines fit (%d pair(s))', c.soc, R.nRC), ...
+    sprintf('\\tau = %s s, rms %.2f mV', mat2str(round(c.tau, 3, 'significant')), 1000*c.rms)});
 end
 
 function L = tableLines(g, v, prov, fmt)

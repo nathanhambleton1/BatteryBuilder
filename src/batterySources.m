@@ -79,14 +79,14 @@ switch key
         U = {'MW-TB', 'Terminal voltage operating range: the block warns when a simulation leaves it.'};
     case 'R0_vec'
         U = {'INL15',      'Sect. 4.4.2, eq. 4: resistance = change in voltage / change in current across a current step.'
-             'MW-Char',    'R0 from the sudden voltage change at a pulse; RC pairs from the relaxation after it.'
+             'MW-Char',    'R0 from the sudden voltage change at a pulse.'
              'Barai19',    'Sect. 5: the instantaneous step is ohmic; sampling faster than ~100 Hz is needed to isolate it, so a 1 s sample includes a little of the fast charge-transfer response.'
              'Schweiger10','Current-step resistance compared with AC / EIS / energy-loss methods; the current-step and energy-loss methods agree.'
              'Yao18',      'DC resistance from discharges at several rates (the R_dc used to fill the SOC range between the steps).'};
     case {'R1_vec','R2_vec','R3_vec','tau1_vec','tau2_vec','tau3_vec'}
-        U = {'Lin14',   'Relaxation after the current stops fitted by least squares with a sum of exponentials; 1, 2 and 3 RC pairs compared, 2 chosen.'
-             'MW-Char', 'Ri, taui from fitting the relaxation segments (1 RC on short rests, 2 RC on long rests).'
-             'MW-HPPC', 'MathWorks'' own HPPC workflow fits the relaxation after each pulse by default.'
+        U = {'Lin14',   'The voltage response to a current step fitted by least squares with a sum of exponentials; 1, 2 and 3 RC pairs compared.'
+             'MW-Char', 'Ri, taui fitted to the voltage segments around each current pulse.'
+             'MW-HPPC', 'MathWorks'' own HPPC workflow: RC pairs fitted to the voltage around each pulse.'
              'Hu12',    'Comparison of 12 equivalent-circuit structures for Li-ion cells (how many RC pairs are worth it).'
              'Huria12', 'The RC-ladder model with SOC/temperature tables that the Table-Based block implements.'};
     case {'thermal_mass','hA'}

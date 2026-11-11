@@ -81,7 +81,7 @@ Current (A)  Voltage (V)  State  ES  DateTime  Temp 1  Chamber Temperature (C)
 | TestTime (s) | time axis (`DateTime` is the fallback). `hh:mm:ss` and `1d 02:03:04` strings are accepted. |
 | Current (A), Voltage (V) | everything |
 | State (C / D / R) | sign of the current when the cycler logs a positive magnitude, and rest detection |
-| StepTime (s) | the exact moment the current switched off, for the relaxation fits |
+| StepTime (s) | the exact moment the current switched, for R0 and the RC fits |
 | Temp 1 | cell temperature: thermal fit and initial temperature |
 | Chamber Temperature (C) | ambient for the thermal fit (and `batt_ambient`), and the test temperature label: the median chamber temperature **during the discharges** (§7.0) |
 
@@ -225,12 +225,12 @@ These options stay the same as before; set them once in the block dialog:
 |---|---|---|---|---|
 | SOC breakpoints | `batt_SOC_vec` | Main › Vector of state-of-charge values | your choice (default `[0 .02 .05 .1 … .9 .95 1]`) | n/a |
 | Temperature breakpoints T | `batt_T_vec` | Main › Vector of temperatures, T (K) | the chamber during the discharges and during the charges, when they differ by > 3 K (§7.0) | n/a (empty = one temperature) |
-| Open-circuit voltage V0(SOC,T) | `batt_V0_vec` | Main › Open-circuit voltage, V0(SOC,T) | multi-rate fit of the discharges (rate test), or rests + low-rate CC data | OCV-vs-SOC curve. **Required.** |
+| Open-circuit voltage V0(SOC,T) | `batt_V0_vec` | Main › Open-circuit voltage, V0(SOC,T) | zero-current line through the discharges at several rates; long rests at the two ends | OCV-vs-SOC curve. **Required.** |
 | Terminal voltage range | `batt_V_range` | Main › Terminal voltage operating range [Min Max] | min / max measured | cut-off voltages. Optional. |
-| Terminal resistance R0(SOC,T) | `batt_R0_vec` | Main › Terminal resistance, R0(SOC,T) | current steps (near full and near empty); straight line between them | DC internal resistance. **Required.** |
+| Terminal resistance R0(SOC,T) | `batt_R0_vec` | Main › Terminal resistance, R0(SOC,T) | first sample after each step from a rest | DC internal resistance. **Required.** |
 | Cell capacity AH | `batt_AH` | Main › Cell capacity, AH (A*hr) | full CC-CV → discharge to cut-off | rated capacity. **Required.** |
 | Self-discharge resistance | `batt_Rleak` | Main › Self-discharge resistance, Rleak | never (needs weeks of storage) | Optional |
-| R1..R3(SOC,T), tau1..tau3(SOC,T) | `batt_R1_vec`, `batt_tau1_vec`, ... | Dynamics › polarization resistance / time constant | rests after charges / discharges; R scaled to R_dc in between | rarely published. **Required** for the pairs in use. |
+| R1..R3(SOC,T), tau1..tau3(SOC,T) | `batt_R1_vec`, `batt_tau1_vec`, ... | Dynamics › polarization resistance / time constant | the first minutes after each step from a rest; R scaled to the measured R_dc at the other SOCs | rarely published. **Required** for the pairs in use. |
 | Thermal mass | `batt_thermal_mass` | Thermal › Thermal mass (J/K) | cell temperature self-heating | mass × specific heat. **Required.** |
 | Convection h·A | `batt_hA` | *not a battery parameter*: Convective Heat Transfer block, Area = 1 m², coefficient = `batt_hA` | cell temperature self-heating | depends on your fixture. Optional. |
 | Initial SOC | `batt_SOC0` | Initial Targets › State of charge | SOC at the first sample | Optional |
@@ -243,9 +243,9 @@ A single number typed into an SOC-table box (e.g. one datasheet resistance) is c
 * A box is only filled from the data if the data really contains what that value needs. Otherwise it stays empty and says why.
 * There are **no** built-in default values. The old version's "assumed" fallbacks are gone.
 * A capacity you type in is only used to build the SOC axis when the test has no complete full-to-empty discharge. The AH box then still shows **Entered by you**, not "From data".
-* Between two measured SOC points a table is linearly interpolated. Beyond the measured SOC range the end value is held, which is what the block's *Nearest* extrapolation would do anyway. Every table entry is labelled in its **How?** window: `M` measured near that SOC, `I` interpolated, `E` end value held, `S` interpolated R1/R2 scaled so R0 + R1 + R2 equals the R_dc measured at that SOC (§7.6). R0 itself is never scaled.
+* Between two measured SOC points a table is linearly interpolated. Beyond the measured SOC range the end value is held, which is what the block's *Nearest* extrapolation would do anyway. Every table entry is labelled in its **How?** window: `M` measured near that SOC, `I` interpolated, `E` end value held, `S` R1..R3 scaled so R0 + ΣR_k equals the R_dc measured at that SOC (§7.5). R0 itself is never scaled.
 * Points taken while the cell was more than 3 K away from the chamber temperature (e.g. right after the 5.8C discharge) are left out of the tables: they belong to a different temperature.
-* The OCV table is only filled if the data covers the whole SOC range. Past the data it extends at most 0.01 SOC (multi-rate) or one breakpoint ≤ 0.06 SOC (older method).
+* The OCV table is only filled if the data covers the whole SOC range. Past the data it extends at most 0.01 SOC.
 
 ---
 
@@ -283,9 +283,10 @@ So every **discharge** runs at the file's temperature T and every **charge** run
 
 * **Test temperature label** (`d.T_C`, what the tables are "for") = the median chamber temperature over the *discharge* samples. The median over the whole file can land on 25 °C for a cold test, because about half the test is at 25 °C (`loadBatteryCsv.m`). The top bar says so when the chamber moves by more than 3 K.
 * **Two table temperatures.** In a file that is not at 25 °C the tables are built at **both** chamber temperatures (`d.T_C` for the discharges, `d.T_chg_C` for the charges), each from the data taken with the cell within ±3 K of it (§7.10 `maxDT`). They are saved as SOC × T matrices with `batt_T_vec = [T_low T_high] + 273.15` K, for the block option *Tabulate parameters over temperature = Yes*. `extractCellParameters` runs the table part once per temperature; `R.byT{j}` is the full result for `T_vec(j)`, and every **How?** window for a table opens once per temperature.
-  * **Test temperature (discharges):** R0 at the start of each discharge (SOC 1) and at its end (near SOC 0), RC pairs from the rests after the discharges, OCV and R_dc from the multi-rate fit. AH, SOC, SOC0 and the thermal values come from here too (AH is one number in the block).
-  * **25 °C (charges):** R0 at the start of each charge (near SOC 0), RC pairs from the rests after the charges. There are no discharges at 25 °C, so there is no multi-rate fit there: V0 at 25 °C is the test temperature's V0 (the OCV changes only a few mV over 25 K). A table that cannot be measured at one temperature is copied from the other one so the block gets a full matrix, and its note says **COPIED**.
-* **In the 25 °C file** everything is at 25 °C, so the charges are used too. The OCV then also gets its charge side (§7.6 step 4), and the rests after the full charges give the SOC-1 end of the OCV.
+  * **Test temperature (discharges):** R0 and the RC pairs from the start of each discharge (SOC 1, after the 3 h rest at T), OCV and R_dc from the discharges at several rates. AH, SOC, SOC0 and the thermal values come from here too (AH is one number in the block).
+  * **25 °C (charges):** R0 and the RC pairs from the start of each charge (near SOC 0, after the rest back at 25 °C), R_dc from the CC part of the charges (§7.5). There are no discharges at 25 °C, so V0 at 25 °C is the test temperature's V0 (the OCV changes only a few mV over 25 K). A table that cannot be measured at one temperature is copied from the other one so the block gets a full matrix, and its note says **COPIED**.
+* **In the 25 °C file** everything is at 25 °C: one temperature, and the steps from rest at SOC 1 (discharges) and near SOC 0 (charges) both count.
+* **What is NOT used: the rests after a step.** After a discharge the chamber goes back to 25 °C straight away, so the cell warms by ~25 K during that rest; after a charge it cools to T. The relaxation there is mixed with the temperature change, and fitting RC pairs to it gave nonsense (R1 of ~900 mΩ, tau at its 3000 s limit, worse with every extra pair). The start of each step is taken after a 3 h rest at a steady temperature, sampled from 0.05 s on, so that is where the dynamics are measured.
 * **Thermal fit and `batt_ambient`** use the chamber column as it is, steps and all, so the 25 ↔ T switching is in the heat balance and in the Simulink ambient. `batt_T0` is the first cell reading (≈ 25 °C, because the chamber starts at 25 °C), which is the right start for a simulation driven by `batt_ambient`.
 
 That decides what can be measured, and where:
@@ -296,11 +297,11 @@ That decides what can be measured, and where:
 | SOC | everywhere, by coulomb counting from FULL | 7.3 |
 | OCV | **the whole SOC range**: the same discharge at 4 rates is extrapolated to zero current | 7.6 |
 | R_dc = R0 + R1 + R2 | **the whole SOC range**: the slope of the same fit | 7.6 |
-| R0 on its own | only where the current **steps**: start of each discharge (SOC ≈ 1), end of each discharge / start of each charge (SOC ≈ 0 … 0.1) | 7.4 |
-| R1, R2, tau1, tau2 on their own | only where the current **stops**: the rests after each charge (SOC 1) and after each discharge (SOC ≈ 0) | 7.5 |
+| R0 on its own | only where the current **starts from a rest**: each discharge (SOC 1, at T), each charge (SOC ≈ 0 … 0.03, at 25 °C) | 7.4 |
+| R1, R2, tau1, tau2 on their own | the first minutes after those same steps | 7.5 |
 | m·cp, h·A | the 5.8C discharge heats the cell, which then cools in the rest | 7.7 |
 
-So in the middle of the SOC range the **sum** R0 + R1 + R2 is measured, but not how it splits between them: the current never steps or stops there. The tables are built to respect that (§7.6, the `S` flag), and nothing is filled in from outside the file.
+So in the middle of the SOC range the **sum** R0 + R1 + R2 is measured, but not how it splits between them: the current never starts from a rest there. The tables are built to respect that (§7.5, the `S` flag), and nothing is filled in from outside the file.
 
 ### 7.1 Phases
 The current is split into runs of **charge** (I > 0), **discharge** (I < 0) and **rest** (I = 0). Back-to-back steps of the same kind merge, so a CC step plus a CV step is one charge phase (`findPhases`).
@@ -340,16 +341,19 @@ After a fast discharge (1C, 5.8C) the cell hits the cut-off with charge still in
 * [Lin14]: the same 100 % / 0 % definition.
 
 ### 7.4 R0 `batt_R0_vec`
-At every current step: `R0 = ΔV / ΔI` between the last sample before the step and the first sample after it (`r0FromEdges`). The voltage over an RC pair cannot jump (its capacitor needs time to charge), so the instant jump is the series resistance.
+At every charge or discharge that starts after a rest of at least 10 min (`findOnsets`):
 
-* **Timing.** Both samples must sit right at the step. The first sample *after* it must be within 1 s (cyclers log at 0.05 s right after a step, then slower and slower). The `StepTime` column gives this exactly. The sample *before* it is either at rest, where a 30 s old sample is fine because the voltage is steady, or also within 1 s of the step. A sample taken under current long before the switch is not used. Only if no step in the file meets 1 s is 5 s allowed instead. The **How?** window lists every step found, its timing, and why it was or was not used.
-* **Size.** Steps smaller than 0.08C are skipped, because too little voltage change shows. The 0.1C steps count.
-* **Temperature.** A step where the cell is more than 3 K away from the chamber temperature is left out. In your test that is the end of the 5.8C discharge: the cell is hot there, its resistance is lower, and the value belongs to another temperature.
-* **To the table.** A rate test only steps the current near FULL (start of each discharge) and near EMPTY (end of each discharge, start of each charge). Each of those SOCs takes the median of its steps (`gridPoints`), the table is a straight line between them, and the end value is held past them. R0 is **not** scaled anywhere: the extra resistance a constant current feels (R_dc − R0) goes to the RC pairs (§7.6).
-* **Only one SOC measured?** In a file that is not at 25 °C the charge-start steps (near empty) are at 25 °C and are left out, so near EMPTY only the discharge ends (discharge → rest) can give a point. If those are not single-sample steps, R0 is measured only at FULL and held flat. The R0 **How?** window says so, and its *Discharge ends* section prints the raw samples around each discharge end so you can see why.
-* **Check by hand.** Rest → 0.8885 A charge: V goes 3.0962 → 3.1164 V in one sample, R0 = 0.0202 / 0.8885 = 22.7 mΩ (datasheet 21 mΩ).
+```
+R0 = (V_first − V_rest) / I
+```
 
-With the 0.05 s first sample the jump is practically pure R0; a 1 s sample would include about a second of the fastest charge-transfer response [Barai19 §5]. That is the same R0 the MathWorks workflows get from cycler data [MW-Char].
+* **V_rest** is the last rest sample. After a rest the voltage is steady and every RC pair is empty, so nothing but R0 explains the jump.
+* **V_first** is the first sample after the switch. The cycler logs it 0.03–0.05 s after the switch (the `StepTime` column says exactly when); an RC pair's capacitor has no time to charge in that. Steps whose first sample is more than 1 s after the switch are not used.
+* **I** is the step's constant current (median of its first samples), not the first reading: the first reading can spike. In the sample cycle the 0.1C step logs 0.343 A for one sample of a 0.265 A step, while its voltage drop (12.4 mV) matches 0.265 A. With the set current every rate gives 44–47 mΩ; with the spike the 0.1C step would give 36 mΩ.
+* **Temperature.** A step is used for the table of the temperature the cell was at (within 3 K).
+* **To the table.** The median of the steps at each SOC (`gridPoints`), straight line between SOCs, end values held. A rate test only starts from rest at one SOC per temperature, so in practice R0 is one number per temperature, held over SOC. R0 is **not** scaled anywhere: the extra resistance a constant current feels (R_dc − R0) goes to the RC pairs (§7.5).
+* **Check by hand** (sample cycle, 0 °C, 0.5C): 4.18296 → 4.12360 V at 1.325 A → R0 = 44.8 mΩ. At 25 °C (charge from rest): 3.0962 → 3.1164 V at 0.8835 A → 22.9 mΩ.
+* **Current dependence.** At 0 °C the 15 A (5.8C) step gives 35 mΩ against 44–47 mΩ for 0.1–1C: the cell's resistance falls as the current rises. The block has one R0, so the median is used, and the R0 **How?** window lists every step so you can see it.
 
 *Sources:*
 * [INL15] §4.4.2, eq. 4: R = ΔV/ΔI across the pulse edge.
@@ -358,54 +362,51 @@ With the 0.05 s first sample the jump is practically pure R0; a 1 s sample would
 * [Lin14]: R_s from the initial voltage jump.
 
 ### 7.5 RC pairs `batt_R1_vec`, `batt_tau1_vec`, ...
-Every rest of at least 5 min that follows a charge or discharge is fitted with
+Measured on the **same steps from rest** as R0 (`fitDynamics`, `fitCluster`). The current is constant and every RC pair starts empty, so the block's voltage after the step is
 
 ```
-V(t) = Vinf + Σ_k R_k · x_k(0) · exp(−t / tau_k)
-x_k(n) = a·x_k(n−1) + (1−a)·I(n−1),   a = exp(−dt / tau_k)
+V(t) = V_rest + I·[ R0 + Σ_k R_k·(1 − exp(−t/tau_k)) ] + s·I·t/3600
 ```
 
-* **Starting currents.** `x_k(0)` is the current in RC branch *k* when the current stopped. It is computed from the **real** current history, so a 10 s pulse and a 10 h discharge are both handled exactly.
-* **Fit.** For a given set of taus, the `R_k` (and `Vinf`) are a linear least-squares problem with `R_k ≥ 0`. The taus are found by a grid search over 1–3000 s, then refined with `fminsearch`. The pairs are sorted so that tau1 < tau2 < tau3 (`fitRelaxations`, `fitOneRelaxation`, `lsqNonnegTail`).
-* **Rejected rests.** Fits with an rms error above 8 mV are discarded. So are rests that start with the cell more than 3 K from the chamber temperature, such as the rest after 5.8C: there the relaxation is mixed with the cell cooling down.
-* **Where the points are.** In a rate test the rests come after a full charge (SOC 1) and after each discharge (SOC ≈ 0 … 0.03). Between them the R_k are scaled so R0 + ΣR_k matches the measured R_dc (§7.6). The tau_k are interpolated, because the time constants only show where the current stops.
+with `s` the OCV slope (V per Ah: the OCV moves as charge goes in or out). Divided by I this is the resistance the cell shows t seconds after the step, `(V − V_rest)/I`, which the R1 **How?** window plots straight from the data (log time axis) with the fit on top.
+
+* **Window.** The first 600 s after each step, at most 1 % of SOC (so the OCV is close to a straight line), constant current, cell within 3 K of its temperature at the step, rates up to 2C.
+* **Fit.** All steps at the same SOC (within 0.03) are fitted together. They share the time constants tau_k and the OCV slope s (same cell, same SOC); **each step gets its own R_k**. For given tau_k everything else is linear (R_k, s ≥ 0, `lsqnonneg`). The tau_k are searched on a log grid (0.5 s up to half the longest window, at least 2× apart), then refined with `fminsearch`. Each step gets the same weight, in ohms.
+* **Why R_k per step.** At 0 °C the steps from the sample cycle do not agree: 100 s after the step the cell shows ~180 mΩ at 0.1C but ~115 mΩ at 1C. The cell's resistance falls with current; a linear block cannot do that. Forcing one R_k on every rate left 5–34 mV of error per step; sharing only the tau_k and letting R_k follow each step leaves 0.4–6 mV. The table takes the **median** R_k of the steps.
+* **How many pairs.** The fit is always run with 1, 2 and 3 pairs and the RC **How?** window lists the rms error of each. More pairs can only lower it, and the window says so when a pair hardly helps. Sample cycle, 0 °C: 9.0 / 4.0 / 3.5 mV; 25 °C: 2.6 / 0.65 / 0.36 mV. A pair the fit leaves empty (R = 0 at every step) is reported as *not resolved – use fewer RC pairs*, never filled in.
+* **From one SOC to the whole table: R_dc.** The steps are at one SOC, but the total resistance a constant current feels once the pairs are full,
+
+  ```
+  R_dc(SOC) = R0 + Σ_k R_k
+  ```
+
+  is measured at almost every SOC: at the test temperature from the discharges at several rates (§7.6), at 25 °C from the CC part of the charges, `R_dc = (V_charge − V0(SOC)) / I` (`chargeRdc`; V0 is the table itself, linear between breakpoints as the block uses it). At every breakpoint with an R_dc, all R_k are scaled by **one** factor `f = (R_dc − R0) / Σ R_k,step` (flag `S`); tau_k and the split between the pairs stay as the step fit found them. Between the step SOC (f = 1) and the R_dc points, f goes in a straight line. R_dc at a breakpoint = the median of the 1 % SOC points nearest it (`gridMedian`).
+* **25 °C R_dc and hysteresis.** The charge-side R_dc also holds the gap between the charge and discharge OCV, which the block does not model. With it the model charges at the measured voltage (the twin's charge voltage error in §9). It is the right resistance for charging at 25 °C, not for a 25 °C discharge, which this file does not contain.
 
 *Sources:*
-* [Lin14]: the relaxation fitted by least squares as a sum of exponentials; 1, 2 and 3 RC pairs compared, 2 chosen.
-* [MW-Char], [MW-HPPC]: MathWorks fits the relaxation segments for R_i, tau_i.
+* [Lin14]: the voltage response fitted by least squares as a sum of exponentials; 1, 2 and 3 RC pairs compared.
+* [MW-Char], [MW-HPPC]: MathWorks fits R_i, tau_i to the voltage segments around each pulse.
 * [Hu12]: a comparison of 12 equivalent-circuit structures.
 * [Jackey13]: fitting large lookup tables in layers.
 
 ### 7.6 OCV `batt_V0_vec` and R_dc: the multi-rate fit (`multiRate`)
-This is the part built around your test.
-
-1. **Wait until the RC pairs have settled.** Once every RC branch current equals the discharge current, the block's equation (§7.0) becomes a straight line in *i*:
+1. **Wait until the RC pairs have filled up.** Once every RC branch current equals the discharge current, the block's equation (§7.0) becomes a straight line in *i*:
    ```
    V(SOC, i) = V0(SOC) − i · R_dc(SOC),     R_dc = R0 + R1 + R2
    ```
-   A sample is used once what is left of each RC transient, `R_k·i·exp(−t/tau_k)`, is below 1 mV. R_k and tau_k come from the rest fits (§7.5), **from the rests that follow a discharge only**. On the synthetic copy of your test that wait is a few minutes (2, 4, 6 and 7 min for 0.1, 0.2, 0.5 and 1C in the chamber-schedule file).
-
-   *Why only those rests (the 25 °C bug).* A rest after a CC-CV charge starts with almost no current left in the RC branches, because the CV step has tapered it away. Its R_k and tau_k are poorly defined and can come out as a long tau with a large R. Earlier versions took the median over **all** rests. In a 25 °C file the post-charge rests are not too warm, so they were included, and the wait could grow longer than the 0.5C and 1C discharges themselves. Those rates then dropped out, the fit no longer covered the top of the SOC range, and the **OCV box stayed empty in the 25 °C files only**. In every other file those rests were already left out by the ±3 K window (the chamber had moved to T), which is why the other temperatures worked. If a rate is still dropped for never settling, the OCV note and its **How?** window now name the rate and the wait.
+   A sample is used once what is left of each RC transient, `R_k·i·exp(−t/tau_k)`, is below 1 mV. R_k and tau_k come from the **3-pair** fit of the steps at SOC 1 (§7.5), whatever number of pairs you pick, so the OCV and R_dc do not change with the RC pair count. Sample cycle: 6, 8 and 10 min for 0.1, 0.2 and 0.5C.
 2. **Line the discharges up on one SOC axis.** Each discharge starts from FULL, so its SOC is exact (§7.3). Its voltage is averaged in 1 % SOC bins; bins the data only partly covers are skipped.
-3. **Fit a straight line per bin.** At each 1 % of SOC: voltage against current over the discharges at ≤ 2C, using only samples with the cell within 3 K of the chamber. The 5.8C discharge is left out: it heats the cell by tens of kelvin and is past the range where V is linear in I.
-   * **intercept** (i = 0) = V0 on the discharge side;
-   * **slope** = R_dc.
+3. **Fit a straight line per bin.** At each 1 % of SOC: voltage against current over the discharges at ≤ 2C, using only samples with the cell within 3 K of the chamber. **intercept** (i = 0) = V0 (discharge side); **slope** = R_dc. With 3 or more rates the scatter around the line is reported. In the sample cycle the 1C discharge warms the cell past 3 K (left out) and a third of the 0.5C one does; the 5.8C one is past 2C.
+4. **Discharge side only.** The block has one OCV; the discharge-side one makes the discharges come out right. The charges at 25 °C get their own R_dc (§7.5), which takes up the hysteresis.
+5. **The two ends.** The very top (still settling) and the very bottom have no line. There the voltage at the **end of every rest of at least 1 h** is used (`restOcvPoints`): after a full charge the cell rests at its SOC-1 OCV, after a discharge at the OCV of the SOC it stopped at. A smooth (pchip) curve joins them to the line (`ocvFromMultiRate`). The table is forced to rise with SOC. The rests after a discharge end at 25 °C (the chamber has gone back); the OCV changes only a few mV with temperature.
 
-   With 3 or more rates, the scatter around the line is reported, as a check that the straight-line model holds.
-4. **Charge side, then average.** The discharge-side OCV still carries hysteresis: a cell rests slightly lower after a discharge than after a charge.
-   * The CC part of the 0.34C charges gives the other side as `V_chg − i_chg·R_dc`. With the chamber schedule this only happens in the **25 °C file**: everywhere else the charges ran at 25 °C, outside the ±3 K window, and the OCV is the discharge side alone (the note says *discharge side only*). One resistance is used for both directions, as in the block. With charges at 2+ rates it would get its own straight-line fit.
-   * `V0 = ½·(V0,chg + V0,dis)`; where only one side exists, it is shifted by half the measured gap.
-5. **The two ends.** The first minutes of each discharge are never settled, so there is no multi-rate point at the very top; there is none at the very bottom either. There the relaxed rest voltages are used: after a full charge the cell rests at its SOC-1 OCV, after the discharge to cut-off at its SOC-0 OCV. A smooth (pchip) curve joins them to the multi-rate curve (`ocvFromMultiRate`). Rest points inside the fitted range are only a check. The table is forced to rise with SOC.
-6. **R tables between the measured points (`scaleToRdc`).** R0 stays exactly as measured at the current steps (straight line between them). At SOC breakpoints where R1 and R2 were **not** measured, they are interpolated and then multiplied by **one** common factor so that `R0 + R1 + R2 = R_dc` there: `R_k ← R_k · (R_dc − R0) / ΣR_k`. These entries are flagged **S**. At measured breakpoints nothing is changed (only compared, shown in the R1 / R2 **How?** windows). So the total, which is what a constant current feels, is measured, and R0 is only what an instant step shows. (Earlier versions scaled R0 too, which put R0 at about twice the step value in the middle of the SOC range.)
-
-If the file does not have two or more different discharge rates from FULL, the older method is used instead: the relaxed rest voltages give the OCV level, and low-rate (≤ 0.5C) CC data corrected with the R0/RC tables gives the shape (`denseOcvPoints`, `buildOcv`).
+With fewer than two discharge rates from FULL there is no OCV from the data (the note says why): enter the datasheet curve.
 
 *Sources:*
-* [Barai19] §3: pseudo-OCV from slow cycling, with the average of the charge and discharge curves as the best compromise between time and accuracy.
-* [Lin14]: OCV taken as the average of a slow charge and discharge.
 * [Petzl13]: low-current curves still carry overpotential; the true OCV is the zero-current value.
 * [Yao18]: U = U_ocv(SOC) − I·R(SOC) over several discharge rates, giving R from their voltage difference.
 * [Bussios24]: pseudo-OCV curves at several C-rates extrapolated to zero current.
+* [Barai19] §3: pseudo-OCV from slow cycling.
 * [INL15] §4.4.2: OCV from rest points.
 
 **Honest note:** no single paper found does exactly this combination: a straight-line fit at each SOC over full discharges at several C-rates, intercept = OCV and slope = R_dc. Its pieces are all in the sources above, and the straight line itself is just the block's own voltage equation once the RC pairs have settled.
@@ -439,9 +440,9 @@ Lowest and highest measured voltage; first cell-temperature reading in kelvin.
 |---|---|
 | AH, SOC0 | a CC-CV charge followed (later) by a discharge to the cut-off voltage |
 | OCV + R_dc over the whole SOC range | **2 or more** CC discharges from FULL at different rates (≤ 2C), with the cell near the chamber temperature (your rate test) |
-| R0 | current steps with the first sample ≤ 1 s after the step (5 s if none) |
-| R_k, tau_k | rests ≥ 5 min after charges / discharges. At mid SOC only with pulses + rests there (HPPC / GITT); otherwise scaled to R_dc |
-| OCV ends | rests after the full charge and after the discharge to cut-off |
+| R0 | a charge or discharge that starts after a rest ≥ 10 min, first sample ≤ 1 s after the switch |
+| R_k, tau_k | the same steps, ≤ 2C. At other SOCs scaled to R_dc; at several SOCs on their own only with pulses from rest there (HPPC / GITT) |
+| OCV ends | rests ≥ 1 h after the full charge and after the discharge to cut-off |
 | thermal mass, h·A | `Temp 1` and chamber temperature columns, and visible self-heating (your 5.8C step) |
 
 ### 7.10 Fixed analysis settings
@@ -450,17 +451,17 @@ These were "Extraction settings" boxes in the old version. They are now fixed in
 | Constant | Value | Meaning |
 |---|---|---|
 | `vTol` | 0.02 V | tolerance when matching the CV / cut-off voltage |
-| `tauMin`, `tauMax` | 1 s, 3000 s | range searched for time constants |
-| `minRestS` | 300 s | shortest rest used for RC / OCV fits |
-| `maxFitRmse` | 8 mV | relaxation fits worse than this are dropped |
-| `maxEdgeDt` | 1 s | first sample after a step (and a sample before it taken under current) further than this from the step → not used for R0 |
-| `maxEdgeDtLoose` | 5 s | used instead of `maxEdgeDt` only when no step in the file meets it |
-| `minStepC` | 0.08 C | smaller current steps are not used for R0 |
-| `maxDT` | 3 K | steps / rests / multi-rate samples with the cell further than this from the chamber temperature are left out |
-| `mrMaxCrate` | 2 C | fastest discharge used in the multi-rate fit |
+| `minRestS` | 600 s | a step counts as "from rest" when the rest before it lasted this long |
+| `maxEdgeDt` | 1 s | the first sample after the switch must be this close to it (R0) |
+| `minStepC` | 0.08 C | smaller steps are not used |
+| `onsetMaxS`, `onsetMaxDSOC` | 600 s, 0.01 | RC fit window after each step |
+| `tauMin` | 0.5 s | shortest time constant (longest: half the window) |
+| `clusterSOC` | 0.03 | steps closer than this in SOC are fitted together |
+| `maxDT` | 3 K | data with the cell further than this from a table's temperature is not used for it |
+| `mrMaxCrate` | 2 C | fastest step / discharge used in the RC and multi-rate fits |
 | `settleV` | 1 mV | multi-rate fit: RC transient left over before a sample is used |
-| `settleNoFit` | 1800 s | ... the wait instead, when no rest could be fitted |
-| `ocvMaxCrate` | 0.5 C | fastest CC data used for the older (single-rate) OCV method |
+| `settleNoFit` | 1800 s | ... the wait instead, when there are no RC pairs |
+| `ocvRestS` | 3600 s | rests at least this long give an OCV point (the ends of the curve) |
 
 ---
 
@@ -505,19 +506,36 @@ One entry per box: key, label, variable, block location, unit, group, required /
 | `drawOverview` | the test overview and table plots on the right |
 
 ### `src/extractCellParameters.m`
-The calculations, described in §7. `multiRate` (the zero-current fit over the discharge rates), `scaleToRdc` and `ocvFromMultiRate` are the rate-test parts. Returns `R.value`, `R.found`, `R.note`, `R.diag` (data for the pop-ups), `R.d` (dataset with SOC) and `R.report` (text summary).
+The calculations, described in §7. `findOnsets` / `fitDynamics` / `fitCluster` (R0 and the RC pairs from the steps from rest), `multiRate` (the zero-current fit over the discharge rates), `chargeRdc` (R_dc from the charges), `buildTables` (onto the SOC breakpoints, scaled to R_dc) and `ocvFromMultiRate`. Returns `R.value`, `R.found`, `R.note`, `R.diag` (data for the pop-ups), `R.d` (dataset with SOC) and `R.report` (text summary).
 
 ### `src/batterySources.m`
 The reference list (§12) and, per parameter, what each source supports. The **How?** windows show it as clickable links (`uihyperlink`).
 
 ### `src/explainParameter.m`
-One `case` per parameter. The left side is a scrolling list of blocks built with four small helpers: `H` (heading), `P` (paragraph), `EQ` (an equation, shown with a LaTeX `uilabel`) and `M` (a monospaced table with the M/I/E flags). Each window explains what the parameter means, the model equations, the method step by step, and a worked example with this file's own numbers (e.g. `AH = Q_in(full) − Q_in(empty) = …`, an example current step's ΔV/ΔI, an example relaxation fit's x_k(0), R_k and τ_k). The right side has one or two plots of the data behind it.
+One `case` per parameter. The left side is a scrolling list of blocks built with four small helpers: `H` (heading), `P` (paragraph), `EQ` (an equation, shown with a LaTeX `uilabel`) and `M` (a monospaced table with the M/I/E flags). Each window explains what the parameter means, the model equations, the method step by step, and a worked example with this file's own numbers (e.g. `AH = Q_in(full) − Q_in(empty) = …`, an example step's (V_first − V_rest)/I, the R_k of every step and the rms error with 1, 2 and 3 pairs). The right side has one or two plots of the data itself: the raw samples around a step, `(V − V_rest)/I` after every step with the fit on top, every discharge on one SOC axis, V against current at one SOC.
 
 ---
 
 ## 9. Validation
 
-The extraction was validated on test files written from a cell with **known** parameters (a 2-RC cell with a lumped thermal mass, the same structure as the block). Each file is run through the extraction and compared with the truth. The validation scripts (`tests/runValidation.m`, `tests/makeSyntheticCellData.m`) are no longer in the repository; they are in the git history (commit `0cd3cc2`) if you want to re-run them.
+**0. The sample cycle (`task.txt`).** A made-up file shaped exactly like the real 0 °C tests: 25 °C CC-CV charges, 3 h rests while the chamber moves, discharges at 0.1 / 0.2 / 0.5 / 1C and 15 A (5.8C) at 0 °C. The extracted tables were put through the block's own equations (`V = V0 + I·R0 + Σ R_k·x_k`, SOC from the coulomb count, the measured cell temperature to pick between the 0 °C and 25 °C columns) over the whole test, and compared with the measured voltage:
+
+rms of twin − measured over SOC 0.05–0.95 (the knee and the very top are discussed below):
+
+| RC pairs | 0.1C | 0.2C | 0.5C | 1C | 25 °C charges |
+|---|---|---|---|---|---|
+| **this version**, 1 / 2 / 3 | 6.8 / 6.8 / 6.8 mV | 9.1 / 9.1 / 9.1 mV | 26 / 26 / 26 mV | 135 / 135 / 135 mV | 5–9 mV |
+| previous version, 1 | 12 mV | 34 mV | 94 mV | 85 mV | 51–52 mV |
+| previous version, 2 | 237 mV | 435 mV | 841 mV | 1259 mV | 30–32 mV |
+| previous version, 3 | 473 mV | 758 mV | 1463 mV | 2227 mV | 114–115 mV |
+
+Over the middle of the SOC range the result hardly depends on the number of pairs: R_dc fixes what a constant current feels there, and the pairs only shape the first minutes after a step (where 1 / 2 / 3 pairs give 9.0 / 4.0 / 3.5 mV, §7.5). The previous version got **worse with every RC pair** (whole test 116 → 780 → 1126 mV rms), because it fitted the pairs to the rests in which the chamber was warming the cell by 25 K. What is left now:
+* **1C**: the cell's resistance falls with current, and the cell warms to 11 °C; a linear block with one table cannot match every rate (§7.5).
+* **Last few % of SOC**: the knee falls between the breakpoints 0 and 0.05. More breakpoints there (e.g. 0.02, 0.03) follow it more closely.
+* **SOC 0.95–1**: the OCV curves sharply there; a breakpoint at 0.98 or 0.99 helps.
+* **15 A**: the cell heats to 60 °C, far outside the 0–25 °C tables, so the twin is far off there. Only a test at that temperature can fix that.
+
+Sections 1–3 were run on the **previous** version (RC pairs from the rests); they have not been re-run on this one. The extraction was validated on test files written from a cell with **known** parameters (a 2-RC cell with a lumped thermal mass, the same structure as the block). Each file is run through the extraction and compared with the truth. The validation scripts (`tests/runValidation.m`, `tests/makeSyntheticCellData.m`) are no longer in the repository; they are in the git history (commit `0cd3cc2`) if you want to re-run them.
 
 **1. Your profile (the rate test).** `makeSyntheticCellData(dir, 25, 'rate')`:
 * the cell starts nearly empty;
@@ -566,10 +584,11 @@ Synthetic data only proves the method recovers values that are really there. On 
 | "Could not find Current and Voltage columns" | Header names too different. Add your names to the `findCol` patterns in `loadBatteryCsv.m`. |
 | Current sign looks wrong | Check the sign note in the top bar. With no State column the sign comes from dV/dt. |
 | AH stays empty | No CC-CV charge followed by a full discharge to cut-off. Type the datasheet capacity into the AH box and press Extract again: SOC, R0 and the RC pairs can then be calculated. |
-| R1/tau1 empty | No rests ≥ 5 min after charges / discharges (or every rest started with the cell > 3 K from the chamber temperature). |
-| OCV empty | The multi-rate fit, rests and low-rate data do not cover SOC 0..1. The OCV window's note says which part is missing. Use the datasheet OCV curve. |
-| OCV empty in the 25 °C file only | Fixed: the multi-rate wait no longer uses the rests after the CC-CV charges (§7.6 step 1). If it still happens, the OCV note names the discharge rate that never settled. |
-| OCV note says "no multi-rate fit" | Fewer than 2 different CC discharge rates start from a full CC-CV charge. The older single-rate method is used. |
+| R1/tau1 empty | No charge / discharge starts after a rest ≥ 10 min with its first sample ≤ 1 s after the switch, at ≤ 2C. |
+| R2 / R3 says *not resolved* | The steps cannot carry that many pairs: the fit leaves the extra pair empty. Choose fewer RC pairs. |
+| OCV empty | The multi-rate fit and the long rests do not cover SOC 0..1. The OCV window's note says which part is missing. Use the datasheet OCV curve. |
+| OCV empty in the 25 °C file only | Fixed: the multi-rate wait comes from the steps at SOC 1, not from the rests (§7.6 step 1). If it still happens, the OCV window names the discharge rate that never settled. |
+| OCV note says "no multi-rate fit" | Fewer than 2 different CC discharge rates start from a full CC-CV charge, so there is no OCV from the data. Use the datasheet OCV curve. |
 | `batt_ambient` not saved | The file has no chamber temperature column. Use a Constant block with the chamber temperature (K). |
 | Thermal mass empty | No `Temp 1` / chamber column, or the cell heats by less than 0.5 K. Enter mass × specific heat. |
 | Save warns about a length mismatch | You changed the SOC breakpoints after extracting. Press Extract again. |
