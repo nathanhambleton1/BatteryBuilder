@@ -1,10 +1,11 @@
-function R = extractCellParameters(d, nRC, socGrid, userAH, capacityOnly)
+function R = extractCellParameters(d, nRC, socGrid, userAH, capacityOnly, Tset)
 %EXTRACTCELLPARAMETERS  Battery (Table-Based) parameters from ONE test file.
 %
 %   R = extractCellParameters(d, nRC, socGrid)
 %   R = extractCellParameters(d, nRC, socGrid, userAH)
 %   R = extractCellParameters(d, [], [], NaN, true)   capacity only (fast): R.value.AH
-%   R = extractCellParameters(d, [], [], NaN, true)   capacity only (fast): R.value.AH
+%   R = extractCellParameters(d, nRC, socGrid, userAH, false, Tset)
+%                    tables for ONE temperature Tset (°C) only (used internally)
 %
 %   d        dataset from loadBatteryCsv (current: positive = charge)
 %   nRC      number of RC pairs to fit (1..3) = block "Charge dynamics"
@@ -12,6 +13,15 @@ function R = extractCellParameters(d, nRC, socGrid, userAH, capacityOnly)
 %   userAH   optional capacity (Ah) typed in by the user. It is ONLY used to
 %            build the SOC axis when the test has no complete full->empty
 %            discharge (so the capacity cannot be measured).
+%
+%   Two temperatures: the chamber runs the charges at 25 °C and the
+%   discharges at the file's test temperature. When those differ by more
+%   than C.maxDT, every SOC table (V0, R0, R1.., tau1..) is built at BOTH
+%   temperatures, each from the data taken with the cell at that temperature,
+%   and returned as an nSOC x nT matrix (rows = SOC, columns = T_vec) for
+%   the block's "Tabulate parameters over temperature = Yes". R.byT{j} is the
+%   full single-temperature result for T_vec(j); R.iPrim is the discharge
+%   (test) temperature, which also gives AH, SOC, the thermal values etc.
 %
 %   Nothing is guessed: a parameter that cannot be worked out from the data
 %   is returned with R.found.(key) = false and R.note.(key) saying why.
@@ -23,18 +33,19 @@ function R = extractCellParameters(d, nRC, socGrid, userAH, capacityOnly)
 %   R.d             the dataset with d.soc and a 'SOC (-)' column added
 %   R.report        text report
 %
-%   Keys: SOC_vec V0_vec V_range R0_vec AH R1_vec tau1_vec R2_vec tau2_vec
+%   Keys: SOC_vec T_vec V0_vec V_range R0_vec AH R1_vec tau1_vec R2_vec tau2_vec
 %         R3_vec tau3_vec thermal_mass hA SOC0 T0
 
 if nargin < 4, userAH = NaN; end
 if nargin < 5, capacityOnly = false; end
+if nargin < 6, Tset = []; end
 if capacityOnly, nRC = 1; socGrid = [0 0.5 1]; end
 C = constants();
 nRC = max(1, min(3, round(nRC)));
 g = unique(min(max(double(socGrid(:)'), 0), 1));
 if numel(g) < 3, error('SOC_vec needs at least 3 breakpoints between 0 and 1.'); end
 
-keys = {'SOC_vec','V0_vec','V_range','R0_vec','AH','R1_vec','tau1_vec','R2_vec', ...
+keys = {'SOC_vec','T_vec','V0_vec','V_range','R0_vec','AH','R1_vec','tau1_vec','R2_vec', ...
         'tau2_vec','R3_vec','tau3_vec','thermal_mass','hA','SOC0','T0'};
 for k = 1:numel(keys)
     R.value.(keys{k}) = [];
@@ -133,6 +144,7 @@ fits = [];
 edgeIdx = [];
 R.diag.r0Steps = [];
 Tref = d.T_C;                         % the temperature these tables are for
+if ~isempty(Tset), Tref = Tset; end
 R.diag.Tref = Tref;
 R.diag.hot = struct('edges',0, 'fits',0);
 mr = struct('ok',false, 'why','needs SOC first');
@@ -339,6 +351,10 @@ else
     end
 end
 
+R.T_C = Tref; R.byT = {}; R.iPrim = 1;
+if isfinite(Tref), R.value.T_vec = Tref + 273.15; end
+R.note.T_vec = 'one temperature in this file: block option "Tabulate parameters over temperature" = No';
+
 % ---- report ---------------------------------------------------------------------
 for k = 1:numel(keys)
     if R.found.(keys{k}), tag = 'calculated'; else, tag = 'NOT FOUND '; end
@@ -347,6 +363,91 @@ end
 R.report = rep(:);
 R.d = d;
 R.constants = C;
+
+% ======================================================================
+% 7. Second temperature (the 25 °C charges) -> SOC x T tables
+% ======================================================================
+if isempty(Tset) && isfield(d,'T_chg_C') && isfinite(d.T_chg_C) && isfinite(d.T_C) ...
+        && abs(d.T_chg_C - d.T_C) > C.maxDT
+    R2 = extractCellParameters(d, nRC, socGrid, userAH, false, d.T_chg_C);
+    R = combineTemperatures(R, R2, nRC);
+end
+end
+
+function R = combineTemperatures(Rp, R2, nRC)
+% Rp = discharge (test) temperature, R2 = charge temperature. Each SOC table
+% becomes nSOC x 2 (columns in ascending temperature). A table that one
+% temperature cannot give is taken over from the other one (the block needs
+% the full matrix) and the note says so. The OCV hardly depends on
+% temperature (a few mV over 25 K), and the charge temperature has no
+% discharges for the multi-rate OCV fit, so V0 there is the test
+% temperature's V0 unless it had its own multi-rate fit.
+Rs = {Rp, R2};
+Ts = [Rp.T_C, R2.T_C];
+[Ts, o] = sort(Ts); Rs = Rs(o);
+R = Rp;
+R.byT = Rs; R.iPrim = find(o == 1); R.T_C = Ts;
+R.value.T_vec = Ts + 273.15; R.found.T_vec = true;
+R.note.T_vec = sprintf(['two temperatures: %.3g °C (%s) and %.3g °C (%s), from the chamber ' ...
+    'schedule; block option "Tabulate parameters over temperature" = Yes'], Ts(1), role(1), Ts(2), role(2));
+tab = {'V0_vec','R0_vec'};
+for q = 1:nRC, tab = [tab, {sprintf('R%d_vec',q), sprintf('tau%d_vec',q)}]; end %#ok<AGROW>
+R.copiedT = struct();
+for i = 1:numel(tab)
+    key = tab{i};
+    have = cellfun(@(r) r.found.(key), Rs);
+    if strcmp(key, 'V0_vec')
+        for j = 1:2
+            if j ~= R.iPrim && have(j) && ~(isfield(Rs{j}.diag,'multiRate') && Rs{j}.diag.multiRate.ok)
+                have(j) = false;          % charge-only OCV: use the test temperature's
+            end
+        end
+    end
+    R.copiedT.(key) = false(1,2);
+    if ~any(have)
+        R.value.(key) = []; R.found.(key) = false;
+        R.note.(key) = sprintf('%.3g °C: %s | %.3g °C: %s', Ts(1), Rs{1}.note.(key), Ts(2), Rs{2}.note.(key));
+        continue
+    end
+    M = nan(numel(R.value.SOC_vec), 2);
+    for j = 1:2
+        if have(j), M(:,j) = Rs{j}.value.(key)(:); end
+    end
+    nt = cell(1,2);
+    for j = 1:2
+        if have(j)
+            nt{j} = sprintf('%.3g °C: %s', Ts(j), Rs{j}.note.(key));
+        else
+            o2 = 3 - j; M(:,j) = M(:,o2); R.copiedT.(key)(j) = true;
+            if strcmp(key,'V0_vec')
+                nt{j} = sprintf('%.3g °C: same as %.3g °C (OCV changes only a few mV with temperature; no discharges at %.3g °C for a multi-rate fit)', ...
+                    Ts(j), Ts(o2), Ts(j));
+            else
+                nt{j} = sprintf('%.3g °C: COPIED from %.3g °C - not measurable at %.3g °C in this file (%s)', ...
+                    Ts(j), Ts(o2), Ts(j), Rs{j}.note.(key));
+            end
+        end
+    end
+    R.value.(key) = M; R.found.(key) = true;
+    R.note.(key) = [nt{1} ' | ' nt{2}];
+end
+% overview markers: steps / rests used at either temperature
+R.diag.edgeIdx = sort([Rs{1}.diag.edgeIdx(:); Rs{2}.diag.edgeIdx(:)]);
+if ~isempty(Rs{1}.diag.fits) && ~isempty(Rs{2}.diag.fits)
+    R.diag.fits = [Rs{1}.diag.fits, Rs{2}.diag.fits];
+elseif isempty(R.diag.fits)
+    R.diag.fits = Rs{3 - R.iPrim}.diag.fits;
+end
+iT = find(startsWith(R.report, '  T_vec '), 1);
+if ~isempty(iT), R.report{iT} = sprintf('  %-13s %s  %s', 'T_vec', 'calculated', R.note.T_vec); end
+R.report = [R.report; {sprintf('Tables at two temperatures: %.3g °C and %.3g °C (T_vec = [%.2f %.2f] K)', ...
+    Ts(1), Ts(2), R.value.T_vec)}];
+for i = 1:numel(tab)
+    R.report{end+1} = sprintf('  %-13s %s', tab{i}, R.note.(tab{i}));
+end
+    function s = role(j)
+        if j == R.iPrim, s = 'discharges'; else, s = 'charges'; end
+    end
 end
 
 % ======================================================================

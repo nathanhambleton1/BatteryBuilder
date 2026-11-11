@@ -230,6 +230,43 @@ switch key
         one = true;
 
     % ------------------------------------------------------------------
+    case 'T_vec'
+        Tc = R.T_C;
+        if isempty(R.byT)
+            P(R.note.T_vec); one = true;
+            title(ax1, 'One temperature in this file');
+        else
+        H('What it is');
+        P(['The temperature breakpoints (K) of every SOC table. With "Tabulate parameters over ' ...
+           'temperature" = Yes the block takes V0, R0, R1, tau1 ... as matrices: one ROW per SOC ' ...
+           'breakpoint, one COLUMN per temperature, and interpolates linearly in both.']);
+        H('Why this file has two');
+        P(sprintf(['The chamber schedule runs every CHARGE at %.3g °C and every DISCHARGE at %.3g °C. ' ...
+           'Resistances change a lot with temperature, so each column is built only from the data ' ...
+           'taken with the cell within %g K of that temperature:'], R.byT{3-R.iPrim}.T_C, ...
+           R.byT{R.iPrim}.T_C, R.constants.maxDT));
+        P(sprintf(['%.3g °C (discharges): R0 at the start of each discharge (SOC 1) and at its end ' ...
+           '(near SOC 0), RC pairs from the rests after the discharges, OCV and R_dc from the ' ...
+           'multi-rate fit, capacity, thermal values.'], R.byT{R.iPrim}.T_C), 'small');
+        P(sprintf(['%.3g °C (charges): R0 at the start of each charge (near SOC 0) and RC pairs ' ...
+           'from the rests after the charges. There are no discharges at this temperature, so the ' ...
+           'OCV is taken from the other column (it changes only a few mV with temperature), and a ' ...
+           'table that cannot be measured here is copied from the other temperature (its note ' ...
+           'says COPIED).'], R.byT{3-R.iPrim}.T_C), 'small');
+        H('Value');
+        M({sprintf('T_vec = %s K   (= %s °C)', mat2str(val, 5), mat2str(Tc, 3))});
+        if any(isfinite(d.Tch)), plot(ax1, th, d.Tch, 'LineWidth',1.2, 'DisplayName','chamber'); hold(ax1,'on'); end
+        if any(isfinite(d.Tcell)), plot(ax1, th, d.Tcell, 'LineWidth',1.0, 'DisplayName','cell'); hold(ax1,'on'); end
+        for j = 1:numel(Tc)
+            yline(ax1, Tc(j), '--', sprintf('%.3g °C', Tc(j)), 'HandleVisibility','off');
+            yline(ax1, Tc(j) + R.constants.maxDT*[-1 1], ':', 'Color',[0.6 0.6 0.6], 'HandleVisibility','off');
+        end
+        hold(ax1,'off'); legend(ax1,'Location','best');
+        xlabel(ax1,'Test time (h)'); ylabel(ax1,'Temperature (°C)'); title(ax1,'Chamber schedule and the two table temperatures');
+        one = true;
+        end
+
+    % ------------------------------------------------------------------
     case 'V0_vec'
       p = R.diag.points; ex = R.diag.ocvExample;
       if isfield(R.diag, 'multiRate') && R.diag.multiRate.ok
@@ -696,7 +733,7 @@ end
         for q2 = 1:size(mr.Vc,1)
             fm = isfinite(mr.Vc(q2,:));
             plot(ax1, mr.sf(fm), mr.Vc(q2,fm), '-', 'Color',[0.47 0.67 0.19], 'LineWidth',1);
-            lg{end+1} = sprintf('charge %.2gC', mr.Ic(q2)/R.value.AH); %#ok<AGROW>
+            lg{end+1} = sprintf('charge %.2gC', mr.Ic(q2)/R.diag.soc.cap); %#ok<AGROW>  % AH may be typed in
         end
         plot(ax1, mr.sf, mr.ocvD, ':', 'Color',[0.3 0.3 0.3], 'LineWidth',1.4); lg{end+1} = 'V_{0,dis} (i = 0)';
         if ~isempty(p.ocv)

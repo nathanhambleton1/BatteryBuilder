@@ -65,7 +65,7 @@ ddRC = uidropdown(gl,'Items',{'1','2','3'},'Value','2','Tooltip',tipRC, ...
     'ValueChangedFcn',@(~,~) refreshRows());
 ddRC.Layout.Row = r; ddRC.Layout.Column = 2;
 r = r+1;
-optText = ['Tabulate over temperature = No  |  Current directionality = No  |  Thermal port = Model  |  ' ...
+optText = ['Tabulate parameters over temperature = No  |  Current directionality = No  |  Thermal port = Model  |  ' ...
            'Expose SOC port = Yes  |  Self-discharge = Disabled (Enabled only if Rleak is filled)  |  ' ...
            'Fade / calendar aging = Disabled  |  Extrapolation = Nearest'];
 lOpt = uilabel(gl,'Text',optText,'WordWrap','on','FontColor',[0.3 0.3 0.35],'FontSize',11, ...
@@ -194,7 +194,9 @@ api.getState = @getState;
                 s.Value = fmtVal(vals.(key));
                 return
             end
-            vals.(key) = double(v(:)'); src.(key) = 'user';
+            v = double(v);
+            if isvector(v), v = v(:)'; end           % vectors as rows; matrices (SOC x T) kept
+            vals.(key) = v; src.(key) = 'user';
         end
         refreshRows();
         if strcmp(key, 'AH'), notifyCapacity(); end
@@ -213,6 +215,8 @@ api.getState = @getState;
 
     function refreshRows()
         nRC = str2double(ddRC.Value);
+        if numel(vals.T_vec) > 1, tabT = 'Yes'; else, tabT = 'No'; end
+        lOpt.Text = regexprep(lOpt.Text, 'over temperature = \w+', ['over temperature = ' tabT]);
         for k = 1:nRows
             p = rows(k); u = ui(k); key = p.key;
             u.edit.Value = fmtVal(vals.(key));
@@ -257,12 +261,34 @@ api.getState = @getState;
     function h = onHow(k)
         h = [];
         if isempty(R) || isempty(k), return; end
-        h = explainParameter(rows(k).key, R, rows(k));
+        key = rows(k).key;
+        if isempty(R.byT) || strcmp(key, 'T_vec')
+            h = explainParameter(key, R, rows(k)); return
+        end
+        Rp = R.byT{R.iPrim};
+        if ~rows(k).isVec || strcmp(key, 'SOC_vec')
+            h = explainParameter(key, Rp, rows(k)); return      % AH, thermal, ... : test temperature
+        end
+        % SOC tables: one window per temperature (each from its own data)
+        for j = numel(R.byT):-1:1
+            Rj = R.byT{j};
+            if ~Rj.found.(key), continue; end
+            rj = rows(k);
+            rj.label = sprintf('%s  at %.3g °C', rj.label, R.T_C(j));
+            h = explainParameter(key, Rj, rj);
+        end
+        if isfield(R,'copiedT') && isfield(R.copiedT, key) && any(R.copiedT.(key))
+            j = find(R.copiedT.(key), 1);
+            uialert(fig, sprintf(['At %.3g °C this table could not be measured from this file, so the ' ...
+                '%.3g °C values are used there as well:\n\n%s'], R.T_C(j), R.T_C(3-j), R.note.(key)), ...
+                sprintf('%s at %.3g °C', rows(k).label, R.T_C(j)), 'Icon','info');
+        end
     end
 
     function onSave()
         nRC = str2double(ddRC.Value);
         nSoc = numel(vals.SOC_vec);
+        nT = max(1, numel(vals.T_vec));
         saved = {}; missing = {}; problems = {};
         for k = 1:nRows
             p = rows(k); v = vals.(p.key);
@@ -273,10 +299,15 @@ api.getState = @getState;
             end
             if p.isVec
                 if isscalar(v), v = repmat(v, 1, nSoc); end          % one datasheet number -> every SOC
-                if numel(v) ~= nSoc
-                    problems{end+1} = sprintf('  %s has %d values but SOC breakpoints has %d', ...
-                        p.var, numel(v), nSoc); %#ok<AGROW>
+                if nT > 1 && isvector(v), v = repmat(v(:), 1, nT); end   % same values at every T
+                if nT == 1 && ~isvector(v)
+                    problems{end+1} = sprintf('  %s is a matrix but there is only one temperature', p.var); %#ok<AGROW>
+                elseif size(v,2) ~= nT && nT > 1 || (isvector(v) && numel(v) ~= nSoc) || (~isvector(v) && size(v,1) ~= nSoc)
+                    problems{end+1} = sprintf('  %s is %s but needs %d SOC x %d T', ...
+                        p.var, mat2str(size(v)), nSoc, nT); %#ok<AGROW>
                 end
+            elseif strcmp(p.key,'Rleak') && nT > 1 && isscalar(v)
+                v = repmat(v, 1, nT);                              % Rleak(T)
             end
             assignin('base', p.var, v);
             saved{end+1} = sprintf('  %-18s %s', p.var, sizeStr(v)); %#ok<AGROW>
@@ -284,6 +315,11 @@ api.getState = @getState;
         assignin('base', 'batt_nRC', nRC);
         saved{end+1} = sprintf('  %-18s %d  (block: Charge dynamics)', 'batt_nRC', nRC);
         msg = [{'Saved to the base workspace:'}, saved];
+        if nT > 1
+            msg = [msg, {'', sprintf(['Two temperatures (%s K): set the block option "Tabulate parameters ' ...
+                'over temperature" = Yes and Vector of temperatures T = batt_T_vec. The tables are %d SOC x %d T.'], ...
+                mat2str(vals.T_vec, 5), nSoc, nT)}];
+        end
         if ~isempty(missing)
             msg = [msg, {'', 'Still EMPTY (required for the block):'}, missing];
         end
@@ -349,10 +385,19 @@ api.getState = @getState;
         lg = {}; hs = [];
         % limits are set explicitly: uiaxes + yyaxis can keep stale automatic limits
         yyaxis(axTab,'left');
+        % one line per temperature column: solid = lowest T, dashed = next
+        sty = {'-','--',':'};
+        Tl = R.T_C; nTc = numel(Tl);
+        tSuf = @(j) '';
+        if nTc > 1, tSuf = @(j) sprintf(' %.3g°C', Tl(j)); end
         if R.found.V0_vec
-            v = R.value.V0_vec;
-            hs(end+1) = plot(axTab, sg, v, '-o', 'Color',[0 0.45 0.74], 'LineWidth',1.5); lg{end+1} = 'OCV V0';
-            axTab.YAxis(1).Limits = [min(v) max(v)] + [-0.05 0.05]*max(max(v) - min(v), 0.01);
+            v = R.value.V0_vec; if isvector(v), v = v(:); end
+            for j = 1:size(v,2)
+                if nTc > 1 && isfield(R,'copiedT') && R.copiedT.V0_vec(j), continue; end
+                hs(end+1) = plot(axTab, sg, v(:,j), [sty{min(j,3)} 'o'], 'Color',[0 0.45 0.74], ...
+                    'LineWidth',1.5); lg{end+1} = ['OCV V0' tSuf(j)]; %#ok<AGROW>
+            end
+            axTab.YAxis(1).Limits = [min(v(:)) max(v(:))] + [-0.05 0.05]*max(max(v(:)) - min(v(:)), 0.01);
         end
         ylabel(axTab,'OCV (V)');
         yyaxis(axTab,'right'); hold(axTab,'on');
@@ -361,10 +406,13 @@ api.getState = @getState;
         for q = 0:R.nRC
             if q == 0, key = 'R0_vec'; else, key = sprintf('R%d_vec', q); end
             if R.found.(key)
-                y = 1000*R.value.(key);
-                hs(end+1) = plot(axTab, sg, y, '-s', 'Color',cols(q+1,:), 'LineWidth',1.2, 'MarkerSize',4); %#ok<AGROW>
-                lg{end+1} = strrep(key,'_vec',''); %#ok<AGROW>
-                allR = [allR, y]; %#ok<AGROW>
+                y = 1000*R.value.(key); if isvector(y), y = y(:); end
+                for j = 1:size(y,2)
+                    hs(end+1) = plot(axTab, sg, y(:,j), [sty{min(j,3)} 's'], 'Color',cols(q+1,:), ...
+                        'LineWidth',1.2, 'MarkerSize',4); %#ok<AGROW>
+                    lg{end+1} = [strrep(key,'_vec','') tSuf(j)]; %#ok<AGROW>
+                end
+                allR = [allR; y(:)]; %#ok<AGROW>
             end
         end
         hold(axTab,'off');
@@ -386,13 +434,22 @@ end
 
 % =========================================================================
 function s = fmtVal(v)
+% vectors as [a b c]; SOC x T matrices as [a1 a2; b1 b2; ...] (one row per SOC)
 if isempty(v), s = ''; return; end
-parts = arrayfun(@(x) sprintf('%.5g', x), v, 'UniformOutput', false);
-if isscalar(v), s = parts{1}; else, s = ['[' strjoin(parts, ' ') ']']; end
+if isscalar(v), s = sprintf('%.5g', v); return; end
+if isvector(v), v = v(:)'; end
+rowsTxt = cell(1, size(v,1));
+for i = 1:size(v,1)
+    rowsTxt{i} = strjoin(arrayfun(@(x) sprintf('%.5g', x), v(i,:), 'UniformOutput', false), ' ');
+end
+s = ['[' strjoin(rowsTxt, '; ') ']'];
 end
 
 function s = sizeStr(v)
-if isscalar(v), s = sprintf('%.6g', v); else, s = sprintf('1x%d vector', numel(v)); end
+if isscalar(v), s = sprintf('%.6g', v);
+elseif isvector(v), s = sprintf('1x%d vector', numel(v));
+else, s = sprintf('%dx%d matrix (SOC x T)', size(v,1), size(v,2));
+end
 end
 
 function s = onOff(tf)

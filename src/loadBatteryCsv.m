@@ -19,6 +19,7 @@ function d = loadBatteryCsv(file)
 %                      (only used to cross-check the capacity)
 %     d.T_C            test temperature label (°C) = median chamber temperature
 %                      during the discharges (the chamber is at 25 °C while charging)
+%     d.T_chg_C        chamber temperature during the charges (°C), NaN if unknown
 %     d.signNote       how the current sign was worked out
 %     d.warn           cell array of warnings about the file
 %     d.tbl            the whole file as a table + a few added plot columns
@@ -141,6 +142,11 @@ d.I = I;
 % through the rest and the discharge. The median over the whole file can then land
 % on 25 °C for a 10 °C test, so the label is taken over the discharge samples.
 d.T_all_C = d.T_C;
+% chamber temperature during the CHARGES (25 °C in these tests): the second
+% temperature the tables are built for when it differs from the discharge one
+d.T_chg_C = NaN;
+chg = I > 0 & isfinite(d.Tch);
+if nnz(chg) > 10, d.T_chg_C = round(median(d.Tch(chg))*10)/10; end
 dis = I < 0 & isfinite(d.Tch);
 if nnz(dis) > 10
     d.T_C = round(median(d.Tch(dis))*10)/10;

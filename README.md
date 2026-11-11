@@ -22,7 +22,7 @@ BatteryDataBuilder                    % opens the app
 BatteryDataBuilder('cell_25C.csv')    % opens it with a file already loaded
 ```
 
-1. **Open CSV...** → pick one test file (one cell, one temperature).
+1. **Open CSV...** → pick one test file (one cell; charges at 25 °C, discharges at the test temperature).
 2. **Plot** tab: look at the data.
 3. **Load profile** tab: **Save load profile to workspace** → `batt_load`, `batt_stopTime`, `batt_Ts`, `batt_ambient`.
 4. **Modeling** tab: **1. Extract data from test**. Fill in any orange *Required* boxes from the datasheet, then **2. Save to workspace** → `batt_*`.
@@ -211,7 +211,7 @@ These options stay the same as before; set them once in the block dialog:
 | Block option | Setting |
 |---|---|
 | Charge dynamics | the **Charge dynamics (RC pairs)** drop-down on the tab (1, 2 or 3; default 2). Saved as `batt_nRC`. |
-| Tabulate over temperature | **No** (one test file = one temperature, so the `..._vec` parameters are used) |
+| Tabulate parameters over temperature | **Yes** when the file has two temperatures (charges at 25 °C, discharges at T ≠ 25 °C): Vector of temperatures T = `batt_T_vec` (K), and V0, R0, R1.., tau1.. are SOC × T matrices. **No** for the 25 °C file (one temperature, the tables are vectors). The tab shows which one. |
 | Current directionality | **No** |
 | Thermal port | **Model** |
 | Expose SOC port | **Yes** |
@@ -224,12 +224,13 @@ These options stay the same as before; set them once in the block dialog:
 | Box | Variable | Block dialog | From the data? | If not: datasheet |
 |---|---|---|---|---|
 | SOC breakpoints | `batt_SOC_vec` | Main › Vector of state-of-charge values | your choice (default `[0 .02 .05 .1 … .9 .95 1]`) | n/a |
-| Open-circuit voltage V0(SOC) | `batt_V0_vec` | Main › Open-circuit voltage, V0(SOC) | multi-rate fit of the discharges (rate test), or rests + low-rate CC data | OCV-vs-SOC curve. **Required.** |
+| Temperature breakpoints T | `batt_T_vec` | Main › Vector of temperatures, T (K) | the chamber during the discharges and during the charges, when they differ by > 3 K (§7.0) | n/a (empty = one temperature) |
+| Open-circuit voltage V0(SOC,T) | `batt_V0_vec` | Main › Open-circuit voltage, V0(SOC,T) | multi-rate fit of the discharges (rate test), or rests + low-rate CC data | OCV-vs-SOC curve. **Required.** |
 | Terminal voltage range | `batt_V_range` | Main › Terminal voltage operating range [Min Max] | min / max measured | cut-off voltages. Optional. |
-| Terminal resistance R0(SOC) | `batt_R0_vec` | Main › Terminal resistance, R0(SOC) | current steps (near full and near empty); straight line between them | DC internal resistance. **Required.** |
+| Terminal resistance R0(SOC,T) | `batt_R0_vec` | Main › Terminal resistance, R0(SOC,T) | current steps (near full and near empty); straight line between them | DC internal resistance. **Required.** |
 | Cell capacity AH | `batt_AH` | Main › Cell capacity, AH (A*hr) | full CC-CV → discharge to cut-off | rated capacity. **Required.** |
 | Self-discharge resistance | `batt_Rleak` | Main › Self-discharge resistance, Rleak | never (needs weeks of storage) | Optional |
-| R1..R3(SOC), tau1..tau3(SOC) | `batt_R1_vec`, `batt_tau1_vec`, ... | Dynamics › polarization resistance / time constant | rests after charges / discharges; R scaled to R_dc in between | rarely published. **Required** for the pairs in use. |
+| R1..R3(SOC,T), tau1..tau3(SOC,T) | `batt_R1_vec`, `batt_tau1_vec`, ... | Dynamics › polarization resistance / time constant | rests after charges / discharges; R scaled to R_dc in between | rarely published. **Required** for the pairs in use. |
 | Thermal mass | `batt_thermal_mass` | Thermal › Thermal mass (J/K) | cell temperature self-heating | mass × specific heat. **Required.** |
 | Convection h·A | `batt_hA` | *not a battery parameter*: Convective Heat Transfer block, Area = 1 m², coefficient = `batt_hA` | cell temperature self-heating | depends on your fixture. Optional. |
 | Initial SOC | `batt_SOC0` | Initial Targets › State of charge | SOC at the first sample | Optional |
@@ -281,7 +282,9 @@ m·cp · dT/dt = i²·R0 + Σ_k R_k·x_k² − h·A·(T − T_amb)      lumped t
 So every **discharge** runs at the file's temperature T and every **charge** runs at 25 °C. What that means for the extraction:
 
 * **Test temperature label** (`d.T_C`, what the tables are "for") = the median chamber temperature over the *discharge* samples. The median over the whole file can land on 25 °C for a cold test, because about half the test is at 25 °C (`loadBatteryCsv.m`). The top bar says so when the chamber moves by more than 3 K.
-* **The ±3 K window** (§7.10 `maxDT`) then does the right thing by itself. In a file that is not at 25 °C, the charges, the steps at the start of each charge and the rests after the charges are at 25 °C, so they are left out of the R0 / RC / OCV tables: they belong to the 25 °C file. The discharges, the steps at their start and end, and the rests right after them are used.
+* **Two table temperatures.** In a file that is not at 25 °C the tables are built at **both** chamber temperatures (`d.T_C` for the discharges, `d.T_chg_C` for the charges), each from the data taken with the cell within ±3 K of it (§7.10 `maxDT`). They are saved as SOC × T matrices with `batt_T_vec = [T_low T_high] + 273.15` K, for the block option *Tabulate parameters over temperature = Yes*. `extractCellParameters` runs the table part once per temperature; `R.byT{j}` is the full result for `T_vec(j)`, and every **How?** window for a table opens once per temperature.
+  * **Test temperature (discharges):** R0 at the start of each discharge (SOC 1) and at its end (near SOC 0), RC pairs from the rests after the discharges, OCV and R_dc from the multi-rate fit. AH, SOC, SOC0 and the thermal values come from here too (AH is one number in the block).
+  * **25 °C (charges):** R0 at the start of each charge (near SOC 0), RC pairs from the rests after the charges. There are no discharges at 25 °C, so there is no multi-rate fit there: V0 at 25 °C is the test temperature's V0 (the OCV changes only a few mV over 25 K). A table that cannot be measured at one temperature is copied from the other one so the block gets a full matrix, and its note says **COPIED**.
 * **In the 25 °C file** everything is at 25 °C, so the charges are used too. The OCV then also gets its charge side (§7.6 step 4), and the rests after the full charges give the SOC-1 end of the OCV.
 * **Thermal fit and `batt_ambient`** use the chamber column as it is, steps and all, so the 25 ↔ T switching is in the heat balance and in the Simulink ambient. `batt_T0` is the first cell reading (≈ 25 °C, because the chamber starts at 25 °C), which is the right start for a simulation driven by `batt_ambient`.
 
@@ -575,7 +578,7 @@ Synthetic data only proves the method recovers values that are really there. On 
 
 ## 11. Next steps (not in this version)
 
-* Several temperatures: combine one file per temperature into `..._mat` tables (Tabulate over temperature = Yes).
+* More temperatures: combine several files (each already gives its test temperature + 25 °C) into one SOC × T table set.
 * Separate charge / discharge R0 (Current directionality = Yes).
 * Save / load a parameter set (.mat) from the Modeling tab.
 * Optional automatic build of a test-bench Simulink model.

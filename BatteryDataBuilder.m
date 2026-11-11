@@ -72,6 +72,9 @@ if nargin > 0, openFile(file); end
         end
         delete(dlg);
         if isfinite(d.T_C), tStr = sprintf('%.1f °C', d.T_C); else, tStr = 'temperature unknown'; end
+        if isfield(d,'T_chg_C') && isfinite(d.T_chg_C) && isfinite(d.T_C) && abs(d.T_chg_C - d.T_C) > 3
+            tStr = sprintf('%.1f °C discharges, %.1f °C charges', d.T_C, d.T_chg_C);
+        end
         info = sprintf('%s   |   %s   |   %.1f h   |   %d rows   |   current: %s', ...
             d.name, tStr, d.t(end)/3600, numel(d.t), d.signNote);
         if ~isempty(d.warn), info = [info '   |   ! ' strjoin(d.warn, '; ')]; end
