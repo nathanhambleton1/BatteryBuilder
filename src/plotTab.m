@@ -796,7 +796,7 @@ api.loadTwin   = @loadTwin;
             end
             set(s.marker,'XData',xVal(k),'YData',yVal(k));
             ly = yl(1) + min(max(labFrac(k),0.03),0.97)*diff(yl);
-            str = sprintf('%s: %s', s.name, fmtNum(yVal(k)));
+            str = sprintf('%s: %s', s.name, fmtFull(yVal(k)));
             if rightSide
                 set(s.label,'Position',[xVal(k)-dx ly 0],'HorizontalAlignment','right','String',str);
             else
@@ -894,7 +894,7 @@ s = [char(916) strtrim(regexprep(twinName, '^Twin:\s*', ''))];
 end
 
 function s = fmtDelta(v)
-s = fmtNum(v);
+s = fmtFull(v);
 if isfinite(v) && v > 0, s = ['+' s]; end
 end
 
