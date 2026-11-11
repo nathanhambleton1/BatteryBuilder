@@ -172,13 +172,9 @@ api.getPulses = @getPulses;
             hS(end+1) = plot(a2, NaN, NaN, '-', 'Color', [0.15 0.15 0.15], 'LineWidth', 1.6); lab{end+1} = 'Solid: voltage';
             hS(end+1) = plot(a2, NaN, NaN, ':', 'Color', [0.15 0.15 0.15], 'LineWidth', 1.8); lab{end+1} = 'Dotted: cell temperature';
         end
-        nc = min(numel(hS), 5);
-        nr = ceil(numel(hS)/nc);
-        a2.Units = 'normalized'; a2.Position = [0.09 0.20 + 0.04*nr 0.80 0.64 - 0.04*nr];
-        lg = legend(a2, hS, lab, 'Interpreter','none', 'FontName', fn, 'FontSize', 16, ...
-            'Orientation','horizontal', 'NumColumns', nc, 'Location','none');
-        lg.Units = 'normalized';
-        lg.Position(1) = 0.5 - lg.Position(3)/2; lg.Position(2) = 0.01;
+        nc = min(numel(hS), 4);                 % a long list wraps into rows
+        lg = legend(a2, hS, lab, 'Interpreter','none', 'FontName', fn, 'FontSize', 14, ...
+            'Orientation','horizontal', 'NumColumns', nc, 'Location','southoutside');
         grid(a2,'on');
         if ~hasT
             text(a2, 0.98, 0.98, 'no cell temperature column in the file', 'Units','normalized', ...
