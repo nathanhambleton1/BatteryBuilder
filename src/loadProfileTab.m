@@ -205,14 +205,21 @@ api.getPulses = @getPulses;
         D = struct('I',{},'Ah',{},'V',{},'T',{});
         if isempty(pulses), return; end
         t = prof.tData; I = prof.IData; V = d.V(prof.iu); Tc = d.Tcell(prof.iu);
-        cand = struct('I',{},'q',{},'v',{},'T',{},'tot',{});
+        cand = struct('I',{},'q',{},'v',{},'T',{},'tot',{},'all',{},'t1',{},'t2',{});
         for k = 1:numel(pulses)
             p = pulses(k);
             if p.sign >= 0 || ~strcmp(p.kind,'CC') || (p.t2 - p.t1) < 300, continue; end
             idx = p.i1:p.i2;
             if numel(idx) < 3, continue; end
-            q = [0; cumsum(abs(I(idx(1:end-1))).*diff(t(idx)))]/3600;
-            cand(end+1) = struct('I',p.Ilev,'q',q,'v',V(idx),'T',Tc(idx),'tot',q(end)); %#ok<AGROW>
+            qAll = [0; cumsum(abs(I(idx(1:end-1))).*diff(t(idx)))]/3600;
+            % keep only the constant-current part: stop where the current leaves
+            % +-10 % of the level (a CV tail at the cut-off, a step to a lower
+            % current ...). That tail is not part of a "C-rate" capacity.
+            out = find(abs(abs(I(idx)) - p.Ilev) > 0.10*p.Ilev, 1);
+            if ~isempty(out), idx = idx(1:max(out-1, 3)); end
+            q = qAll(1:numel(idx));
+            cand(end+1) = struct('I',p.Ilev,'q',q,'v',V(idx),'T',Tc(idx),'tot',q(end), ...
+                'all',qAll(end),'t1',t(idx(1))/3600,'t2',t(idx(end))/3600); %#ok<AGROW>
         end
         if isempty(cand), return; end
         if isfinite(capAh), unit = 0.02*capAh; else, unit = 0.02*max([cand.I]); end
@@ -222,6 +229,8 @@ api.getPulses = @getPulses;
             m = find(id == r);
             [~, j] = max([cand(m).tot]);
             c = cand(m(j));
+            fprintf('C-rate curve %.4g A: %.3f Ah in the constant-current part (whole pulse %.3f Ah), test time %.2f-%.2f h, %d candidate discharge(s)\n', ...
+                c.I, c.tot, c.all, c.t1, c.t2, numel(m));
             D(end+1) = struct('I',c.I,'Ah',c.q,'V',c.v,'T',c.T); %#ok<AGROW>
         end
         [~, ord] = sort([D.I]); D = D(ord);
