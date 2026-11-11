@@ -1,1 +1,18 @@
-couple of things on the graph plot tab i need the cursor to snap to acutally x axis unit of data so i know where it was measured. ned with we have the cursor enabled i need to axis value that follow the cursor to be exact so for example with the time xaxis lets say in seconds but the time scale is x10^4 i dont want the time on the cursor to show that same time scale it needs to dispaly the actual full typed out value
+a couple of thing i just made some changes to the plot tab but now whenever i change the x axis it glitchs and breaks that needs to be fixed 
+Dot indexing is not supported for variables of type double.
+
+Error in plotTab/addSeries (line 385)
+        T = d.tbl;
+            ^^^^^
+Error in plotTab/refreshPlot (line 277)
+            addSeries(xName, leftNames{k}, 'left', pal(k,:));
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error in plotTab>@(~,~)refreshPlot(false) (line 62)
+ddX = uidropdown(gCtl,'Items',{'(open a file)'},'ValueChangedFcn',@(~,~) refreshPlot(false));
+                                                                         ^^^^^^^^^^^^^^^^^^
+ 
+Error using appdesservices.internal.interfaces.model.AbstractModel/executeUserCallback (line 310)
+Error while evaluating DropDown PrivateValueChangedFcn.
+
+
+No another thing i want to do is when i load the data i want to imdeitalty gneerate the the Crate on the load profile i think now i have it so you have hte extact data from test buton on the modeling tab first adn then it shows c rate but ijsut want that shown right when you load the csv i now also want to add another button on the load profile page which will generate a graph stylized like the save graph with the copy plot to a figure button on the plot page that will show all the differfent C rates lines on a graph with the voltage on the y left axis and the capacity in AH on the axis the legend should show the lines in differnt colors and show the c rate as well as the Amps for each line. then also show a label for what temperate that graph is at so not the 25base c but the file specific temp the dicharges happen at. then on the y right axis i want to show dotted lines for the cell temp at each c rate we dont need a seperate legend for the dotted lines it should just be the same color as the soloid counter part
