@@ -172,6 +172,23 @@ api.getPulses = @getPulses;
             text(a2, 0.98, 0.98, 'no cell temperature column in the file', 'Units','normalized', ...
                 'HorizontalAlignment','right', 'VerticalAlignment','top', 'FontName', fn, 'FontSize', 11);
         end
+        saveGraph(f2);
+    end
+
+    function saveGraph(f2)
+        % keep a PNG of the graph in <app folder>/graphs, named after the CSV
+        try
+            gdir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'graphs');
+            if ~isfolder(gdir), mkdir(gdir); end
+            [~, base] = fileparts(d.name);
+            png = fullfile(gdir, [base '.png']);
+            drawnow;
+            exportgraphics(f2, png, 'Resolution', 200);
+            f2.Name = ['Discharge C-rate curves - ' base];
+            fprintf('Saved graph: %s\n', png);
+        catch ME
+            uialert(fig, ['Could not save the PNG: ' ME.message], 'Save graph');
+        end
     end
 
     function D = dischargeCurves()
