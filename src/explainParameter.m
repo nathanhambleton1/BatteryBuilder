@@ -291,37 +291,58 @@ switch key
     case 'R0_vec'
         p = R.diag.points.R0;
         e = exampleEdge(R);
+        st = []; if isfield(R.diag,'r0Steps'), st = R.diag.r0Steps; end
+        lim = R.constants.maxEdgeDt; if ~isempty(st), lim = st.lim; end
         H('What it is');
-        P(['The series (ohmic) resistance: the part of the voltage drop that appears the ' ...
-           'instant current flows - electrolyte, contacts, tabs.']);
-        H('Why a current step measures it');
-        P(['The voltage over an RC pair cannot jump - its capacitor needs time to charge. So ' ...
-           'when the current steps from one value to another between two samples, only R0 ' ...
-           'responds in that instant:']);
-        EQ('\Delta V = R_0\,\Delta I \quad\Rightarrow\quad R_0 = \frac{V_{n+1}-V_n}{I_{n+1}-I_n}');
-        P(sprintf(['What counts is how soon AFTER the step the first sample was taken: within ' ...
-           '%g s, otherwise the RC pairs have already started to move and R0 would come out too ' ...
-           'high. The StepTime column gives that time exactly (a rest logged every 10 s is fine, ' ...
-           'as long as the new step''s first sample comes straight away). Steps smaller than ' ...
-           '%.2gC are left out (too little voltage change to measure). %d steps were used.'], ...
-           R.constants.maxEdgeDt, R.constants.minStepC, size(p,1)));
+        P(['The series (ohmic) resistance: the part of the voltage change that appears the ' ...
+           'instant the current changes - electrolyte, contacts, tabs.']);
+        H('Step 1 - find the current steps');
+        P(['A current step is where the current jumps (rest -> charge, rest -> discharge, ' ...
+           'discharge -> rest ...) from one sample to the next. The voltage over an RC pair ' ...
+           'cannot jump (its capacitor needs time), so in that one sample only R0 responds:']);
+        EQ('R_0 = \frac{V_{after}-V_{before}}{I_{after}-I_{before}}');
+        H('Step 2 - check the two samples sit right at the step');
+        P(sprintf(['The cycler logs slowly while nothing changes (e.g. every 30 s) and fast right ' ...
+           'after a step (e.g. 0.05 s, then slower and slower). A step is used when the first ' ...
+           'sample AFTER it is within %g s, and the sample BEFORE it is either at rest (voltage ' ...
+           'steady, so its age does not matter) or also within %g s. Steps smaller than %.2gC ' ...
+           'are left out. %d step(s) used.'], lim, lim, R.constants.minStepC, size(p,1)));
         hotP();
         if ~isempty(e)
             H('Worked example');
-            P(sprintf('The step closest to SOC 0.5 (at %.2f h, SOC %.3f):', e.t/3600, e.soc), 'small');
+            if e.rest, rt = ' (at rest)'; else, rt = ''; end
+            P(sprintf(['Step at %.2f h, SOC %.3f: current %.4g A -> %.4g A. Sample before: %.3g s ' ...
+               'before the step%s; sample after: %.3g s after it.'], e.t/3600, e.soc, e.Ib, e.Ia, ...
+               e.dtB, rt, e.dtA), 'small');
             EQ(sprintf('R_0 = \\frac{%s\\ \\mathrm{V}}{%s\\ \\mathrm{A}} = %s\\ \\mathrm{m\\Omega}', ...
                 n4(e.dV), n4(e.dI), n3(1000*e.R0)));
         end
-        H('From points to the table');
-        P(['Each SOC breakpoint takes the MEDIAN of the steps nearest to it (robust against ' ...
-           'the odd bad step).']);
-        rdcP();
+        if ~isempty(st) && ~isempty(st.k)
+            H('Every step found');
+            L = {sprintf('   %6s  %9s  %9s  %8s  %8s  %8s   %s', 'SOC', 'I bef (A)', 'I aft (A)', ...
+                'dt bef', 'dt aft', 'R0 mOhm', 'used?')};
+            for i = 1:numel(st.k)
+                if st.used(i), u = 'yes'; else, u = ['no: ' st.why{i}]; end
+                L{end+1} = sprintf('   %6.3f  %9.4g  %9.4g  %7.3gs  %7.3gs  %8.2f   %s', st.soc(i), ...
+                    st.Ibefore(i), st.Iafter(i), st.dtBefore(i), st.dtAfter(i), 1000*st.R0(i), u); %#ok<AGROW>
+            end
+            M(L);
+        end
+        H('Step 3 - the table');
+        P(['A rate test only steps the current at the two ends: at FULL (start of each discharge) ' ...
+           'and near EMPTY (end of each discharge, start of each charge). So R0 is only measured ' ...
+           'there. Each of those SOCs takes the MEDIAN of its steps, the table is a straight line ' ...
+           'between them, and past the last measured SOC the end value is held.']);
+        P(['R0 is not changed anywhere else. The extra resistance a long constant current feels ' ...
+           '(the multi-rate R_dc, see the OCV window) belongs to the RC pairs, which are scaled ' ...
+           'to make up the difference (see R1 / R2).'], 'small');
+        P('M = measured near this SOC, I = straight line between measured SOCs, E = end value held.', 'small');
         M(tableLines(R.value.SOC_vec, val*1000, R.diag.prov.R0_vec, '%.3f mOhm'));
         scatter(ax1, p(:,1), p(:,2)*1000, 16, [0.6 0.6 0.6], 'filled', 'MarkerFaceAlpha',0.5); hold(ax1,'on');
         plot(ax1, R.value.SOC_vec, val*1000, '-s', 'Color',[0 0.45 0.74], 'LineWidth',1.6);
         lg = {'each current step','R0 table'};
-        [rs, rsLab] = rSum();
         if isfield(R.diag,'multiRate') && R.diag.multiRate.ok
+            [rs, rsLab] = rSum();
             plot(ax1, R.diag.multiRate.RdcPts(:,1), R.diag.multiRate.RdcPts(:,2)*1000, '-', ...
                 'Color',[0.85 0.33 0.1], 'LineWidth',1.2);
             plot(ax1, R.value.SOC_vec, rs*1000, '--', 'Color',[0.47 0.67 0.19], 'LineWidth',1.2);
@@ -507,20 +528,19 @@ end
     end
 
     function rdcP()
-        % how the SOC range between the measured points is filled
+        % how the SOC range between the measured points is filled (R1..Rn)
         pr = R.diag.prov.(key);
         if any(pr == 'S')
             mr = R.diag.multiRate;
-            P(['Between the measured SOC points (where the current never steps or stops) R0 and ' ...
-               'the RC resistances cannot be told apart - but their SUM can be measured: once ' ...
-               'the RC pairs have settled, a constant-current discharge sits at']);
+            P(['Between the measured SOC points (where the current never steps or stops) the RC ' ...
+               'pairs cannot be fitted - but the TOTAL resistance a constant current feels can be ' ...
+               'measured: once the RC pairs have settled, a constant-current discharge sits at']);
             EQ('V = V_0(\mathrm{SOC}) - |I|\,R_{dc}(\mathrm{SOC}), \qquad R_{dc} = R_0 + \sum_k R_k');
             P(sprintf(['and the multi-rate fit (see the OCV window) measures R_dc at every SOC from ' ...
-               'the %d discharge rates. At the breakpoints marked S the interpolated R0, R1 ... ' ...
-               'are scaled by ONE common factor so that they add up to the measured R_dc:'], numel(mr.use)));
-            EQ('R_x(s_j) \leftarrow R_x(s_j)\cdot\frac{R_{dc}(s_j)}{R_0(s_j) + \sum_k R_k(s_j)}');
-            P(['So the total (what a constant current feels) is measured; only the split between ' ...
-               'R0 and the RC pairs is interpolated from the nearest measured points.'], 'small');
+               'the %d discharge rates. R0 is kept as measured at the current steps. At the ' ...
+               'breakpoints marked S the interpolated R1, R2 ... are scaled by ONE common factor ' ...
+               'so that they make up the rest:'], numel(mr.use)));
+            EQ('R_k(s_j) \leftarrow R_k(s_j)\cdot\frac{R_{dc}(s_j) - R_0(s_j)}{\sum_k R_k(s_j)}');
             ck = R.diag.rdcCheck;
             if ~isempty(ck)
                 P(sprintf(['Cross-check where both exist (measured breakpoints): R0 + sum R_k = %s mOhm ' ...
@@ -531,7 +551,7 @@ end
             P(['Breakpoints with no measurement are interpolated (I); past the last measured ' ...
                'point the end value is held (E).']);
         end
-        P('M = measured near this SOC, I = interpolated, E = end value held, S = scaled to the measured R_dc.', 'small');
+        P('M = measured near this SOC, I = interpolated, E = end value held, S = scaled so R0 + sum R_k = measured R_dc.', 'small');
     end
 
     function [rs, lab] = rSum()
@@ -694,14 +714,28 @@ end
 
 % =========================================================================
 function e = exampleEdge(R)
-% the current step closest to SOC 0.5
+% a used current step: one that starts from rest if there is one (the
+% cleanest case), then the one whose first sample after it came soonest
 e = [];
 d = R.d; k = R.diag.edgeIdx;
 if isempty(k), return; end
-[~, j] = min(abs(d.soc(k) - 0.5));
+st = []; if isfield(R.diag,'r0Steps'), st = R.diag.r0Steps; end
+j = 1;
+if ~isempty(st) && any(st.used)
+    iu = find(st.used);
+    score = st.dtAfter(iu) + 1e6*~st.fromRest(iu);
+    [~, m] = min(score); j = find(k == st.k(iu(m)), 1);
+    if isempty(j), j = 1; end
+end
 k = k(j);
-e.k = k; e.t = d.t(k); e.soc = d.soc(k);
+e.k = k; e.t = d.t(k+1); e.soc = d.soc(k);
+e.Ib = d.I(k); e.Ia = d.I(k+1);
 e.dV = d.V(k+1) - d.V(k); e.dI = d.I(k+1) - d.I(k); e.R0 = e.dV/e.dI;
+e.dtA = d.t(k+1) - d.t(k); e.dtB = 0; e.rest = abs(d.I(k)) <= d.restThr;
+if ~isempty(st)
+    i = find(st.k == k, 1);
+    if ~isempty(i), e.dtA = st.dtAfter(i); e.dtB = st.dtBefore(i); end
+end
 end
 
 function f = exampleFit(R)

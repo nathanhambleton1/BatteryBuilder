@@ -131,12 +131,13 @@ pts.R0 = []; pts.ocv = []; pts.ocvDense = []; pts.Rdc = [];
 for q = 1:3, pts.(sprintf('R%d',q)) = []; pts.(sprintf('tau%d',q)) = []; end
 fits = [];
 edgeIdx = [];
+R.diag.r0Steps = [];
 Tref = d.T_C;                         % the temperature these tables are for
 R.diag.Tref = Tref;
 R.diag.hot = struct('edges',0, 'fits',0);
 mr = struct('ok',false, 'why','needs SOC first');
 if ~isempty(soc)
-    [pts.R0, edgeIdx, R.diag.hot.edges] = r0FromEdges(d, soc, C, capUse, Tref);
+    [pts.R0, edgeIdx, R.diag.hot.edges, R.diag.r0Steps] = r0FromEdges(d, soc, C, capUse, Tref);
     [fits, R.diag.hot.fits] = fitRelaxations(d, soc, ph, C, nRC, capUse, Tref);
     % RC branches seen in the rests (median over the fits) -> how long the
     % multi-rate fit must wait after a step before the transient is gone
@@ -181,11 +182,12 @@ end
 if isempty(soc)
     R.note.R0_vec = noSoc;
 elseif isempty(pts.R0)
-    R.note.R0_vec = sprintf('no sharp current steps sampled faster than %g s', C.maxEdgeDt);
+    R.note.R0_vec = sprintf('no sharp current steps sampled faster than %g s', C.maxEdgeDtLoose);
 else
     [R.value.R0_vec, prov.R0_vec] = gridPoints(pts.R0, g);
     R.found.R0_vec = true;
-    R.note.R0_vec = sprintf('R0 = dV/dI at %d current steps, median per SOC breakpoint%s', size(pts.R0,1), hotNote);
+    R.note.R0_vec = sprintf(['R0 = dV/dI at %d current steps (median per measured SOC); ' ...
+        'straight line between the measured SOCs, end values held%s'], size(pts.R0,1), hotNote);
 end
 % --- R1..R3, tau1..tau3
 for q = 1:3
@@ -213,17 +215,16 @@ for q = 1:3
 end
 
 % --- between the measured SOC points: make R0 + R1 + ... equal the DC
-%     resistance measured by the multi-rate fit (the split between them
-%     stays interpolated, the SUM is measured)
+%     resistance measured by the multi-rate fit. R0 stays as measured at
+%     the steps; the RC pairs take up the rest.
 R.diag.rdcCheck = [];
 if R.found.R0_vec && mr.ok
     [R, prov, R.diag.rdcCheck] = scaleToRdc(R, prov, mr, g, nRC);
-    if any(prov.R0_vec == 'S')
-        R.note.R0_vec = [R.note.R0_vec sprintf(['; between them (S) R0 + R1..R%d are scaled so their sum ' ...
-            'equals the DC resistance from the %d discharge rates'], nRC, numel(mr.use))];
-        for q = 1:nRC
-            kR = sprintf('R%d_vec',q);
-            if R.found.(kR), R.note.(kR) = [R.note.(kR) ' (S breakpoints: sum scaled to the multi-rate DC resistance)']; end
+    for q = 1:nRC
+        kR = sprintf('R%d_vec',q);
+        if R.found.(kR) && any(prov.(kR) == 'S')
+            R.note.(kR) = [R.note.(kR) sprintf(['; between them (S) R1..R%d are scaled so R0 + R1..R%d ' ...
+                'equals the DC resistance from the %d discharge rates (R0 itself is not scaled)'], nRC, nRC, numel(mr.use))];
         end
     end
 end
@@ -357,7 +358,8 @@ C.tauMin      = 1;      % s    shortest time constant allowed in the RC fits
 C.tauMax      = 3000;   % s    longest time constant allowed in the RC fits
 C.minRestS    = 300;    % s    rests shorter than this are not used for RC / OCV
 C.maxFitRmse  = 0.008;  % V    relaxation fits worse than this are thrown away
-C.maxEdgeDt   = 5;      % s    current steps sampled coarser than this are not used for R0
+C.maxEdgeDt   = 1;      % s    R0: samples around a current step must be this close to it
+C.maxEdgeDtLoose = 5;   % s    ... used instead only when no step in the file meets maxEdgeDt
 C.ocvMaxCrate = 0.5;    % C    only CC data at or below this rate builds the OCV curve
 C.minStepC    = 0.08;   % C    smallest current step used for R0 (0.08C: a 0.1C step counts)
 C.maxDT       = 3;      % K    points where the cell is further than this from the test
@@ -554,15 +556,24 @@ end
 % ======================================================================
 %  R0 and RC relaxations
 % ======================================================================
-function [pts, k, nHot] = r0FromEdges(d, soc, C, AH, Tref)
+function [pts, k, nHot, steps] = r0FromEdges(d, soc, C, AH, Tref)
 % Instantaneous (ohmic) resistance at every current step:  R0 = dV / dI
 %   between the last sample before the step and the first sample after it
 %   (INL Battery Test Manual eq. 4; MathWorks "Characterize Battery Cell").
-% What matters is how soon after the step that first sample was taken (the
-% RC branches start to charge straight away): it must be <= C.maxEdgeDt.
-% The StepTime column says exactly when the step happened; without it the
-% gap between the two samples is used (a 10 s rest log is then too coarse).
+% Both samples must sit right at the switch, otherwise the RC branches have
+% already moved and R0 comes out too high:
+%   * AFTER:  the first sample after the step must be <= C.maxEdgeDt after
+%     it. Cyclers log fast right after a step (e.g. 0.05 s, then slower and
+%     slower), so this is normally met easily. The StepTime column says
+%     exactly when the step happened; without it the gap between the two
+%     samples is used.
+%   * BEFORE: the last sample before the step is either at REST (voltage
+%     steady, so a 30 s old rest sample is fine) or itself <= C.maxEdgeDt
+%     before the switch. A sample taken while current flowed, long before the
+%     switch, has a different RC state and is not used.
+% If no step meets C.maxEdgeDt, C.maxEdgeDtLoose is tried (coarse logs).
 % Steps where the cell is more than C.maxDT away from Tref are left out.
+% steps = every candidate step with its timing and why it was / was not used
 I = d.I; V = d.V; t = d.t;
 dI = diff(I); dV = diff(V); dt = diff(t);
 dtAfter = dt;
@@ -571,19 +582,35 @@ if ~isempty(d.stepTime)
     use = isfinite(st) & st >= 0 & st < dt;
     dtAfter(use) = st(use);
 end
+dtBefore = max(dt - dtAfter, 0);             % last sample before -> switch
 if isfinite(AH), thr = C.minStepC*AH; else, thr = 0.05*max(abs(I)); end
 thr = max(thr, 10*d.restThr);
-k = find(abs(dI) > thr & dtAfter <= C.maxEdgeDt & dt > 0);
-Rv = dV(k)./dI(k);
-ok = Rv > 0 & Rv < 1;
-k = k(ok); Rv = Rv(ok);
+fromRest = abs(I(1:end-1)) <= d.restThr;
+cand = find(abs(dI) > thr & dt > 0);
+Rv = dV(cand)./dI(cand);
+why = repmat({''}, numel(cand), 1);
+lim = C.maxEdgeDt;
+fast = dtAfter(cand) <= lim & (fromRest(cand) | dtBefore(cand) <= lim);
+if ~any(fast)
+    lim = C.maxEdgeDtLoose;
+    fast = dtAfter(cand) <= lim & (fromRest(cand) | dtBefore(cand) <= lim);
+end
+why(dtAfter(cand) > lim) = {sprintf('first sample after the step > %g s', lim)};
+why(cellfun(@isempty, why) & ~(fromRest(cand) | dtBefore(cand) <= lim)) = ...
+    {sprintf('sample before was under current and > %g s before the step', lim)};
+why(cellfun(@isempty, why) & ~(Rv > 0 & Rv < 1)) = {'dV/dI not a plausible resistance'};
 nHot = 0;
 if isfinite(Tref) && any(isfinite(d.Tcell))
-    hot = abs(d.Tcell(k+1) - Tref) > C.maxDT;
+    hot = cellfun(@isempty, why) & abs(d.Tcell(cand+1) - Tref) > C.maxDT;
     nHot = nnz(hot);
-    k = k(~hot); Rv = Rv(~hot);
+    why(hot) = {sprintf('cell more than %g K from %.3g °C', C.maxDT, Tref)};
 end
-pts = [soc(k), Rv];
+used = cellfun(@isempty, why);
+k = cand(used);
+pts = [soc(k), Rv(used)];
+steps = struct('k',cand, 't',t(cand+1), 'soc',soc(cand), 'Ibefore',I(cand), 'Iafter',I(cand+1), ...
+    'dV',dV(cand), 'dI',dI(cand), 'R0',Rv, 'dtBefore',dtBefore(cand), 'dtAfter',dtAfter(cand), ...
+    'fromRest',fromRest(cand), 'used',used, 'why',{why}, 'lim',lim);
 end
 
 function [fits, nHot] = fitRelaxations(d, soc, ph, C, nRC, AH, Tref)
@@ -1141,27 +1168,33 @@ end
 
 
 function [R, prov, chk] = scaleToRdc(R, prov, mr, g, nRC)
-% Breakpoints whose R0 was NOT measured there (interpolated 'I' / held 'E')
-% but where the multi-rate fit measured R_dc: scale R0 and R1..Rn together
-% so R0 + sum Rk = R_dc ('S'). Measured breakpoints ('M') are left alone and
-% only compared (chk = [soc, R0+sumRk, R_dc]).
+% R0 is ONLY what the current steps measured (straight line between them);
+% it is never scaled. What a constant current feels beyond R0 is the RC
+% pairs: at breakpoints where R1..Rn were NOT measured (interpolated 'I' /
+% held 'E') but the multi-rate fit measured R_dc, R1..Rn are scaled by one
+% common factor so R0 + sum Rk = R_dc ('S'). Measured breakpoints are left
+% alone and only compared (chk = [soc, R0+sumRk, R_dc]). If R_dc there is not
+% larger than R0, nothing is changed.
 chk = zeros(0,3);
-keysR = {'R0_vec'};
+keysR = {};
 for q = 1:nRC
     if R.found.(sprintf('R%d_vec',q)), keysR{end+1} = sprintf('R%d_vec',q); end %#ok<AGROW>
 end
+if isempty(keysR), return; end
 rdc = interp1(mr.RdcPts(:,1), mr.RdcPts(:,2), g, 'linear', NaN);
 for j = 1:numel(g)
     if ~isfinite(rdc(j)), continue; end
-    tot = 0;
-    for q = 1:numel(keysR), tot = tot + R.value.(keysR{q})(j); end
-    if prov.R0_vec(j) == 'M'
-        chk(end+1,:) = [g(j), tot, rdc(j)]; %#ok<AGROW>
+    r0 = R.value.R0_vec(j);
+    rk = 0;
+    for q = 1:numel(keysR), rk = rk + R.value.(keysR{q})(j); end
+    if prov.(keysR{1})(j) == 'M'
+        chk(end+1,:) = [g(j), r0 + rk, rdc(j)]; %#ok<AGROW>
         continue
     end
-    k = rdc(j)/tot;
+    if rk <= 0 || rdc(j) <= r0, continue; end
+    f = (rdc(j) - r0)/rk;
     for q = 1:numel(keysR)
-        R.value.(keysR{q})(j) = R.value.(keysR{q})(j)*k;
+        R.value.(keysR{q})(j) = R.value.(keysR{q})(j)*f;
         prov.(keysR{q})(j) = 'S';
     end
 end
