@@ -137,6 +137,7 @@ api.getPulses = @getPulses;
         end
         col = seriesColors(numel(D));
         f2 = figure('Name','Discharge C-rate curves','Color','w');
+        f2.Position(3) = 1.7*f2.Position(3); f2.Position(1) = max(10, f2.Position(1) - 0.35*f2.Position(3)/1.7); f2.Position(4) = 1.2*f2.Position(4); f2.Position(2) = max(40, f2.Position(2) - 0.15*f2.Position(4)/1.2);
         a2 = axes(f2); %#ok<LAXES>
         fn = 'Century Gothic';
         a2.FontName = fn; a2.FontSize = 16;
@@ -165,7 +166,7 @@ api.getPulses = @getPulses;
         xlabel(a2, 'Discharged capacity (Ah)', 'FontName', fn);
         if isfinite(d.T_C), tt = sprintf('%.3g %cC', d.T_C, char(176)); else, tt = 'temperature unknown'; end
         title(a2, sprintf('Discharge curves at %s', tt), 'FontName', fn, 'Interpreter','none');
-        lg = legend(a2, hS, lab, 'Interpreter','none', 'Location','southwest', 'FontName', fn);
+        lg = legend(a2, hS, lab, 'Interpreter','none', 'Location','eastoutside', 'FontName', fn);
         lg.Title.String = sprintf('Test temperature: %s', tt);
         grid(a2,'on');
         if ~hasT
