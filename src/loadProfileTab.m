@@ -166,21 +166,19 @@ api.getPulses = @getPulses;
         xlabel(a2, 'Discharged capacity (Ah)', 'FontName', fn);
         if isfinite(d.T_C), tt = sprintf('%.3g %cC', d.T_C, char(176)); else, tt = 'temperature unknown'; end
         title(a2, sprintf('Discharge curves at %s', tt), 'FontName', fn, 'Interpreter','none');
-        % legends as single rows: C-rates above the plot, line-style key below it
-        a2.Units = 'normalized'; a2.Position = [0.09 0.21 0.80 0.56];
-        lg = legend(a2, hS, lab, 'Interpreter','none', 'FontName', fn, 'FontSize', 16, 'Orientation','horizontal', ...
-            'NumColumns', numel(hS), 'Location','none');
-        lg.Units = 'normalized';
-        lg.Position(1) = 0.5 - lg.Position(3)/2; lg.Position(2) = 0.88;
+        % one legend below the plot: the C-rates, then what solid / dotted mean
         if hasT
-            a3 = axes(f2, 'Position', a2.Position, 'Visible','off'); hold(a3,'on'); %#ok<LAXES>
-            k1 = plot(a3, NaN, NaN, '-', 'Color', [0.15 0.15 0.15], 'LineWidth', 1.6);
-            k2 = plot(a3, NaN, NaN, ':', 'Color', [0.15 0.15 0.15], 'LineWidth', 1.8);
-            lg2 = legend(a3, [k1 k2], {'Solid: voltage', 'Dotted: cell temperature'}, 'FontName', fn, 'FontSize', 16, ...
-                'Orientation','horizontal', 'NumColumns', 2, 'Location','none', 'Box','on');
-            lg2.Units = 'normalized';
-            lg2.Position(1) = 0.5 - lg2.Position(3)/2; lg2.Position(2) = 0.02;
+            yyaxis(a2,'left');
+            hS(end+1) = plot(a2, NaN, NaN, '-', 'Color', [0.15 0.15 0.15], 'LineWidth', 1.6); lab{end+1} = 'Solid: voltage';
+            hS(end+1) = plot(a2, NaN, NaN, ':', 'Color', [0.15 0.15 0.15], 'LineWidth', 1.8); lab{end+1} = 'Dotted: cell temperature';
         end
+        nc = min(numel(hS), 5);
+        nr = ceil(numel(hS)/nc);
+        a2.Units = 'normalized'; a2.Position = [0.09 0.20 + 0.04*nr 0.80 0.64 - 0.04*nr];
+        lg = legend(a2, hS, lab, 'Interpreter','none', 'FontName', fn, 'FontSize', 16, ...
+            'Orientation','horizontal', 'NumColumns', nc, 'Location','none');
+        lg.Units = 'normalized';
+        lg.Position(1) = 0.5 - lg.Position(3)/2; lg.Position(2) = 0.01;
         grid(a2,'on');
         if ~hasT
             text(a2, 0.98, 0.98, 'no cell temperature column in the file', 'Units','normalized', ...
