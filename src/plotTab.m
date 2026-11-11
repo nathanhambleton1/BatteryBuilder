@@ -748,9 +748,9 @@ api.loadTwin   = @loadTwin;
         if isempty(series) || isempty(cursorX) || ~isvalid(cursorX), return; end
         lims = currentLimits();
         xl = lims{1};
-        xc = p(1);
+        xc = snapX(p(1), xl);          % snap to the nearest actually-measured X sample
         cursorX.Value = xc;
-        cursorX.Label = [' ' ddX.Value ' = ' fmtNum(xc) ' '];
+        cursorX.Label = [' ' ddX.Value ' = ' fmtFull(xc) ' '];
         if (xc - xl(1))/diff(xl) > 0.6
             cursorX.LabelHorizontalAlignment = 'left';
         else
@@ -845,6 +845,19 @@ api.loadTwin   = @loadTwin;
                 end
             end
         end
+    end
+
+    function xs = snapX(x0, xl)
+        % nearest X sample (over all plotted series) to x0, so the cursor sits on
+        % a point that was really measured. Falls back to x0 if nothing is finite.
+        xs = x0; best = inf;
+        for q = 1:numel(series)
+            sx = series(q).x;
+            if isempty(sx), continue; end
+            [d, j] = min(abs(sx - x0));
+            if isfinite(d) && d < best, best = d; xs = sx(j); end
+        end
+        xs = min(max(xs, xl(1)), xl(2));
     end
 
     function m = partnerOf(k)
@@ -957,6 +970,17 @@ elseif a >= 1e5 || a < 1e-3, s = sprintf('%.4g', v);
 elseif a >= 100, s = sprintf('%.1f', v);
 elseif a >= 1, s = sprintf('%.4f', v);
 else, s = sprintf('%.4g', v);
+end
+end
+
+function s = fmtFull(v)
+% Full typed-out number: never an exponent / axis multiplier (e.g. 12345.678, not 1.2346e4).
+if ~isfinite(v), s = 'NaN'; return; end
+s = sprintf('%.10g', v);
+if any(s == 'e')
+    s = sprintf('%.10f', v);
+    s = regexprep(s, '(\.\d*?)0+$', '$1');
+    s = regexprep(s, '\.$', '');
 end
 end
 
