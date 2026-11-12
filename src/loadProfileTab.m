@@ -354,14 +354,16 @@ end
 
 % =========================================================================
 function prof = buildProfile(d)
-% The cycler logs the NEW current on the first sample of a step. A point is
-% inserted just before each step carrying the OLD current, so that linear
-% interpolation (From Workspace) reproduces the step exactly.
+% Every logged current holds until the next sample (zero-order hold), exactly
+% like the cycler's own Ah counter and the Modeling tab's coulomb count. A
+% point is inserted just before EVERY change carrying the OLD current, so that
+% linear interpolation (From Workspace, Interpolate = on) reproduces that
+% exactly. (Interpolating straight through the tapering current of a CV
+% charge instead adds 0.14 % SOC per charge, which shows as a drifting voltage.)
 [t, iu] = unique(d.t, 'last');
 I = d.I(iu);
 t = t - t(1);
-thr = max(0.01, 0.02*max(abs(I)));
-k = find(abs(diff(I)) > thr) + 1;
+k = find(diff(I) ~= 0) + 1;
 dtPos = diff(t);
 epsT = min(1e-3, 0.1*min(dtPos(dtPos > 0)));
 if isempty(epsT) || ~isfinite(epsT), epsT = 1e-3; end

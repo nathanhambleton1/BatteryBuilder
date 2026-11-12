@@ -13,9 +13,12 @@ function api = modelingTab(tab, fig, onDataChanged)
 %     3. "Save to workspace"       - writes every filled box as a batt_*
 %        variable. Hover over a box to see its variable and where it goes in
 %        the block. "How?" opens the calculation behind a green box.
-%     4. "Digital twin (Simulink)" - fits the tables to the whole test
-%        (fitDigitalTwin), runs BatteryTwin.slx and compares (runDigitalTwin,
-%        explainTwin).
+%   Extract runs in two steps: extractCellParameters measures each value
+%   where the test shows it, then fitTableBased adjusts the SOC x T tables,
+%   the time constants and the thermal values so that the Table-Based block's
+%   own equations reproduce the WHOLE test (start voltage, every discharge
+%   down to the cut-off, the recovery in the rests). "Fit vs data" shows how
+%   close that is (showTableFit).
 
 rows = blockParameterList();
 nRows = numel(rows);
@@ -23,7 +26,7 @@ d = [];
 R = [];
 vals = struct(); src = struct();          % src: '' | 'calc' | 'user'
 for k = 1:nRows, vals.(rows(k).key) = []; src.(rows(k).key) = ''; end
-vals.SOC_vec = [0 0.02 0.05 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 0.95 1];
+vals.SOC_vec = [0 0.005 0.01 0.02 0.03 0.04 0.05 0.075 0.1:0.05:0.9 0.925 0.95 0.97 0.98 0.99 1];   % dense at the knee and the top
 src.SOC_vec = 'user';
 
 C_GREEN = [0.10 0.50 0.20]; C_ORANGE = [0.80 0.40 0.00];
@@ -32,7 +35,7 @@ C_GREY = [0.45 0.45 0.45];  C_BLUE = [0.10 0.35 0.75];
 % ---------------- layout -------------------------------------------------------
 g = uigridlayout(tab,[2 2],'RowHeight',{40,'1x'},'ColumnWidth',{'1x',400}, ...
     'Padding',[6 6 6 6],'RowSpacing',6);
-gTop = uigridlayout(g,[1 5],'ColumnWidth',{230,190,250,60,'1x'},'Padding',[0 0 0 0]);
+gTop = uigridlayout(g,[1 4],'ColumnWidth',{230,190,110,'1x'},'Padding',[0 0 0 0]);
 gTop.Layout.Row = 1; gTop.Layout.Column = [1 2];
 btnExtract = uibutton(gTop,'Text','1.  Extract data from test','FontSize',14,'FontWeight','bold', ...
     'BackgroundColor',[0.20 0.45 0.80],'FontColor','white','Enable','off', ...
@@ -42,16 +45,11 @@ btnSave = uibutton(gTop,'Text','2.  Save to workspace','FontSize',14,'FontWeight
     'BackgroundColor',[0.15 0.55 0.30],'FontColor','white', ...
     'ButtonPushedFcn',@(~,~) onSave(), ...
     'Tooltip','Write every filled box to the MATLAB base workspace as batt_* variables.');
-btnTwin = uibutton(gTop,'Text','3.  Digital twin (Simulink)','FontSize',14,'FontWeight','bold', ...
-    'BackgroundColor',[0.45 0.25 0.65],'FontColor','white','Enable','off', ...
-    'ButtonPushedFcn',@(~,~) onTwin(), ...
-    'Tooltip',sprintf(['Fit every table to the WHOLE test, run BatteryTwin.slx in Simulink and compare ' ...
-    'with the measurement (about 1 minute).\nThe twin uses Battery Equivalent Circuit (resistances over SOC x ' ...
-    'current); the boxes here run alongside it in Battery (Table-Based).']));
-btnTwinHow = uibutton(gTop,'Text','How?','Enable','off', ...
-    'ButtonPushedFcn',@(~,~) explainTwin(twinRes), ...
-    'Tooltip','How the twin is made, where the code is, and the graphs that check it');
-twinRes = [];
+btnFit = uibutton(gTop,'Text','Fit vs data','FontSize',13,'Enable','off', ...
+    'ButtonPushedFcn',@(~,~) showFitNow(), ...
+    'Tooltip',sprintf(['The saved values run through the Table-Based block''s own equations (a MATLAB copy of\n' ...
+    'what Simulink computes) next to the measured voltage and temperature, with the start / end /\n' ...
+    'lowest / highest point of every charge, discharge and rest.']));
 lblStatus = uilabel(gTop,'Text','Open a CSV file, then press Extract.','FontColor',[0.3 0.3 0.35], ...
     'WordWrap','on');
 
@@ -74,7 +72,7 @@ tipRC = sprintf(['Battery (Table-Based) block > Main > Charge dynamics\n' ...
     '1 = "One time-constant dynamics", 2 = "Two ...", 3 = "Three ..."\n' ...
     'Saved as batt_nRC. Changing it needs a new Extract.']);
 l.Tooltip = tipRC;
-ddRC = uidropdown(gl,'Items',{'1','2','3'},'Value','2','Tooltip',tipRC, ...
+ddRC = uidropdown(gl,'Items',{'1','2','3'},'Value','3','Tooltip',tipRC, ...
     'ValueChangedFcn',@(~,~) refreshRows());
 ddRC.Layout.Row = r; ddRC.Layout.Column = 2;
 r = r+1;
@@ -121,7 +119,7 @@ refreshRows();
 api.setData = @setData;
 api.extract = @onExtract;
 api.save = @onSave;
-api.twin = @onTwin;
+api.showFit = @showFitNow;
 api.setValue = @setValue;
 api.setRC = @(n) setRC(n);
 api.explain = @(key) onHow(find(strcmp({rows.key}, key), 1));
@@ -142,7 +140,7 @@ api.getState = @getState;
             if strcmp(src.(rows(k).key), 'calc'), vals.(rows(k).key) = []; src.(rows(k).key) = ''; end
         end
         btnExtract.Enable = 'on';
-        btnTwin.Enable = 'off'; btnTwinHow.Enable = 'off'; twinRes = [];
+        btnFit.Enable = 'off';
         lblStatus.Text = sprintf('%s loaded. Press "Extract data from test".', d.name);
         refreshRows();
         drawOverview();
@@ -168,6 +166,15 @@ api.getState = @getState;
                 'Extraction failed');
             return
         end
+        % step 2: the tables fitted to the whole test (what the Simulink model needs)
+        fitMsg = '';
+        try
+            F = fitTableBased(R, str2double(ddRC.Value), sv, @(m) set(dlg,'Message',m));
+            R = applyFit(R, F);
+        catch ME
+            fitMsg = sprintf([' The whole-test fit failed (%s), so the boxes hold the step-by-step ' ...
+                'values only.'], ME.message);
+        end
         delete(dlg);
         for k = 1:nRows
             key = rows(k).key;
@@ -179,33 +186,23 @@ api.getState = @getState;
             end
         end
         d = R.d;
-        btnTwin.Enable = 'on';
+        btnFit.Enable = onOff(isfield(R, 'fit'));
         refreshRows();
         drawOverview();
         nCalc = sum(cellfun(@(k) strcmp(src.(k),'calc'), {rows.key}));
+        if isfield(R, 'fit')
+            fitMsg = sprintf([' Whole-test fit: the Table-Based block reproduces the test within %.0f mV rms ' ...
+                '(start %+.0f mV). "Fit vs data" shows it.'], R.fit.fit.rmsSim_mV, ...
+                1000*(R.fit.fit.sim.V(1) - R.fit.fit.V(1)));
+        end
         lblStatus.Text = sprintf(['%d boxes calculated from %s. Fill in any empty REQUIRED boxes ' ...
-            'from the datasheet, then Save.'], nCalc, d.name);
+            'from the datasheet, then Save.%s'], nCalc, d.name, fitMsg);
         if ~isempty(onDataChanged), onDataChanged(d, 'soc'); end
         notifyCapacity();
     end
 
-    function onTwin()
-        if isempty(R), return; end
-        dlg = uiprogressdlg(fig,'Title','Digital twin','Indeterminate','on','Message','Starting...');
-        try
-            twinRes = runDigitalTwin(R, 'progress', @(m) set(dlg,'Message',m));
-        catch ME
-            delete(dlg);
-            uialert(fig, sprintf('%s\n\n(%s, line %d)', ME.message, ME.stack(1).name, ME.stack(1).line), ...
-                'Digital twin failed');
-            return
-        end
-        delete(dlg);
-        btnTwinHow.Enable = 'on';
-        lblStatus.Text = sprintf(['Twin: %.1f mV rms vs the test (these boxes in Table-Based: %.0f mV), ' ...
-            'temperature %.1f K rms. Plot tab: "Load twin from workspace" to overlay it.'], ...
-            twinRes.rms_mV, twinRes.rmsTB_mV, twinRes.rmsT_K);
-        explainTwin(twinRes);
+    function h = showFitNow()
+        h = showTableFit(R);
     end
 
     function notifyCapacity()
@@ -297,6 +294,12 @@ api.getState = @getState;
         h = [];
         if isempty(R) || isempty(k), return; end
         key = rows(k).key;
+        if isfield(R, 'fit') && isfield(R.fit.keys, key)
+            % the box holds the whole-test fit: show that, then the step-by-step
+            % first estimate it started from
+            h = showTableFit(R, key);
+            if any(strcmp(key, {'T_vec','thermal_mass','hA'})), return; end
+        end
         if isempty(R.byT) || strcmp(key, 'T_vec')
             h = explainParameter(key, R, rows(k)); return
         end
@@ -304,19 +307,20 @@ api.getState = @getState;
         if ~rows(k).isVec || strcmp(key, 'SOC_vec')
             h = explainParameter(key, Rp, rows(k)); return      % AH, thermal, ... : test temperature
         end
+        Tph = R.T_C; if isfield(R,'physT_C'), Tph = R.physT_C; end   % first-estimate temperatures
         % SOC tables: one window per temperature (each from its own data)
         for j = numel(R.byT):-1:1
             Rj = R.byT{j};
             if ~Rj.found.(key), continue; end
             rj = rows(k);
-            rj.label = sprintf('%s  at %.3g °C', rj.label, R.T_C(j));
+            rj.label = sprintf('%s  at %.3g °C', rj.label, Tph(j));
             h = explainParameter(key, Rj, rj);
         end
         if isfield(R,'copiedT') && isfield(R.copiedT, key) && any(R.copiedT.(key))
             j = find(R.copiedT.(key), 1);
             uialert(fig, sprintf(['At %.3g °C this table could not be measured from this file, so the ' ...
-                '%.3g °C values are used there as well:\n\n%s'], R.T_C(j), R.T_C(3-j), R.note.(key)), ...
-                sprintf('%s at %.3g °C', rows(k).label, R.T_C(j)), 'Icon','info');
+                '%.3g °C values are used there as well:\n\n%s'], Tph(j), Tph(3-j), R.note.(key)), ...
+                sprintf('%s at %.3g °C', rows(k).label, Tph(j)), 'Icon','info');
         end
     end
 
@@ -423,12 +427,14 @@ api.getState = @getState;
         % one line per temperature column: solid = lowest T, dashed = next
         sty = {'-','--',':'};
         Tl = R.T_C; nTc = numel(Tl);
+        fitted = isfield(R, 'fit');          % V0 and the RC pairs: one curve (same at every T)
         tSuf = @(j) '';
         if nTc > 1, tSuf = @(j) sprintf(' %.3g°C', Tl(j)); end
         if R.found.V0_vec
             v = R.value.V0_vec; if isvector(v), v = v(:); end
             for j = 1:size(v,2)
-                if nTc > 1 && isfield(R,'copiedT') && R.copiedT.V0_vec(j), continue; end
+                if fitted && j > 1, break; end
+                if ~fitted && nTc > 1 && isfield(R,'copiedT') && R.copiedT.V0_vec(j), continue; end
                 hs(end+1) = plot(axTab, sg, v(:,j), [sty{min(j,3)} 'o'], 'Color',[0 0.45 0.74], ...
                     'LineWidth',1.5); lg{end+1} = ['OCV V0' tSuf(j)]; %#ok<AGROW>
             end
@@ -443,9 +449,11 @@ api.getState = @getState;
             if R.found.(key)
                 y = 1000*R.value.(key); if isvector(y), y = y(:); end
                 for j = 1:size(y,2)
-                    hs(end+1) = plot(axTab, sg, y(:,j), [sty{min(j,3)} 's'], 'Color',cols(q+1,:), ...
+                    if fitted && q > 0 && j > 1, break; end
+                    hs(end+1) = plot(axTab, sg, y(:,j), [sty{mod(j-1,3)+1} 's'], 'Color',cols(q+1,:), ...
                         'LineWidth',1.2, 'MarkerSize',4); %#ok<AGROW>
-                    lg{end+1} = [strrep(key,'_vec','') tSuf(j)]; %#ok<AGROW>
+                    if fitted && q > 0, lg{end+1} = strrep(key,'_vec',''); %#ok<AGROW>
+                    else, lg{end+1} = [strrep(key,'_vec','') tSuf(j)]; end %#ok<AGROW>
                 end
                 allR = [allR; y(:)]; %#ok<AGROW>
             end
@@ -457,7 +465,7 @@ api.getState = @getState;
         axTab.XLim = [min(sg) max(sg)];
         ylabel(axTab,'Resistance (mOhm)'); xlabel(axTab,'SOC (-)');
         if ~isempty(hs), legend(axTab, hs, lg, 'Location','best'); end
-        title(axTab,'Extracted tables vs SOC (click "How?" for details)');
+        title(axTab,'Tables vs SOC (whole-test fit; "Fit vs data" / "How?")');
     end
 
     function header(txt, row)
@@ -495,4 +503,27 @@ function styleAxes(a)
 a.FontName = 'Segoe UI'; a.FontSize = 11; a.Box = 'on';
 grid(a,'on'); a.GridAlpha = 0.12;
 a.Title.FontWeight = 'bold';
+end
+
+function R = applyFit(R, F)
+% the boxes get the whole-test fit; the step-by-step values stay in R.phys
+R.phys = R.value; R.fit = F;
+R.physT_C = R.T_C; R.T_C = F.T_vec - 273.15;      % the boxes' temperature columns
+keys = {'T_vec','V0_vec','R0_vec','thermal_mass','hA','SOC0'};
+src  = {'T_vec','V0','R0','thermal_mass','hA','SOC0'};
+for q = 1:F.nRC
+    keys = [keys, {sprintf('R%d_vec',q), sprintf('tau%d_vec',q)}]; %#ok<AGROW>
+    src  = [src,  {sprintf('R%d',q), sprintf('tau%d',q)}]; %#ok<AGROW>
+end
+note = sprintf(['fitted to the whole test: the Table-Based block''s own equations reproduce the measured ' ...
+    'voltage within %.0f mV rms (temperature %.1f K rms). The step-by-step first estimate is in the How? window.'], ...
+    F.fit.rmsSim_mV, F.fit.rmsT_K);
+R.fit.keys = struct();
+for k = 1:numel(keys)
+    R.value.(keys{k}) = F.(src{k});
+    R.found.(keys{k}) = true;
+    R.fit.keys.(keys{k}) = true;
+    if strcmp(keys{k}, 'SOC0'), continue; end
+    R.note.(keys{k}) = note;
+end
 end
