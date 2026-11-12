@@ -8,9 +8,9 @@ A MATLAB app for lithium-ion cell test data. It has three tabs:
 | **Load profile** | Shows the test's current profile and saves it to the workspace for a Simulink *Controlled Current Source*. |
 | **Modeling** | One button pulls every parameter it can out of the test and fills in the boxes for the Simscape **Battery (Table-Based)** block. Empty boxes tell you what you still need from the datasheet. A second button saves everything to the workspace. |
 
-Building and running the Simulink model is up to you. This app only produces the workspace variables the model needs.
+**Digital twin** (Modeling tab, button **3**, or `runDigitalTwin('cell.csv')`): fits every table to the whole test, runs the Simulink model [`BatteryTwin.slx`](BatteryTwin.slx) and compares it with the measurement curve by curve. On the sample 0 °C file: **8.9 mV rms** over 72 h, every discharge ends at the cut-off within 9 mV, temperature 1.6 K rms. See §14.
 
-**Presentation + video:** [`Modeling_Tab_Presentation.pptx`](Modeling_Tab_Presentation.pptx) (57 slides, Century Gothic, MATLAB charts as movable pictures, speaker notes) and [`Modeling_Tab_Presentation.mp4`](Modeling_Tab_Presentation.mp4) (the same deck presented with a voice-over, about an hour) explain how every Modeling-tab value is calculated from the charge and discharge cycles, why each method was chosen, and how to set up the thermal mass and h·A for the Simulink convection block. See §13.
+**Presentation + video:** [`Modeling_Tab_Presentation.pptx`](Modeling_Tab_Presentation.pptx) (71 slides, Century Gothic, MATLAB charts as movable pictures, speaker notes) and [`Modeling_Tab_Presentation.mp4`](Modeling_Tab_Presentation.mp4) (the same deck presented with a voice-over, about an hour) explain how every Modeling-tab value is calculated from the charge and discharge cycles, why each method was chosen, and how to set up the thermal mass and h·A for the Simulink convection block. See §13.
 
 ---
 
@@ -35,7 +35,9 @@ Requirements: MATLAB R2021a or newer. No toolboxes are needed for the app itself
 ## 2. Files
 
 ```
-BatteryDataBuilder.m              <- the ONLY file you run. Builds the window and the three tabs.
+BatteryDataBuilder.m              <- the app. Builds the window and the three tabs.
+runDigitalTwin.m                  <- the digital twin from the command line (one file, a list, a folder) - §14
+BatteryTwin.slx                   the Simulink model the twin runs in (twin + Modeling-tab Table-Based, side by side)
 src/
   plotTab.m                   Tab 1 - interactive plot
   loadProfileTab.m            Tab 2 - current profile -> workspace
@@ -44,6 +46,14 @@ src/
   extractCellParameters.m     all the calculations (capacity, SOC, OCV, R0, RC pairs, thermal)
   explainParameter.m          the "How?" pop-up windows
   batterySources.m            the published sources behind each method (links shown in the "How?" windows)
+  fitDigitalTwin.m            twin tables fitted to the whole test (one least-squares solve)   - §14
+  simulateTwinFast.m          the twin's equations in plain MATLAB (used by the fit, cross-checks Simulink)
+  refineTimeGrid.m            splits long sample intervals (<= 0.2 % SOC) for the fit and the MATLAB copy
+  buildTwinModel.m            builds BatteryTwin.slx
+  twinWorkspace.m             puts every variable BatteryTwin.slx needs in the workspace
+  twinReport.m                key-point table + the comparison graphs (graphs/<file>_twin_*.png)
+  explainTwin.m               the twin's "How?" window
+graphs/                       PNGs: C-rate graphs (Load profile tab) and the twin comparisons
   loadBatteryCsv.m            reads a cycler CSV
 Modeling_Tab_Presentation.pptx   the presentation (§13)
 Modeling_Tab_Presentation.mp4    the presentation, narrated (§13)
@@ -671,9 +681,110 @@ Also useful, but not checked online: G. Plett, *Battery Management Systems, Vol.
 
 ## 13. The presentation and the video
 
-* [`Modeling_Tab_Presentation.pptx`](Modeling_Tab_Presentation.pptx): 57 slides, all text in Century Gothic. Every chart is a MATLAB figure inserted as a picture you can copy, move or resize. The arrows and labels on the charts are separate PowerPoint shapes (grouped per callout) that fade in on click, so they can be edited too. Slides use fade / push transitions. The speaker notes hold the full talk.
+* [`Modeling_Tab_Presentation.pptx`](Modeling_Tab_Presentation.pptx): 71 slides (slides 63–70 = the digital twin, §14; the video below covers the first 63), all text in Century Gothic. Every chart is a MATLAB figure inserted as a picture you can copy, move or resize. The arrows and labels on the charts are separate PowerPoint shapes (grouped per callout) that fade in on click, so they can be edited too. Slides use fade / push transitions. The speaker notes hold the full talk.
 * [`Modeling_Tab_Presentation.mp4`](Modeling_Tab_Presentation.mp4): the same deck presented, about an hour, with a natural-sounding voice-over (Kokoro, an open-source neural text-to-speech model run locally). The callouts appear as the talk reaches them.
 
 What it covers, in the order the extraction runs: the model and what a test can show; the CSV and the chamber schedule (charges at 25 °C, discharges at T) with the ±3 K window; phases, FULL and EMPTY (knee check); AH and the rate table; SOC, SOC0 and its voltage check; R0 at the current steps; the RC pairs from the rests (branch currents from the real history, how the fit is solved); the multi-rate fit (settle wait, the 25 °C OCV problem, the straight line per SOC, charge side and hysteresis, the two ends); how the tables are built (M / I / E / S); and the thermal side: the heat source, the m·cp / h·A fit, two checks you can do by hand (the first minute of the fast discharge gives m·cp; every chamber step gives τ_th = m·cp / h·A), the Simulink wiring of the battery thermal port and the Convective Heat Transfer block, and what to use when the thermal boxes are empty.
 
 Every chart and number comes from a run of `extractCellParameters` on synthetic 10 °C and 25 °C files that follow the real profile and chamber schedule (~70 h, 0.1 / 0.2 / 0.5 / 1 / 5C). Because the synthetic cell's values are known, the deck also shows how close each result is.
+
+---
+
+## 14. Digital twin (Modeling tab, button 3)
+
+**Goal:** a Simulink model that, fed the test's current, gives the same curves as the cell: the same starting voltage, the same dip at every step, the same minimum at cut-off, the same top of charge, the same recovery in the rests, and the same temperature. It must work for every file with this cycle, whatever the last (max) C-rate is.
+
+```matlab
+res = runDigitalTwin('cell_0C.csv');          % one file: graphs in graphs/, key-point table in res.table
+res = runDigitalTwin('C:\data\rate tests');   % every CSV in a folder, one summary line per file
+```
+or in the app: **Open CSV → 1. Extract → 3. Digital twin (Simulink)**. The **How?** next to that button explains everything below inside the app. It shows the actual code (read live from the files, with line numbers) and the graphs.
+
+### 14.1 In one sentence
+Drive a battery model with the **measured current**, choose every number in its tables so that its voltage is as close as possible to the **measured voltage over the whole test** (least squares), then run that model in Simulink and check it lands on the curves.
+
+### 14.2 Why the Modeling tab values alone are not enough
+The boxes on this tab go into **Battery (Table-Based)**, which has one resistance per SOC (and temperature). This cell's resistance **falls when the current rises**: at −2 °C it shows about 115 mΩ 12 s into the 0.1C discharge, but about 52 mΩ 12 s into the 15 A discharge. One number cannot do both. In the same Simulink run, the Modeling-tab values in Table-Based give **241 mV rms** and dip to ~0.9 V at 15 A (orange in every graph).
+
+The Simscape Battery block **Battery Equivalent Circuit** has the same tables (OCV, R0, up to 3 RC pairs, capacity) **plus a current axis on every resistance**. Each charge/discharge current of the test becomes one column. A file whose last discharge is 3C instead of 5.8C simply gets a different last column. That is the only change of model.
+
+### 14.3 The model (I + = charge)
+```
+V          = V0(SOC) + I·R0(SOC,I) + U1 + U2 + U3            terminal voltage
+dUk/dt     = (I·Rk(SOC,I) − Uk) / tauk                       3 RC pairs
+SOC        = SOC0 + ∫ I dt / (3600·AH)                       coulomb counting (AH, SOC0 from step 1 of the tab)
+m·cp·dT/dt = I·(V − V0) − hA·(T − T_chamber)                 heat = the voltage the cell loses × I
+```
+Breakpoints: SOC dense at the knee and the top of charge (31 points); current = 0 A plus the median current of every charge / discharge. Sample file: −15, −2.65, −1.32, −0.529, −0.265, 0, +0.883 A.
+
+### 14.4 How the numbers are found (`src/fitDigitalTwin.m`)
+1. **SOC** is coulomb counting from SOC0, exactly as the block does it.
+2. **Everything is a sum.** For fixed time constants the voltage is (table value) × (a known signal):
+   * V0 multiplies the SOC interpolation weights;
+   * R0 multiplies weights × I;
+   * Rk multiplies weights × I, smoothed with tauk.
+
+   So **all ~900 table values come from one linear least-squares solve** (`solveTables`). It has three rules: every R ≥ a small floor (the block needs R > 0), V0 rises with SOC, and the tables are smooth along SOC and current.
+3. **Weights.** Every sample counts once. The first, last, lowest and highest point of every charge, discharge and rest count 10×. The opening rest counts 100× because it is the only point with no history. This makes the twin start, turn and end where the cell does.
+4. **Three time constants** are the only numbers searched (`fminsearch` around the solve). Sample file:
+   * tau1 = 0.24 s: the instant part of a step;
+   * tau2 = 12 min: the bend after it;
+   * tau3 = 11.8 h: the slow creep of the voltage after a discharge to cut-off.
+5. **Thermal:** the twin's own heat I·(V − V0) goes through one thermal mass, with the chamber as the ambient. m·cp and h·A are fitted to the measured cell temperature: 31 J/K and 0.052 W/K, close to the Modeling tab's 29 J/K and 0.059 W/K.
+6. **Sub-steps.** Where the cycler logs only every 30–60 s, the SOC can move 2 % between samples. The fit and the MATLAB copy split those intervals into pieces of ≤ 0.2 % SOC (`refineTimeGrid`), so they integrate the same way Simulink's solver does. Without this, Simulink and the fit differed by up to 19 mV; with it they agree within **0.7 mV rms**.
+
+Choices that were tried and dropped (each made the twin worse or unexplainable):
+
+| Tried | What happened |
+|---|---|
+| Table-Based block, every SOC × T table fitted to the whole test | 5 mV on paper, but R up to 0.9 Ω and a non-monotonic OCV. It went wrong as soon as the twin computed its own temperature. |
+| Arrhenius temperature factor on the resistances | The fit drove it to 91 kJ/mol: R changed 1000× between 0 and 60 °C, and the 15 A discharge collapsed with any temperature error. |
+| The block's own heat (I²R0 + ΣUk²/Rk) | Spikes whenever a fitted R changes while its capacitor is charged; temperature 8–50 K off. Replaced by I·(V − V0), the same heat the Modeling tab's thermal fit uses (§7.7). |
+| Slow pair capped at 1–5 h | The charge tops come out better, but the long recovery after a discharge (and the end of the test) is 20–54 mV off. Uncapped is better overall. |
+
+### 14.5 The Simulink model (`BatteryTwin.slx`, built by `src/buildTwinModel.m`)
+```
+twin_load ─► Simulink-PS ─► Controlled Current Source ─► Battery Equivalent Circuit (ec_*) ─► V sensor ─► twin_voltage
+                                    I·(V − V0(SOC)) ─► Controlled Heat Flow ─► Thermal Mass (ec_mcp)
+                                                        └► Convective Heat Transfer (ec_hA) ─► Chamber (twin_ambient)
+          └► Simulink-PS ─► Controlled Current Source ─► Battery (Table-Based) (batt_*, the Modeling tab) ─► tb_voltage, tb_temp
+```
+Twin block settings:
+* Current dependence = *Current dependent*, RC pairs = 3, Extrapolation = Nearest.
+* Thermal model = *Temperature independent*: the heat is handled outside the block, as drawn above.
+
+`twin_load` is the measured current with *Interpolate = off* (zero-order hold, exactly like the cycler). Solver `daessc`, max step 30 s: a 72 h test runs in about 25 s. The logged `twin_voltage`, `twin_current`, `twin_soc` and `twin_temp` are what the Plot tab's **Load twin from workspace** reads.
+
+### 14.6 Validation on the sample file (0 °C discharges, 25 °C charges, 0.1 / 0.2 / 0.5 / 1 / 5.8C)
+Whole test: **8.9 mV rms**; temperature **1.6 K rms** (peak 57.3 vs 59.3 °C at 15 A). Twin − measured at the key points of every phase (mV):
+
+| Phase | start | end | min | max | rms | Table-Based rms |
+|---|---|---|---|---|---|---|
+| Opening rest | −2.7 | −3.0 | −2.7 | −3.3 | 3.1 | 73 |
+| Charge 1 (0.34C) | −5.3 | +16.0 | −5.3 | +21.9 | 21.4 | 19 |
+| Discharge 0.1C | +0.3 | −0.1 | −0.1 | +0.3 | 1.5 | 74 |
+| Discharge 0.2C | 0.0 | −0.4 | −0.4 | 0.0 | 2.4 | 53 |
+| Discharge 0.51C | +0.2 | −1.0 | −1.0 | +0.2 | 2.9 | 25 |
+| Discharge 1C | −0.4 | −1.7 | −1.7 | −0.4 | 2.7 | 134 |
+| Discharge 5.8C (15 A) | −3.3 | −9.0 | −9.0 | −3.3 | 2.6 | 1080 |
+| Charges 2–5 | | | | −7.8 … +3.9 | 5–10 | 12–14 |
+| Rests after a discharge | | +7.5, +10.1, −6.0, −6.3, +2.7 | | | 5–19 | 21–53 |
+
+The last value in the "Rests after a discharge" row (+2.7 mV) is also the end of the test. The full table, one row per phase, is `res.table` and section 7 of the How? window. The graphs (`graphs/<file>_twin_*.png`) and what each one checks:
+
+| Graph | Checks |
+|---|---|
+| `_twin_overview` | the whole test: current, voltage on top of the measurement, the error trace in mV, cell temperature |
+| `_twin_discharges` | every discharge on its own: the start, the curve, the knee and the cut-off minimum, the first hour of recovery |
+| `_twin_steps` | the first 2 min of every discharge on a log time axis: the instant drop is R0, the bend after it the RC pairs; also the 15 A dip to 3.39 V and the recovery as the cell heats |
+| `_twin_charges` | the climb to the CV voltage, the top of charge, and the settle in the rest |
+
+![whole test](graphs/sample_0C_twin_overview.png)
+![discharges](graphs/sample_0C_twin_discharges.png)
+![first two minutes](graphs/sample_0C_twin_steps.png)
+
+### 14.7 What is left
+* **The first charge** is the worst phase (+22 mV at the top). The slow RC pair (hours) remembers the discharge before every later charge, but the first charge has no discharge before it. A linear RC pair cannot forget faster once charging starts; the cell does.
+* **The recovery after a discharge to cut-off** is one exponential in the twin. In the cell it also speeds up as the cell warms back to 25 °C. Both ends of those rests are within 10 mV, but the rms over them reaches 19 mV.
+* **No temperature axis on the resistances.** Each rate's column already contains the heating that rate causes in this test. To predict a different ambient, combine files from several test temperatures (§11).
+* **Validated on one file so far.** `runDigitalTwin(folder)` runs the same steps on every file of a folder and prints one summary line per file.

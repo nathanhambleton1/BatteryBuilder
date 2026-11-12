@@ -13,6 +13,16 @@ function fig = BatteryDataBuilder(file)
 %     src/blockParameterList.m   every block parameter shown on the Modeling tab
 %     src/explainParameter.m     the "How?" pop-up windows
 %
+%   Digital twin (Modeling tab, button 3 - or runDigitalTwin('cell.csv') on its own):
+%     runDigitalTwin.m           file -> extraction -> fitted twin -> Simulink -> comparison
+%     BatteryTwin.slx            the Simulink model (twin + Modeling-tab Table-Based side by side)
+%     src/fitDigitalTwin.m       tables fitted to the whole test (one least-squares solve)
+%     src/simulateTwinFast.m     the same equations in plain MATLAB (fit + cross-check)
+%     src/buildTwinModel.m       builds BatteryTwin.slx
+%     src/twinWorkspace.m        puts the model's variables in the workspace
+%     src/twinReport.m           key-point table + comparison graphs (graphs/<file>_twin_*.png)
+%     src/explainTwin.m          the twin's "How?" window
+%
 
 here = fileparts(mfilename('fullpath'));
 addpath(fullfile(here, 'src'));

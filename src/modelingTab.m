@@ -13,6 +13,9 @@ function api = modelingTab(tab, fig, onDataChanged)
 %     3. "Save to workspace"       - writes every filled box as a batt_*
 %        variable. Hover over a box to see its variable and where it goes in
 %        the block. "How?" opens the calculation behind a green box.
+%     4. "Digital twin (Simulink)" - fits the tables to the whole test
+%        (fitDigitalTwin), runs BatteryTwin.slx and compares (runDigitalTwin,
+%        explainTwin).
 
 rows = blockParameterList();
 nRows = numel(rows);
@@ -29,7 +32,7 @@ C_GREY = [0.45 0.45 0.45];  C_BLUE = [0.10 0.35 0.75];
 % ---------------- layout -------------------------------------------------------
 g = uigridlayout(tab,[2 2],'RowHeight',{40,'1x'},'ColumnWidth',{'1x',400}, ...
     'Padding',[6 6 6 6],'RowSpacing',6);
-gTop = uigridlayout(g,[1 3],'ColumnWidth',{230,190,'1x'},'Padding',[0 0 0 0]);
+gTop = uigridlayout(g,[1 5],'ColumnWidth',{230,190,250,60,'1x'},'Padding',[0 0 0 0]);
 gTop.Layout.Row = 1; gTop.Layout.Column = [1 2];
 btnExtract = uibutton(gTop,'Text','1.  Extract data from test','FontSize',14,'FontWeight','bold', ...
     'BackgroundColor',[0.20 0.45 0.80],'FontColor','white','Enable','off', ...
@@ -39,6 +42,16 @@ btnSave = uibutton(gTop,'Text','2.  Save to workspace','FontSize',14,'FontWeight
     'BackgroundColor',[0.15 0.55 0.30],'FontColor','white', ...
     'ButtonPushedFcn',@(~,~) onSave(), ...
     'Tooltip','Write every filled box to the MATLAB base workspace as batt_* variables.');
+btnTwin = uibutton(gTop,'Text','3.  Digital twin (Simulink)','FontSize',14,'FontWeight','bold', ...
+    'BackgroundColor',[0.45 0.25 0.65],'FontColor','white','Enable','off', ...
+    'ButtonPushedFcn',@(~,~) onTwin(), ...
+    'Tooltip',sprintf(['Fit every table to the WHOLE test, run BatteryTwin.slx in Simulink and compare ' ...
+    'with the measurement (about 1 minute).\nThe twin uses Battery Equivalent Circuit (resistances over SOC x ' ...
+    'current); the boxes here run alongside it in Battery (Table-Based).']));
+btnTwinHow = uibutton(gTop,'Text','How?','Enable','off', ...
+    'ButtonPushedFcn',@(~,~) explainTwin(twinRes), ...
+    'Tooltip','How the twin is made, where the code is, and the graphs that check it');
+twinRes = [];
 lblStatus = uilabel(gTop,'Text','Open a CSV file, then press Extract.','FontColor',[0.3 0.3 0.35], ...
     'WordWrap','on');
 
@@ -108,6 +121,7 @@ refreshRows();
 api.setData = @setData;
 api.extract = @onExtract;
 api.save = @onSave;
+api.twin = @onTwin;
 api.setValue = @setValue;
 api.setRC = @(n) setRC(n);
 api.explain = @(key) onHow(find(strcmp({rows.key}, key), 1));
@@ -128,6 +142,7 @@ api.getState = @getState;
             if strcmp(src.(rows(k).key), 'calc'), vals.(rows(k).key) = []; src.(rows(k).key) = ''; end
         end
         btnExtract.Enable = 'on';
+        btnTwin.Enable = 'off'; btnTwinHow.Enable = 'off'; twinRes = [];
         lblStatus.Text = sprintf('%s loaded. Press "Extract data from test".', d.name);
         refreshRows();
         drawOverview();
@@ -164,6 +179,7 @@ api.getState = @getState;
             end
         end
         d = R.d;
+        btnTwin.Enable = 'on';
         refreshRows();
         drawOverview();
         nCalc = sum(cellfun(@(k) strcmp(src.(k),'calc'), {rows.key}));
@@ -171,6 +187,25 @@ api.getState = @getState;
             'from the datasheet, then Save.'], nCalc, d.name);
         if ~isempty(onDataChanged), onDataChanged(d, 'soc'); end
         notifyCapacity();
+    end
+
+    function onTwin()
+        if isempty(R), return; end
+        dlg = uiprogressdlg(fig,'Title','Digital twin','Indeterminate','on','Message','Starting...');
+        try
+            twinRes = runDigitalTwin(R, 'progress', @(m) set(dlg,'Message',m));
+        catch ME
+            delete(dlg);
+            uialert(fig, sprintf('%s\n\n(%s, line %d)', ME.message, ME.stack(1).name, ME.stack(1).line), ...
+                'Digital twin failed');
+            return
+        end
+        delete(dlg);
+        btnTwinHow.Enable = 'on';
+        lblStatus.Text = sprintf(['Twin: %.1f mV rms vs the test (these boxes in Table-Based: %.0f mV), ' ...
+            'temperature %.1f K rms. Plot tab: "Load twin from workspace" to overlay it.'], ...
+            twinRes.rms_mV, twinRes.rmsTB_mV, twinRes.rmsT_K);
+        explainTwin(twinRes);
     end
 
     function notifyCapacity()
