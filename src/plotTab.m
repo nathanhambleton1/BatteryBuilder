@@ -550,6 +550,24 @@ api.loadTwin   = @loadTwin;
         ylabel(a2, ax.YAxis(1).Label.String, 'Interpreter','none');
         legend(a2, 'Interpreter','none', 'Location','southwest');   % bottom-left
         grid(a2,'on');
+        savePlot(f2);
+    end
+
+    function savePlot(f2)
+        % keep a PNG of the copied plot in <app folder>/plots, named after the
+        % CSV (overwritten by the next copy of the same file)
+        try
+            pdir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'plots');
+            if ~isfolder(pdir), mkdir(pdir); end
+            [~, base] = fileparts(d.name);
+            png = fullfile(pdir, [base '.png']);
+            drawnow;
+            exportgraphics(f2, png, 'Resolution', 200);
+            f2.Name = ['Battery plot - ' base];
+            fprintf('Saved plot: %s\n', png);
+        catch ME
+            uialert(fig, ['Could not save the PNG: ' ME.message], 'Save plot');
+        end
     end
 
 % =========================================================================

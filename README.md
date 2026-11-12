@@ -123,7 +123,7 @@ The top bar of the app shows which case was found (e.g. *"magnitude in file, sig
 | Double-click | Fit all. |
 | Right-click / **Zoom back** | Undo the last zoom or pan. |
 | **Cursor** | A vertical line follows the mouse. Every curve gets a marker where the line crosses it, with its value in a label right next to the crossing. Labels move up and down with the curves, are pushed apart when they would overlap, and flip to the left side near the right edge. If the X column goes back and forth (e.g. Voltage vs SOC), the nearest point on screen is used instead. |
-| **Copy plot to a figure** | A normal MATLAB figure of the current view, for saving or printing (legend bottom-left). |
+| **Copy plot to a figure** | A normal MATLAB figure of the current view, for saving or printing (legend bottom-left). It is also saved straight away as `plots/<csv name>.png` (overwritten by the next copy of the same file). |
 | Keys | `f` = fit all, `Backspace` = zoom back, `Esc` = cancel a drag. |
 
 ### Twin vs measured
